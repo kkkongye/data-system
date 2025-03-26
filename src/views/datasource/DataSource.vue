@@ -100,7 +100,11 @@
                     </span>
                   </template>
                 </el-table-column>
-                <el-table-column prop="feedback" label="反馈意见" min-width="160" align="center" />
+                <el-table-column v-if="!isQualifiedStatus" prop="feedback" label="反馈意见" min-width="160" align="center">
+                  <template #default="scope">
+                    <span>{{ scope.row.feedback }}</span>
+                  </template>
+                </el-table-column>
                 <el-table-column label="操作" width="150" align="center">
                   <template #default="scope">
                     <el-button link type="primary" size="small" @click="handleEdit(scope.row)">编辑</el-button>
@@ -125,10 +129,55 @@
       </div>
     </div>
   </div>
+  
+  <!-- 编辑对象弹窗 -->
+  <el-dialog
+    v-model="editDialogVisible"
+    title="编辑数字对象"
+    width="50%"
+    :close-on-click-modal="false"
+  >
+    <el-form :model="editForm" label-width="100px" ref="editFormRef">
+      <el-form-item label="实体" prop="entity">
+        <el-input v-model="editForm.entity" placeholder="请输入实体"></el-input>
+      </el-form-item>
+      <el-form-item label="定位信息" prop="locationInfo">
+        <el-input v-model="editForm.locationInfo" placeholder="请输入定位信息"></el-input>
+      </el-form-item>
+      <el-form-item label="约束条件" prop="constraint">
+        <el-input v-model="editForm.constraint" placeholder="请输入约束条件"></el-input>
+      </el-form-item>
+      <el-form-item label="传输控制操作" prop="transferControl">
+        <el-input v-model="editForm.transferControl" placeholder="请输入传输控制操作"></el-input>
+      </el-form-item>
+      <!-- <el-form-item label="状态" prop="status">
+        <el-select v-model="editForm.status" placeholder="请选择状态">
+          <el-option label="待检验" value="待检验"></el-option>
+          <el-option label="已合格" value="已合格"></el-option>
+          <el-option label="不合格" value="不合格"></el-option>
+        </el-select>
+      </el-form-item> -->
+      <!-- 仅在状态不是"已合格"时显示反馈意见 -->
+      <el-form-item label="反馈意见" prop="feedback" v-if="editForm.status !== '已合格'">
+        <el-input
+          v-model="editForm.feedback"
+          type="textarea"
+          :rows="3"
+          placeholder="请输入反馈意见"
+        ></el-input>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="cancelEdit">取消</el-button>
+        <el-button type="primary" @click="saveEdit">确定</el-button>
+      </span>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Setting, ArrowDown, Search } from '@element-plus/icons-vue'
@@ -141,6 +190,23 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const totalCount = ref(562)
 const selectedRows = ref([])
+
+// 添加计算属性判断是否为已合格状态
+const isQualifiedStatus = computed(() => currentStatus.value === '已合格')
+
+const editDialogVisible = ref(false)
+const editFormRef = ref(null)
+const editForm = reactive({
+  id: '',
+  entity: '',
+  locationInfo: '',
+  constraint: '',
+  transferControl: '',
+  auditInfo: '',
+  status: '',
+  feedback: ''
+})
+const editingIndex = ref(-1)
 
 // 表格数据
 const tableData = ref([
@@ -202,7 +268,40 @@ const getStatusClass = (status) => {
 
 // 编辑对象
 const handleEdit = (row) => {
-  ElMessage.info(`编辑数字对象: ${row.entity}`)
+  editingIndex.value = tableData.value.findIndex(item => item.id === row.id)
+  
+  // 深拷贝行数据到编辑表单
+  Object.keys(editForm).forEach(key => {
+    editForm[key] = row[key]
+  })
+  
+  editDialogVisible.value = true
+}
+
+// 取消编辑
+const cancelEdit = () => {
+  editDialogVisible.value = false
+  // 重置表单
+  Object.keys(editForm).forEach(key => {
+    editForm[key] = ''
+  })
+  editingIndex.value = -1
+}
+
+// 保存编辑
+const saveEdit = () => {
+  // 如果状态为"已合格"，清空反馈意见
+  if (editForm.status === '已合格') {
+    editForm.feedback = ''
+  }
+  
+  // 更新表格数据
+  if (editingIndex.value > -1) {
+    tableData.value[editingIndex.value] = { ...editForm }
+  }
+  
+  ElMessage.success(`已保存对 ${editForm.entity} 的编辑`)
+  editDialogVisible.value = false
 }
 
 // 删除对象
@@ -256,7 +355,7 @@ const logout = () => {
 }
 
 .title {
-  font-size: 18px;
+  font-size: 25px;
   font-weight: bold;
   color: #1890ff;
 }
@@ -351,6 +450,12 @@ const logout = () => {
   font-size: 12px;
 }
 
+/* 移除按钮点击后的黑色边框 */
+.el-button:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 .status-success {
   background-color: #f6ffed;
   color: #52c41a;
@@ -376,5 +481,12 @@ const logout = () => {
 .total-text {
   font-size: 14px;
   color: #8c8c8c;
+}
+
+/* 对话框样式 */
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 </style> 
