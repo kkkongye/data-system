@@ -2,7 +2,7 @@
   <div class="datasource-container">
     <!-- 头部导航 -->
     <div class="header">
-      <div class="title">数据要素流转系统</div>
+      <div class="title">个人可信数据空间</div>
       <div class="user-info">
         <el-icon class="setting-icon"><Setting /></el-icon>
         <el-dropdown trigger="click">
@@ -28,13 +28,13 @@
           <el-tab-pane label="数字对象列表" name="objectList">
             
             <!-- 状态筛选按钮 -->
-            <div class="status-filter">
+            <!-- <div class="status-filter">
               <el-button 
                 :class="['status-btn', { active: currentStatus === '' }]" 
                 @click="setStatus('')"
               >全部数字对象</el-button>
 
-            </div>
+            </div> -->
             
             <!-- 搜索和操作区 -->
             <div class="action-bar">
@@ -82,24 +82,7 @@
                     <el-link type="primary">{{ scope.row.auditInfo }}</el-link>
                   </template>
                 </el-table-column>
-                <!-- <el-table-column prop="status" label="状态" width="100" align="center">
-                  <template #default="scope">
-                    <span :class="['status-tag', getStatusClass(scope.row.status)]">
-                      {{ scope.row.status }}
-                    </span>
-                  </template>
-                </el-table-column> -->
-                <!-- <el-table-column v-if="!isQualifiedStatus" prop="feedback" label="反馈意见" min-width="160" align="center">
-                  <template #default="scope">
-                    <span>{{ scope.row.feedback }}</span>
-                  </template>
-                </el-table-column> -->
-                <el-table-column label="操作" width="150" align="center">
-                  <template #default="scope">
-                    <el-button link type="primary" size="small" @click="handleEdit(scope.row)">编辑</el-button>
-                    <el-button link type="danger" size="small" @click="handleDelete(scope.row)">删除</el-button>
-                  </template>
-                </el-table-column>
+
               </el-table>
             </div>
             
@@ -108,9 +91,11 @@
               <span class="total-text">共{{ totalCount }}条信息</span>
               <el-pagination
                 v-model:current-page="currentPage"
-                layout="prev, pager, next"
+                v-model:page-size="pageSize"
+                :page-sizes="[10, 20, 30, 50]"
+                layout="total, sizes, prev, pager, next"
                 :total="totalCount"
-                :page-size="pageSize"
+                @size-change="handleSizeChange"
               />
             </div>
           </el-tab-pane>
@@ -232,7 +217,13 @@ const filteredTableData = computed(() => {
     )
   }
 
-  return result
+  // 更新总数据量
+  totalCount.value = result.length
+
+  // 分页处理
+  const startIndex = (currentPage.value - 1) * pageSize.value
+  const endIndex = startIndex + pageSize.value
+  return result.slice(startIndex, endIndex)
 })
 
 // 设置当前状态
@@ -310,6 +301,12 @@ const handleDelete = (row) => {
 const logout = () => {
   localStorage.removeItem('role')
   router.push('/login')
+}
+
+// 处理每页显示数量变化
+const handleSizeChange = (val) => {
+  pageSize.value = val
+  currentPage.value = 1
 }
 </script>
 
@@ -396,7 +393,7 @@ const logout = () => {
 .status-filter {
   display: flex;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .status-btn {
@@ -412,7 +409,7 @@ const logout = () => {
 .action-bar {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .search-input {
@@ -427,7 +424,7 @@ const logout = () => {
 /* 表格容器区域 */
 .table-container {
   margin-bottom: 16px;
-  height: calc(100vh - 240px);
+  height: calc(100vh - 340px);
   overflow: hidden;
 }
 
@@ -465,6 +462,7 @@ const logout = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: 12px;
 }
 
 .total-text {

@@ -3,7 +3,7 @@
     <div class="login-box">
       <div class="login-title">
         <span class="system-icon">🔄</span>
-        数据要素流转系统
+        个人可信数据空间
       </div>
       <el-form :model="loginForm" class="login-form" ref="loginFormRef">
         <el-form-item>
@@ -38,7 +38,7 @@
           <el-button type="primary" class="login-btn" @click="handleLogin">登录系统</el-button>
         </el-form-item>
         <div class="login-footer">
-          数据要素流转系统
+          个人可信数据空间
         </div>
       </el-form>
     </div>

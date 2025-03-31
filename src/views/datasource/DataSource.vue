@@ -2,7 +2,7 @@
   <div class="datasource-container">
     <!-- 头部导航 -->
     <div class="header">
-      <div class="title">数据要素流转系统</div>
+      <div class="title">个人可信数据空间</div>
       <div class="user-info">
         <el-icon class="setting-icon"><Setting /></el-icon>
         <el-dropdown trigger="click">
@@ -52,7 +52,7 @@
               <div class="search-area">
                 <el-input
                   v-model="searchKeyword"
-                  placeholder="输入/约束对象/传输控制操作"
+                  placeholder="请输入ID/实体/约束条件/传输控制操作"
                   class="search-input"
                 >
                   <template #suffix>
@@ -62,7 +62,7 @@
               </div>
               <div class="action-buttons">
                 <el-button type="primary" plain>导出检验</el-button>
-                <el-button type="primary">新建数字对象</el-button>
+                <el-button type="primary" @click="showCreateDialog">新建数字对象</el-button>
               </div>
             </div>
             
@@ -72,14 +72,26 @@
                 :data="filteredTableData"
                 style="width: 100%"
                 @selection-change="handleSelectionChange"
+                @sort-change="handleSortChange"
                 :cell-style="{ padding: '8px 0', textAlign: 'center' }"
                 :header-cell-style="{ padding: '10px 0', background: '#f5f7fa', color: '#606266', fontWeight: 'bold', textAlign: 'center' }"
                 border
                 height="100%"
                 fit
               >
-                <el-table-column type="selection" width="50" align="center" />
-                <el-table-column prop="id" label="ID" width="70" align="center" />
+                <el-table-column 
+                  type="selection" 
+                  width="50" 
+                  align="center"
+                  :selectable="(row) => row.status !== '已合格'"
+                />
+                <el-table-column 
+                  prop="id" 
+                  label="ID" 
+                  width="70" 
+                  align="center"
+                  sortable
+                />
                 <el-table-column prop="entity" label="实体" width="100" align="center">
                   <template #default="scope">
                     <el-link type="primary">{{ scope.row.entity }}</el-link>
@@ -119,9 +131,11 @@
               <span class="total-text">共{{ totalCount }}条信息</span>
               <el-pagination
                 v-model:current-page="currentPage"
-                layout="prev, pager, next"
+                v-model:page-size="pageSize"
+                :page-sizes="[10, 20, 30, 50]"
+                layout="total, sizes, prev, pager, next"
                 :total="totalCount"
-                :page-size="pageSize"
+                @size-change="handleSizeChange"
               />
             </div>
           </el-tab-pane>
@@ -134,31 +148,49 @@
   <el-dialog
     v-model="editDialogVisible"
     title="编辑数字对象"
-    width="50%"
+    width="40%"
     :close-on-click-modal="false"
+    draggable
+    class="custom-dialog"
   >
-    <el-form :model="editForm" label-width="100px" ref="editFormRef">
-      <el-form-item label="实体" prop="entity">
-        <el-input v-model="editForm.entity" placeholder="请输入实体"></el-input>
+    <el-form :model="editForm" label-width="120px" ref="editFormRef" :rules="formRules">
+      <el-form-item label="实体：" prop="entity">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <el-upload
+            action="#"
+            :auto-upload="false"
+            :show-file-list="false"
+            :on-change="handleEditFileChange"
+          >
+            <el-button type="primary" plain>点击上传</el-button>
+          </el-upload>
+          <span v-if="editForm.entity">已选择"{{ editForm.entity }}"</span>
+        </div>
       </el-form-item>
-      <el-form-item label="定位信息" prop="locationInfo">
-        <el-input v-model="editForm.locationInfo" placeholder="请输入定位信息"></el-input>
+      <el-form-item label="定位信息：" prop="locationInfo" style="margin-bottom: 22px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <el-input v-model="editForm.locationInfo.row" placeholder="例：0-4" style="width: 150px;"></el-input>
+          <span>行</span>
+          <el-input v-model="editForm.locationInfo.col" placeholder="例：0-4" style="width: 150px;"></el-input>
+          <span>列</span>
+        </div>
       </el-form-item>
-      <el-form-item label="约束条件" prop="constraint">
-        <el-input v-model="editForm.constraint" placeholder="请输入约束条件"></el-input>
-      </el-form-item>
-      <el-form-item label="传输控制操作" prop="transferControl">
-        <el-input v-model="editForm.transferControl" placeholder="请输入传输控制操作"></el-input>
-      </el-form-item>
-      <!-- <el-form-item label="状态" prop="status">
-        <el-select v-model="editForm.status" placeholder="请选择状态">
-          <el-option label="待检验" value="待检验"></el-option>
-          <el-option label="已合格" value="已合格"></el-option>
-          <el-option label="不合格" value="不合格"></el-option>
+      <el-form-item label="约束条件：" prop="constraint">
+        <el-select v-model="editForm.constraint" placeholder="请选择约束条件" style="width: 100%">
+          <el-option label="访问权限" value="访问权限"></el-option>
+          <el-option label="共享约束" value="共享约束"></el-option>
+          <el-option label="开放约束" value="开放约束"></el-option>
         </el-select>
-      </el-form-item> -->
+      </el-form-item>
+      <el-form-item label="传输控制操作：" prop="transferControl">
+        <el-select v-model="editForm.transferControl" placeholder="请选择传输控制操作" style="width: 100%">
+          <el-option label="可读" value="可读"></el-option>
+          <el-option label="可修改" value="可修改"></el-option>
+          <el-option label="可销毁" value="可销毁"></el-option>
+        </el-select>
+      </el-form-item>
       <!-- 仅在状态不是"已合格"时显示反馈意见 -->
-      <el-form-item label="反馈意见" prop="feedback" v-if="editForm.status !== '已合格'">
+      <el-form-item label="反馈意见：" prop="feedback" v-if="editForm.status !== '已合格'">
         <el-input
           v-model="editForm.feedback"
           type="textarea"
@@ -171,6 +203,60 @@
       <span class="dialog-footer">
         <el-button @click="cancelEdit">取消</el-button>
         <el-button type="primary" @click="saveEdit">确定</el-button>
+      </span>
+    </template>
+  </el-dialog>
+
+  <!-- 新建对象弹窗 -->
+  <el-dialog
+    v-model="createDialogVisible"
+    title="新建数字对象"
+    width="40%"
+    :close-on-click-modal="false"
+    draggable
+    class="custom-dialog"
+  >
+    <el-form :model="createForm" label-width="120px" ref="createFormRef" :rules="formRules">
+      <el-form-item label="实体：" prop="entity">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <el-upload
+            action="#"
+            :auto-upload="false"
+            :show-file-list="false"
+            :on-change="handleFileChange"
+          >
+            <el-button type="primary" plain>点击上传</el-button>
+          </el-upload>
+          <span v-if="createForm.entity">已选择"{{ createForm.entity }}"</span>
+        </div>
+      </el-form-item>
+      <el-form-item label="定位信息：" prop="locationInfo" style="margin-bottom: 22px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <el-input v-model="createForm.locationInfo.row" placeholder="例：0-4" style="width: 150px;"></el-input>
+          <span>行</span>
+          <el-input v-model="createForm.locationInfo.col" placeholder="例：0-4" style="width: 150px;"></el-input>
+          <span>列</span>
+        </div>
+      </el-form-item>
+      <el-form-item label="约束条件：" prop="constraint">
+        <el-select v-model="createForm.constraint" placeholder="请选择约束条件" style="width: 100%">
+          <el-option label="访问权限" value="访问权限"></el-option>
+          <el-option label="共享约束" value="共享约束"></el-option>
+          <el-option label="开放约束" value="开放约束"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="传输控制操作：" prop="transferControl">
+        <el-select v-model="createForm.transferControl" placeholder="请选择传输控制操作" style="width: 100%">
+          <el-option label="可读" value="可读"></el-option>
+          <el-option label="可修改" value="可修改"></el-option>
+          <el-option label="可销毁" value="可销毁"></el-option>
+        </el-select>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="cancelCreate">取消</el-button>
+        <el-button type="primary" @click="saveCreate">确定</el-button>
       </span>
     </template>
   </el-dialog>
@@ -195,11 +281,16 @@ const selectedRows = ref([])
 const isQualifiedStatus = computed(() => currentStatus.value === '已合格')
 
 const editDialogVisible = ref(false)
+const createDialogVisible = ref(false) // 新建对话框可见性
 const editFormRef = ref(null)
+const createFormRef = ref(null) // 新建表单引用
 const editForm = reactive({
   id: '',
   entity: '',
-  locationInfo: '',
+  locationInfo: {
+    row: '',
+    col: ''
+  },
   constraint: '',
   transferControl: '',
   auditInfo: '',
@@ -217,12 +308,18 @@ const tableData = ref([
   { id: 5, entity: '表5', locationInfo: '(表5, 1-4, 31-56)', constraint: '', transferControl: '可读', auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件' },
   { id: 6, entity: '表6', locationInfo: '(表6, 11-12, 1-6)', constraint: '访问权限', transferControl: '可读', auditInfo: '查看日志', status: '已合格', feedback: '' },
   { id: 7, entity: '表7', locationInfo: '(表7, -, -)', constraint: '共享约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '' },
-  { id: 8, entity: '表8', locationInfo: '(表, -, -)', constraint: '开放约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '' },
+  { id: 8, entity: '表8', locationInfo: '(表8, -, -)', constraint: '开放约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '' },
   { id: 9, entity: '表9', locationInfo: '(表9, 1-4, 61-70)', constraint: '访问权限', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '' },
   { id: 10, entity: '表10', locationInfo: '(表10, -, -)', constraint: '访问权限', transferControl: '可修改', auditInfo: '查看日志', status: '已合格', feedback: '' },
   { id: 11, entity: '表11', locationInfo: '(表11, 14-16, 1-7)', constraint: '开放约束', transferControl: '可读', auditInfo: '查看日志', status: '待检验', feedback: '' },
   { id: 12, entity: '表12', locationInfo: '(表12, 1-6, 12-14)', constraint: '开放约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '' }
 ])
+
+// 排序状态
+const sortState = reactive({
+  prop: '',
+  order: ''
+})
 
 // 根据状态和搜索条件过滤数据
 const filteredTableData = computed(() => {
@@ -237,13 +334,29 @@ const filteredTableData = computed(() => {
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
     result = result.filter(item => 
-      (item.constraint && item.constraint.toLowerCase().includes(keyword)) || 
+      item.id.toString().includes(keyword) || 
       item.entity.toLowerCase().includes(keyword) || 
+      item.constraint.toLowerCase().includes(keyword) || 
       item.transferControl.toLowerCase().includes(keyword)
     )
   }
 
-  return result
+  // 排序
+  if (sortState.prop === 'id') {
+    if (sortState.order === 'ascending') {
+      result = [...result].sort((a, b) => a.id - b.id)
+    } else if (sortState.order === 'descending') {
+      result = [...result].sort((a, b) => b.id - a.id)
+    }
+  }
+
+  // 更新总数据量
+  totalCount.value = result.length
+
+  // 分页处理
+  const startIndex = (currentPage.value - 1) * pageSize.value
+  const endIndex = startIndex + pageSize.value
+  return result.slice(startIndex, endIndex)
 })
 
 // 设置当前状态
@@ -270,10 +383,26 @@ const getStatusClass = (status) => {
 const handleEdit = (row) => {
   editingIndex.value = tableData.value.findIndex(item => item.id === row.id)
   
-  // 深拷贝行数据到编辑表单
-  Object.keys(editForm).forEach(key => {
-    editForm[key] = row[key]
-  })
+  // 处理定位信息格式
+  let locationParts = ['', '']
+  if (row.locationInfo) {
+    // 从格式如"(表1, 0-4, 0-4)"中提取行列信息
+    const matches = row.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
+    if (matches && matches.length > 3) {
+      locationParts = [matches[2].trim(), matches[3].trim()]
+    }
+  }
+  
+  // 设置编辑表单数据
+  editForm.id = row.id
+  editForm.entity = row.entity
+  editForm.locationInfo.row = locationParts[0]
+  editForm.locationInfo.col = locationParts[1]
+  editForm.constraint = row.constraint
+  editForm.transferControl = row.transferControl
+  editForm.auditInfo = row.auditInfo
+  editForm.status = row.status
+  editForm.feedback = row.feedback
   
   editDialogVisible.value = true
 }
@@ -282,9 +411,18 @@ const handleEdit = (row) => {
 const cancelEdit = () => {
   editDialogVisible.value = false
   // 重置表单
-  Object.keys(editForm).forEach(key => {
-    editForm[key] = ''
-  })
+  editForm.id = ''
+  editForm.entity = ''
+  editForm.locationInfo = {
+    row: '',
+    col: ''
+  }
+  editForm.constraint = ''
+  editForm.transferControl = ''
+  editForm.auditInfo = ''
+  editForm.status = ''
+  editForm.feedback = ''
+  
   editingIndex.value = -1
 }
 
@@ -295,12 +433,25 @@ const saveEdit = () => {
     editForm.feedback = ''
   }
   
-  // 更新表格数据
-  if (editingIndex.value > -1) {
-    tableData.value[editingIndex.value] = { ...editForm }
+  // 构建更新后的对象
+  const entityName = editForm.entity
+  const updatedObject = {
+    id: editForm.id,
+    entity: entityName,
+    locationInfo: `(${entityName}, ${editForm.locationInfo.row}, ${editForm.locationInfo.col})`,
+    constraint: editForm.constraint || '',
+    transferControl: editForm.transferControl || '',
+    auditInfo: editForm.auditInfo,
+    status: editForm.status,
+    feedback: editForm.feedback
   }
   
-  ElMessage.success(`已保存对 ${editForm.entity} 的编辑`)
+  // 更新表格数据
+  if (editingIndex.value > -1) {
+    tableData.value[editingIndex.value] = updatedObject
+  }
+  
+  ElMessage.success(`已保存对 ${entityName} 的编辑`)
   editDialogVisible.value = false
 }
 
@@ -311,7 +462,13 @@ const handleDelete = (row) => {
     cancelButtonText: '取消',
     type: 'warning',
   }).then(() => {
-    ElMessage.success(`已删除: ${row.entity}`)
+    // 找到要删除的数据索引
+    const index = tableData.value.findIndex(item => item.id === row.id)
+    // 从数组中删除该元素
+    if (index !== -1) {
+      tableData.value.splice(index, 1)
+      ElMessage.success(`已删除: ${row.entity}`)
+    }
   }).catch(() => {
     ElMessage.info('已取消删除')
   })
@@ -321,6 +478,122 @@ const handleDelete = (row) => {
 const logout = () => {
   localStorage.removeItem('role')
   router.push('/login')
+}
+
+// 显示创建对象对话框
+const showCreateDialog = () => {
+  // 重置表单数据
+  createForm.entity = ''
+  createForm.locationInfo = {
+    row: '',
+    col: ''
+  }
+  createForm.constraint = ''
+  createForm.transferControl = ''
+  createForm.classificationValue = ''
+  
+  createDialogVisible.value = true
+}
+
+// 创建表单数据
+const createForm = reactive({
+  entity: '',
+  locationInfo: {
+    row: '',
+    col: ''
+  },
+  constraint: '',
+  transferControl: '',
+  classificationValue: ''
+})
+
+// 表单校验规则
+const formRules = {
+  locationInfo: [
+    { 
+      validator: (rule, value, callback) => {
+        if (createForm.locationInfo.row && createForm.locationInfo.col) {
+          callback()
+        } else {
+          callback(new Error('请输入行和列'))
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
+}
+
+// 处理文件变更
+const handleFileChange = (file) => {
+  if (file) {
+    createForm.entity = file.name
+    ElMessage.success(`已选择"${file.name}"`)
+  }
+}
+
+// 取消新建
+const cancelCreate = () => {
+  createDialogVisible.value = false
+}
+
+// 保存新建
+const saveCreate = () => {
+  // 直接检查定位信息
+  if (!createForm.locationInfo.row || !createForm.locationInfo.col) {
+    ElMessage.warning('请输入完整的定位信息（行和列）')
+    return
+  }
+  
+  createFormRef.value.validate((valid) => {
+    if (valid) {
+      // 创建新对象
+      const newId = tableData.value.length > 0 ? Math.max(...tableData.value.map(item => item.id)) + 1 : 1
+      const entityName = createForm.entity || '未上传'
+      const newObject = {
+        id: newId,
+        entity: entityName,
+        locationInfo: `(${entityName}, ${createForm.locationInfo.row}, ${createForm.locationInfo.col})`,
+        constraint: createForm.constraint || '',
+        transferControl: createForm.transferControl || '',
+        auditInfo: '查看日志',
+        status: '待检验',
+        feedback: ''
+      }
+      
+      // 添加到表格数据
+      tableData.value.unshift(newObject)
+      
+      ElMessage.success(`成功新建数字对象`)
+      createDialogVisible.value = false
+    } else {
+      return false
+    }
+  })
+}
+
+// 处理排序变化
+const handleSortChange = (column) => {
+  if (column.prop) {
+    sortState.prop = column.prop
+    sortState.order = column.order
+  } else {
+    sortState.prop = ''
+    sortState.order = ''
+  }
+}
+
+// 处理编辑文件变更
+const handleEditFileChange = (file) => {
+  if (file) {
+    editForm.entity = file.name
+    ElMessage.success(`已选择"${file.name}"`)
+  }
+}
+
+// 处理每页显示数量变化
+const handleSizeChange = (val) => {
+  pageSize.value = val
+  currentPage.value = 1
 }
 </script>
 
@@ -407,7 +680,7 @@ const logout = () => {
 .status-filter {
   display: flex;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .status-btn {
@@ -423,7 +696,7 @@ const logout = () => {
 .action-bar {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .search-input {
@@ -438,7 +711,7 @@ const logout = () => {
 /* 表格容器区域 */
 .table-container {
   margin-bottom: 16px;
-  height: calc(100vh - 240px);
+  height: calc(100vh - 340px);
   overflow: hidden;
 }
 
@@ -476,6 +749,7 @@ const logout = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: 12px;
 }
 
 .total-text {
@@ -488,5 +762,9 @@ const logout = () => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+:deep(.custom-dialog) {
+  margin-top: 15vh !important;
 }
 </style> 

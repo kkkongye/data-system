@@ -2,7 +2,7 @@
   <div class="datasource-container">
     <!-- 头部导航 -->
     <div class="header">
-      <div class="title">数据要素流转系统</div>
+      <div class="title">个人可信数据空间</div>
       <div class="user-info">
         <el-icon class="setting-icon"><Setting /></el-icon>
         <el-dropdown trigger="click">
@@ -61,8 +61,8 @@
                 </el-input>
               </div>
               <div class="action-buttons">
-                <el-button type="primary" plain>导出检验</el-button>
-                <el-button type="primary">新建数字对象</el-button>
+                <el-button type="primary" plain>解密</el-button>
+                <!-- <el-button type="primary">导出检验</el-button> -->
               </div>
             </div>
             
@@ -121,9 +121,11 @@
               <span class="total-text">共{{ totalCount }}条信息</span>
               <el-pagination
                 v-model:current-page="currentPage"
-                layout="prev, pager, next"
+                v-model:page-size="pageSize"
+                :page-sizes="[10, 20, 30, 50]"
+                layout="total, sizes, prev, pager, next"
                 :total="totalCount"
-                :page-size="pageSize"
+                @size-change="handleSizeChange"
               />
             </div>
           </el-tab-pane>
@@ -245,7 +247,13 @@ const filteredTableData = computed(() => {
     )
   }
 
-  return result
+  // 更新总数据量
+  totalCount.value = result.length
+
+  // 分页处理
+  const startIndex = (currentPage.value - 1) * pageSize.value
+  const endIndex = startIndex + pageSize.value
+  return result.slice(startIndex, endIndex)
 })
 
 // 设置当前状态
@@ -358,6 +366,12 @@ const logout = () => {
   localStorage.removeItem('role')
   router.push('/login')
 }
+
+// 处理每页显示数量变化
+const handleSizeChange = (val) => {
+  pageSize.value = val
+  currentPage.value = 1
+}
 </script>
 
 <style scoped>
@@ -443,7 +457,7 @@ const logout = () => {
 .status-filter {
   display: flex;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .status-btn {
@@ -459,7 +473,7 @@ const logout = () => {
 .action-bar {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .search-input {
@@ -474,7 +488,7 @@ const logout = () => {
 /* 表格容器区域 */
 .table-container {
   margin-bottom: 16px;
-  height: calc(100vh - 240px);
+  height: calc(100vh - 340px);
   overflow: hidden;
 }
 
@@ -503,8 +517,8 @@ const logout = () => {
 }
 
 .status-pending {
-  background-color: #e6f7ff;
-  color: #1890ff;
+  background-color: #f4f4f5;
+  color: #909399;
 }
 
 /* 分页区域 */
@@ -512,6 +526,7 @@ const logout = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: 12px;
 }
 
 .total-text {
