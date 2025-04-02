@@ -50,39 +50,43 @@
                 </el-input>
               </div>
               <div class="action-buttons">
-                <el-button type="primary" plain>解密</el-button>
+                <el-button type="primary" plain @click="showDecryptDialog">解密</el-button>
                 <el-button type="primary">下载数字对象</el-button>
               </div>
             </div>
             
             <!-- 数据表格 -->
             <div class="table-container">
+              <div v-if="!isDecrypted" class="data-locked-placeholder">
+                <el-icon class="locked-icon"><Lock /></el-icon>
+                <p>数据已加密，请点击"解密"按钮进行解密操作</p>
+              </div>
               <el-table
+                v-else
                 :data="filteredTableData"
                 style="width: 100%"
                 @selection-change="handleSelectionChange"
-                :cell-style="{ padding: '8px 0', textAlign: 'center' }"
-                :header-cell-style="{ padding: '10px 0', background: '#f5f7fa', color: '#606266', fontWeight: 'bold', textAlign: 'center' }"
                 border
                 height="100%"
                 fit
+                :row-style="{ height: '45px' }"
+                :header-row-style="{ height: '45px' }"
               >
-                <el-table-column type="selection" width="50" align="center" />
-                <el-table-column prop="id" label="ID" width="70" align="center" />
-                <el-table-column prop="entity" label="实体" width="100" align="center">
+                <el-table-column type="selection" width="55" align="center" fixed />
+                <el-table-column prop="id" label="ID" width="70" align="center" fixed />
+                <el-table-column prop="entity" label="实体" width="120" align="center">
                   <template #default="scope">
                     <el-link type="primary">{{ scope.row.entity }}</el-link>
                   </template>
                 </el-table-column>
-                <el-table-column prop="locationInfo" label="定位信息" min-width="150" align="center" />
-                <el-table-column prop="constraint" label="约束条件" width="130" align="center" />
-                <el-table-column prop="transferControl" label="传输控制操作" width="130" align="center" />
+                <el-table-column prop="locationInfo" label="定位信息" width="140" align="center" />
+                <el-table-column prop="constraint" label="约束条件" width="160" align="center" />
+                <el-table-column prop="transferControl" label="传输控制操作" width="160" align="center" />
                 <el-table-column prop="auditInfo" label="审计控制信息" width="130" align="center">
                   <template #default="scope">
                     <el-link type="primary">{{ scope.row.auditInfo }}</el-link>
                   </template>
                 </el-table-column>
-
               </el-table>
             </div>
             
@@ -90,6 +94,7 @@
             <div class="pagination-area">
               <span class="total-text">共{{ totalCount }}条信息</span>
               <el-pagination
+                v-if="isDecrypted"
                 v-model:current-page="currentPage"
                 v-model:page-size="pageSize"
                 :page-sizes="[10, 20, 30, 50]"
@@ -108,8 +113,12 @@
   <el-dialog
     v-model="editDialogVisible"
     title="编辑数字对象"
-    width="50%"
+    width="600px"
+    append-to-body
+    destroy-on-close
     :close-on-click-modal="false"
+    draggable
+    class="edit-dialog"
   >
     <el-form :model="editForm" label-width="100px" ref="editFormRef">
       <el-form-item label="实体" prop="entity">
@@ -148,13 +157,41 @@
       </span>
     </template>
   </el-dialog>
+
+  <!-- 解密对话框 -->
+  <el-dialog
+    v-model="decryptDialogVisible"
+    title="解密"
+    width="400px"
+    append-to-body
+    destroy-on-close
+    :close-on-click-modal="false"
+    :show-close="true"
+    draggable
+    class="decrypt-dialog"
+  >
+    <el-form :model="decryptForm" label-width="120px" ref="decryptFormRef" :rules="decryptFormRules">
+      <el-form-item label="数字对象ID:" prop="objectId">
+        <el-input v-model="decryptForm.objectId" placeholder="请输入ID"></el-input>
+      </el-form-item>
+      <el-form-item label="token:" prop="token">
+        <el-input v-model="decryptForm.token" placeholder="请输入token"></el-input>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="decryptDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleDecrypt">确定</el-button>
+      </span>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
 import { ref, computed, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Setting, ArrowDown, Search } from '@element-plus/icons-vue'
+import { Setting, ArrowDown, Search, Lock } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const activeTab = ref('objectList')
@@ -162,7 +199,7 @@ const currentStatus = ref('') // 默认显示全部数字对象
 const searchKeyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10)
-const totalCount = ref(562)
+const isDecrypted = ref(false)
 const selectedRows = ref([])
 
 // 添加计算属性判断是否为已合格状态
@@ -198,6 +235,25 @@ const tableData = ref([
   { id: 12, entity: '表12', locationInfo: '(表12, 1-6, 12-14)', constraint: '开放约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '' }
 ])
 
+// 计算实际数据量
+const totalCount = computed(() => {
+  let result = tableData.value
+  if (currentStatus.value) {
+    result = result.filter(item => item.status === currentStatus.value)
+  }
+  
+  if (searchKeyword.value) {
+    const keyword = searchKeyword.value.toLowerCase()
+    result = result.filter(item => 
+      (item.constraint && item.constraint.toLowerCase().includes(keyword)) || 
+      item.entity.toLowerCase().includes(keyword) || 
+      item.transferControl.toLowerCase().includes(keyword)
+    )
+  }
+  
+  return result.length
+})
+
 // 根据状态和搜索条件过滤数据
 const filteredTableData = computed(() => {
   let result = tableData.value
@@ -216,9 +272,6 @@ const filteredTableData = computed(() => {
       item.transferControl.toLowerCase().includes(keyword)
     )
   }
-
-  // 更新总数据量
-  totalCount.value = result.length
 
   // 分页处理
   const startIndex = (currentPage.value - 1) * pageSize.value
@@ -307,6 +360,39 @@ const logout = () => {
 const handleSizeChange = (val) => {
   pageSize.value = val
   currentPage.value = 1
+}
+
+// 解密状态和表单
+const decryptDialogVisible = ref(false)
+const decryptFormRef = ref(null)
+const decryptForm = reactive({
+  objectId: '',
+  token: ''
+})
+const decryptFormRules = {
+  objectId: [{ required: true, message: '请输入数字对象ID', trigger: 'blur' }],
+  token: [{ required: true, message: '请输入token', trigger: 'blur' }]
+}
+
+// 显示解密对话框
+const showDecryptDialog = () => {
+  decryptDialogVisible.value = true
+}
+
+// 处理解密操作
+const handleDecrypt = () => {
+  decryptFormRef.value.validate((valid) => {
+    if (valid) {
+      // 这里可以添加实际的解密验证逻辑
+      // 模拟验证成功
+      isDecrypted.value = true
+      decryptDialogVisible.value = false
+      ElMessage.success('解密成功')
+    } else {
+      ElMessage.error('请填写完整的解密信息')
+      return false
+    }
+  })
 }
 </script>
 
@@ -426,6 +512,66 @@ const handleSizeChange = (val) => {
   margin-bottom: 16px;
   height: calc(100vh - 340px);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 表格样式优化 */
+:deep(.el-table) {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+:deep(.el-table__header),
+:deep(.el-table__body),
+:deep(.el-table__footer) {
+  width: 100% !important;
+  table-layout: fixed !important;
+  display: table !important;
+}
+
+:deep(.el-table__header-wrapper),
+:deep(.el-table__body-wrapper),
+:deep(.el-table__footer-wrapper) {
+  width: 100% !important;
+}
+
+:deep(.el-table__cell) {
+  text-align: center;
+  padding: 8px 0;
+  box-sizing: border-box;
+}
+
+:deep(.el-table .el-table__cell .cell) {
+  padding: 0 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  width: 100%;
+  display: inline-block;
+}
+
+:deep(.el-table .el-table__cell:last-child .cell) {
+  padding-right: 5px;
+}
+
+:deep(.el-table__row) {
+  height: 45px !important;
+}
+
+:deep(.el-table__header tr) {
+  height: 45px !important;
+}
+
+:deep(.el-table__header th.el-table__cell) {
+  background-color: #f5f7fa;
+  color: #606266;
+  font-weight: bold;
+  padding: 8px 0;
+  text-align: center;
 }
 
 /* 状态标签样式 */
@@ -463,6 +609,7 @@ const handleSizeChange = (val) => {
   justify-content: space-between;
   align-items: center;
   margin-top: 12px;
+  height: 32px;
 }
 
 .total-text {
@@ -475,5 +622,95 @@ const handleSizeChange = (val) => {
   display: flex;
   justify-content: flex-end;
   gap: 20px;
+}
+
+/* 数据锁定占位符样式 */
+.data-locked-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border: 1px dashed #dcdfe6;
+  padding: 40px 0;
+}
+
+.locked-icon {
+  font-size: 60px;
+  color: #909399;
+  margin-bottom: 20px;
+}
+
+.data-locked-placeholder p {
+  font-size: 16px;
+  color: #606266;
+  text-align: center;
+  line-height: 1.6;
+  max-width: 80%;
+}
+
+/* 全局对话框样式 - 放在样式的最底部以确保最高优先级 */
+:deep(.el-overlay) {
+  overflow: hidden;
+}
+
+:deep(.decrypt-dialog) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:deep(.decrypt-dialog .el-dialog) {
+  margin: 0 auto !important;
+  position: relative !important;
+  top: 0 !important;
+  transform: none !important;
+  max-width: 90%;
+}
+
+:deep(.edit-dialog) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:deep(.edit-dialog .el-dialog) {
+  margin: 0 auto !important;
+  position: relative !important;
+  top: 0 !important;
+  transform: none !important;
+  max-width: 90%;
+}
+
+/* 确保对话框居中显示 */
+:deep(.el-dialog) {
+  margin: 0 auto !important;
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  max-width: 90%;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+:deep(.el-dialog__header) {
+  padding: 20px;
+  text-align: center;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: move;
+  font-weight: bold;
+}
+
+:deep(.el-dialog__body) {
+  padding: 30px 20px;
+}
+
+:deep(.el-dialog__footer) {
+  padding: 10px 20px 20px;
+  text-align: center;
 }
 </style> 
