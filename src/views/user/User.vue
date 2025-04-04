@@ -76,7 +76,7 @@
                 <el-table-column prop="id" label="ID" width="70" align="center" fixed />
                 <el-table-column prop="entity" label="实体" width="120" align="center">
                   <template #default="scope">
-                    <el-link type="primary">{{ scope.row.entity }}</el-link>
+                    <el-link type="primary" @click="previewEntity(scope.row)">{{ scope.row.entity }}</el-link>
                   </template>
                 </el-table-column>
                 <el-table-column prop="locationInfo" label="定位信息" width="140" align="center" />
@@ -185,13 +185,96 @@
       </span>
     </template>
   </el-dialog>
+
+  <!-- Excel预览对话框 -->
+  <el-dialog
+    v-model="previewDialogVisible"
+    :title="`预览Excel - ${previewForm.entity}`"
+    width="90%"
+    :close-on-click-modal="false"
+    draggable
+    class="custom-dialog"
+    top="5vh"
+  >
+    <div class="preview-header">
+      <div class="preview-info">
+        <div>实体：<strong>{{ previewForm.entity }}</strong></div>
+        <div>定位信息：<strong>{{ previewForm.locationInfo }}</strong></div>
+        <div>约束条件：<strong>{{ previewForm.constraint }}</strong></div>
+        <div>传输控制操作：<strong>{{ previewForm.transferControl }}</strong></div>
+      </div>
+    </div>
+    
+    <!-- 工作表切换 -->
+    <div v-if="excelSheets.length > 0" class="sheets-selector">
+      <span class="sheet-label">工作表：</span>
+      <el-radio-group v-model="activeSheet" size="small" @change="changeSheet">
+        <el-radio-button 
+          v-for="sheet in excelSheets" 
+          :key="sheet" 
+          :label="sheet"
+        >{{ sheet }}</el-radio-button>
+      </el-radio-group>
+    </div>
+    
+    <div class="excel-preview">
+      <el-table
+        v-if="excelTableData.length > 0"
+        :data="excelTableData"
+        style="width: 100%"
+        border
+        stripe
+        v-loading="isExcelLoading"
+        max-height="600px"
+        :cell-style="{ padding: '6px 8px' }"
+        :header-cell-style="{ backgroundColor: '#f5f7fa', color: '#606266', fontWeight: 'bold', textAlign: 'center' }"
+      >
+        <!-- 行号列 -->
+        <el-table-column 
+          type="index" 
+          label="行号" 
+          width="60" 
+          fixed="left"
+          align="center"
+          :index="(index) => index + 1"
+        />
+        <!-- 数据列 -->
+        <el-table-column 
+          v-for="(column, index) in excelTableColumns" 
+          :key="index"
+          :prop="column.prop"
+          :label="getExcelColName(index)"
+          min-width="120"
+          align="center"
+          show-overflow-tooltip
+        />
+      </el-table>
+      <div v-else-if="isExcelLoading" class="loading-message">
+        <div>正在加载Excel数据...</div>
+      </div>
+      <div v-else class="no-data-message">
+        <el-icon :size="48"><Document /></el-icon>
+        <div>暂无数据</div>
+        <div class="no-data-hint">该数字对象没有可用的Excel数据</div>
+      </div>
+    </div>
+    <div class="preview-note">
+      提示：此处显示原始Excel数据，包括表头行和所有列
+    </div>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="previewDialogVisible = false">关闭</el-button>
+      </span>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
 import { ref, computed, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Setting, ArrowDown, Search, Lock } from '@element-plus/icons-vue'
+import { Setting, ArrowDown, Search, Lock, Document } from '@element-plus/icons-vue'
+import * as XLSX from 'xlsx'
 
 const router = useRouter()
 const activeTab = ref('objectList')
@@ -221,18 +304,18 @@ const editingIndex = ref(-1)
 
 // 表格数据
 const tableData = ref([
-  { id: 1, entity: '表1', locationInfo: '(表1, -, -)', constraint: '访问权限', transferControl: '可修改', auditInfo: '查看日志', status: '已合格', feedback: '' },
-  { id: 2, entity: '表2', locationInfo: '(表2, 1-2, 3-6)', constraint: '', transferControl: '可修改', auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件' },
-  { id: 3, entity: '表3', locationInfo: '(表3, 1-6, 12-50)', constraint: '访问权限', transferControl: '可读', auditInfo: '查看日志', status: '已合格', feedback: '' },
-  { id: 4, entity: '表4', locationInfo: '(表4, 1-6, 21-52)', constraint: '', transferControl: '可修改', auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件' },
-  { id: 5, entity: '表5', locationInfo: '(表5, 1-4, 31-56)', constraint: '', transferControl: '可读', auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件' },
-  { id: 6, entity: '表6', locationInfo: '(表6, 11-12, 1-6)', constraint: '访问权限', transferControl: '可读', auditInfo: '查看日志', status: '已合格', feedback: '' },
-  { id: 7, entity: '表7', locationInfo: '(表7, -, -)', constraint: '共享约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '' },
-  { id: 8, entity: '表8', locationInfo: '(表, -, -)', constraint: '开放约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '' },
-  { id: 9, entity: '表9', locationInfo: '(表9, 1-4, 61-70)', constraint: '访问权限', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '' },
-  { id: 10, entity: '表10', locationInfo: '(表10, -, -)', constraint: '访问权限', transferControl: '可修改', auditInfo: '查看日志', status: '已合格', feedback: '' },
-  { id: 11, entity: '表11', locationInfo: '(表11, 14-16, 1-7)', constraint: '开放约束', transferControl: '可读', auditInfo: '查看日志', status: '待检验', feedback: '' },
-  { id: 12, entity: '表12', locationInfo: '(表12, 1-6, 12-14)', constraint: '开放约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '' }
+  { id: 1, entity: '表1', locationInfo: '(表1, -, -)', constraint: '访问权限', transferControl: '可修改', auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
+  { id: 2, entity: '表2', locationInfo: '(表2, 1-2, 3-6)', constraint: '', transferControl: '可修改', auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件', excelData: null },
+  { id: 3, entity: '表3', locationInfo: '(表3, 1-6, 12-50)', constraint: '访问权限', transferControl: '可读', auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
+  { id: 4, entity: '表4', locationInfo: '(表4, 1-6, 21-52)', constraint: '', transferControl: '可修改', auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件', excelData: null },
+  { id: 5, entity: '表5', locationInfo: '(表5, 1-4, 31-56)', constraint: '', transferControl: '可读', auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件', excelData: null },
+  { id: 6, entity: '表6', locationInfo: '(表6, 11-12, 1-6)', constraint: '访问权限', transferControl: '可读', auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
+  { id: 7, entity: '表7', locationInfo: '(表7, -, -)', constraint: '共享约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
+  { id: 8, entity: '表8', locationInfo: '(表, -, -)', constraint: '开放约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
+  { id: 9, entity: '表9', locationInfo: '(表9, 1-4, 61-70)', constraint: '访问权限', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
+  { id: 10, entity: '表10', locationInfo: '(表10, -, -)', constraint: '访问权限', transferControl: '可修改', auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
+  { id: 11, entity: '表11', locationInfo: '(表11, 14-16, 1-7)', constraint: '开放约束', transferControl: '可读', auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
+  { id: 12, entity: '表12', locationInfo: '(表12, 1-6, 12-14)', constraint: '开放约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null }
 ])
 
 // 计算实际数据量
@@ -393,6 +476,163 @@ const handleDecrypt = () => {
       return false
     }
   })
+}
+
+// Excel预览相关
+const previewDialogVisible = ref(false)
+const previewForm = reactive({
+  id: '',
+  entity: '',
+  locationInfo: '',
+  constraint: '',
+  transferControl: ''
+})
+
+// Excel表格数据
+const excelTableColumns = ref([])
+const excelTableData = ref([])
+const isExcelLoading = ref(false)
+const excelSheets = ref([]) // 存储工作表名称
+const activeSheet = ref('') // 当前激活的工作表
+const currentWorkbook = ref(null) // 当前工作簿对象
+
+// 预览实体
+const previewEntity = (row) => {
+  console.log('预览实体：', row)
+  
+  // 设置预览表单数据
+  previewForm.id = row.id
+  previewForm.entity = row.entity
+  previewForm.locationInfo = row.locationInfo
+  previewForm.constraint = row.constraint
+  previewForm.transferControl = row.transferControl
+  
+  // 清空当前Excel数据
+  excelTableData.value = []
+  excelTableColumns.value = []
+  excelSheets.value = []
+  currentWorkbook.value = null
+  isExcelLoading.value = false
+  
+  // 显示预览对话框
+  previewDialogVisible.value = true
+  
+  // 如果已有保存的Excel数据，直接加载
+  if (row.excelData) {
+    isExcelLoading.value = true
+    
+    try {
+      // 解析Excel数据
+      const workbook = XLSX.read(row.excelData, { type: 'binary' })
+      
+      // 保存当前工作簿对象
+      currentWorkbook.value = workbook
+      
+      // 获取所有工作表名称
+      const sheetNames = workbook.SheetNames
+      excelSheets.value = sheetNames
+      
+      // 选择第一个工作表
+      if (sheetNames.length > 0) {
+        activeSheet.value = sheetNames[0]
+        
+        // 获取第一个工作表
+        const worksheet = workbook.Sheets[sheetNames[0]]
+        
+        // 处理并显示工作表数据
+        processWorksheet(worksheet)
+      }
+      
+      isExcelLoading.value = false
+      
+      if (excelTableData.value.length === 0) {
+        ElMessage.warning('Excel文件中没有数据')
+      }
+    } catch (error) {
+      console.error('解析Excel文件时出错:', error)
+      ElMessage.error('无法解析Excel文件，请确保文件格式正确')
+      isExcelLoading.value = false
+    }
+  }
+}
+
+// 切换工作表
+const changeSheet = (sheetName) => {
+  if (!currentWorkbook.value || !sheetName) return
+  
+  isExcelLoading.value = true
+  
+  // 获取选中的工作表
+  const worksheet = currentWorkbook.value.Sheets[sheetName]
+  
+  // 处理并显示工作表数据
+  processWorksheet(worksheet)
+  
+  isExcelLoading.value = false
+}
+
+// 处理单个工作表数据
+const processWorksheet = (worksheet) => {
+  try {
+    // 获取工作表范围
+    const range = XLSX.utils.decode_range(worksheet['!ref'])
+    
+    // 设置表格列
+    const columns = []
+    
+    // 创建表头
+    for (let c = 0; c <= range.e.c; c++) {
+      columns.push({
+        prop: `col${c}`,
+        label: getExcelColName(c)
+      })
+    }
+    excelTableColumns.value = columns
+    
+    // 获取所有单元格数据，包括表头行
+    const tableData = []
+    for (let r = range.s.r; r <= range.e.r; r++) {
+      const rowData = {}
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const cellAddress = XLSX.utils.encode_cell({ r, c })
+        const cell = worksheet[cellAddress]
+        
+        // 格式化单元格数据
+        let cellValue = ''
+        if (cell) {
+          // 特殊处理日期类型
+          if (cell.t === 'd') {
+            cellValue = cell.w || new Date(cell.v).toLocaleDateString()
+          } else {
+            cellValue = XLSX.utils.format_cell(cell)
+          }
+        }
+        
+        rowData[`col${c}`] = cellValue
+      }
+      tableData.push(rowData)
+    }
+    
+    excelTableData.value = tableData
+  } catch (error) {
+    console.error('处理工作表数据出错:', error)
+    ElMessage.error('处理工作表数据时出错')
+    excelTableData.value = []
+  }
+}
+
+// 获取Excel列名
+const getExcelColName = (index) => {
+  // 转换列索引为Excel列名（A, B, C, ... Z, AA, AB, ...）
+  let colName = ''
+  let n = index
+  
+  while (n >= 0) {
+    colName = String.fromCharCode(65 + (n % 26)) + colName
+    n = Math.floor(n / 26) - 1
+  }
+  
+  return colName
 }
 </script>
 
@@ -712,5 +952,73 @@ const handleDecrypt = () => {
 :deep(.el-dialog__footer) {
   padding: 10px 20px 20px;
   text-align: center;
+}
+
+/* 添加预览相关的样式 */
+.preview-header {
+  margin-bottom: 20px;
+  border-bottom: 1px solid #ebeef5;
+  padding-bottom: 15px;
+}
+
+.preview-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.preview-info > div {
+  flex: 1;
+  min-width: 200px;
+}
+
+.excel-preview {
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+.preview-note {
+  font-size: 12px;
+  color: #909399;
+  text-align: center;
+  margin-top: 10px;
+}
+
+.no-data-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #909399;
+}
+
+.no-data-hint {
+  font-size: 12px;
+  margin-top: 5px;
+  color: #c0c4cc;
+}
+
+.loading-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #909399;
+}
+
+/* 工作表切换相关样式 */
+.sheets-selector {
+  margin-bottom: 10px;
+}
+
+.sheet-label {
+  font-size: 14px;
+  color: #333;
+  margin-right: 10px;
 }
 </style> 

@@ -94,12 +94,30 @@
                 />
                 <el-table-column prop="entity" label="实体" width="100" align="center">
                   <template #default="scope">
-                    <el-link type="primary">{{ scope.row.entity }}</el-link>
+                    <el-link type="primary" @click="previewEntity(scope.row)">{{ scope.row.entity }}</el-link>
                   </template>
                 </el-table-column>
                 <el-table-column prop="locationInfo" label="定位信息" min-width="150" align="center" />
-                <el-table-column prop="constraint" label="约束条件" width="130" align="center" />
-                <el-table-column prop="transferControl" label="传输控制操作" width="130" align="center" />
+                <el-table-column prop="constraint" label="约束条件" min-width="160" align="center">
+                  <template #default="scope">
+                    <div class="plain-text-container">
+                      <template v-if="scope.row.constraint && scope.row.constraint.length">
+                        {{ scope.row.constraint.join('；') }}
+                      </template>
+                      <template v-else>-</template>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="transferControl" label="传输控制操作" min-width="160" align="center">
+                  <template #default="scope">
+                    <div class="plain-text-container">
+                      <template v-if="scope.row.transferControl && scope.row.transferControl.length">
+                        {{ scope.row.transferControl.join('；') }}
+                      </template>
+                      <template v-else>-</template>
+                    </div>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="auditInfo" label="审计控制信息" width="130" align="center">
                   <template #default="scope">
                     <el-link type="primary">{{ scope.row.auditInfo }}</el-link>
@@ -161,10 +179,14 @@
             :auto-upload="false"
             :show-file-list="false"
             :on-change="handleEditFileChange"
+            accept=".xlsx,.xls"
           >
-            <el-button type="primary" plain>点击上传</el-button>
+            <el-button type="primary" plain>
+              <el-icon style="margin-right: 4px;"><Document /></el-icon>上传Excel表格
+            </el-button>
           </el-upload>
           <span v-if="editForm.entity">已选择"{{ editForm.entity }}"</span>
+          <span v-else class="upload-tip">请上传Excel表格文件</span>
         </div>
       </el-form-item>
       <el-form-item label="定位信息：" prop="locationInfo" style="margin-bottom: 22px;">
@@ -176,27 +198,18 @@
         </div>
       </el-form-item>
       <el-form-item label="约束条件：" prop="constraint">
-        <el-select v-model="editForm.constraint" placeholder="请选择约束条件" style="width: 100%">
+        <el-select v-model="editForm.constraint" placeholder="请选择约束条件" style="width: 100%" class="custom-select" multiple allow-create filterable default-first-option>
           <el-option label="访问权限" value="访问权限"></el-option>
           <el-option label="共享约束" value="共享约束"></el-option>
           <el-option label="开放约束" value="开放约束"></el-option>
         </el-select>
       </el-form-item>
       <el-form-item label="传输控制操作：" prop="transferControl">
-        <el-select v-model="editForm.transferControl" placeholder="请选择传输控制操作" style="width: 100%">
+        <el-select v-model="editForm.transferControl" placeholder="请选择传输控制操作" style="width: 100%" class="custom-select" multiple allow-create filterable default-first-option>
           <el-option label="可读" value="可读"></el-option>
           <el-option label="可修改" value="可修改"></el-option>
           <el-option label="可销毁" value="可销毁"></el-option>
         </el-select>
-      </el-form-item>
-      <!-- 仅在状态不是"已合格"时显示反馈意见 -->
-      <el-form-item label="反馈意见：" prop="feedback" v-if="editForm.status !== '已合格'">
-        <el-input
-          v-model="editForm.feedback"
-          type="textarea"
-          :rows="3"
-          placeholder="请输入反馈意见"
-        ></el-input>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -224,10 +237,14 @@
             :auto-upload="false"
             :show-file-list="false"
             :on-change="handleFileChange"
+            accept=".xlsx,.xls"
           >
-            <el-button type="primary" plain>点击上传</el-button>
+            <el-button type="primary" plain>
+              <el-icon style="margin-right: 4px;"><Document /></el-icon>上传Excel表格
+            </el-button>
           </el-upload>
           <span v-if="createForm.entity">已选择"{{ createForm.entity }}"</span>
+          <span v-else class="upload-tip">请上传Excel表格文件</span>
         </div>
       </el-form-item>
       <el-form-item label="定位信息：" prop="locationInfo" style="margin-bottom: 22px;">
@@ -239,14 +256,14 @@
         </div>
       </el-form-item>
       <el-form-item label="约束条件：" prop="constraint">
-        <el-select v-model="createForm.constraint" placeholder="请选择约束条件" style="width: 100%">
+        <el-select v-model="createForm.constraint" placeholder="请选择约束条件" style="width: 100%" class="custom-select" multiple allow-create filterable default-first-option>
           <el-option label="访问权限" value="访问权限"></el-option>
           <el-option label="共享约束" value="共享约束"></el-option>
           <el-option label="开放约束" value="开放约束"></el-option>
         </el-select>
       </el-form-item>
       <el-form-item label="传输控制操作：" prop="transferControl">
-        <el-select v-model="createForm.transferControl" placeholder="请选择传输控制操作" style="width: 100%">
+        <el-select v-model="createForm.transferControl" placeholder="请选择传输控制操作" style="width: 100%" class="custom-select" multiple allow-create filterable default-first-option>
           <el-option label="可读" value="可读"></el-option>
           <el-option label="可修改" value="可修改"></el-option>
           <el-option label="可销毁" value="可销毁"></el-option>
@@ -260,13 +277,100 @@
       </span>
     </template>
   </el-dialog>
+
+  <!-- Excel预览对话框 -->
+  <el-dialog
+    v-model="previewDialogVisible"
+    :title="`预览Excel - ${previewForm.entity}`"
+    width="90%"
+    :close-on-click-modal="false"
+    draggable
+    class="custom-dialog"
+    top="5vh"
+  >
+    <div class="preview-header">
+      <div class="preview-info">
+        <div>实体：<strong>{{ previewForm.entity }}</strong></div>
+        <div>定位信息：<strong>{{ previewForm.locationInfo }}</strong></div>
+        <div>约束条件：<strong>{{ previewForm.constraint.join('；') || '-' }}</strong></div>
+        <div>传输控制操作：<strong>{{ previewForm.transferControl.join('；') || '-' }}</strong></div>
+        <div>状态：<strong>{{ previewForm.status }}</strong></div>
+      </div>
+    </div>
+    
+    <!-- 工作表切换 -->
+    <div v-if="excelSheets.length > 0" class="sheets-selector">
+      <span class="sheet-label">工作表：</span>
+      <el-radio-group v-model="activeSheet" size="small" @change="changeSheet">
+        <el-radio-button 
+          v-for="sheet in excelSheets" 
+          :key="sheet" 
+          :label="sheet"
+        >{{ sheet }}</el-radio-button>
+      </el-radio-group>
+    </div>
+    
+    <div class="excel-preview">
+      <el-table
+        v-if="excelTableData.length > 0"
+        :data="excelTableData"
+        style="width: 100%"
+        border
+        stripe
+        v-loading="isExcelLoading"
+        max-height="600px"
+        :cell-style="{ padding: '6px 8px' }"
+        :header-cell-style="{ backgroundColor: '#f5f7fa', color: '#606266', fontWeight: 'bold', textAlign: 'center' }"
+      >
+        <!-- 行号列 -->
+        <el-table-column 
+          type="index" 
+          label="行号" 
+          width="60" 
+          fixed="left"
+          align="center"
+          :index="(index) => index + 1"
+        />
+        <!-- 数据列 -->
+        <el-table-column 
+          v-for="(column, index) in excelTableColumns" 
+          :key="index"
+          :prop="column.prop"
+          :label="getExcelColName(index)"
+          min-width="120"
+          align="center"
+          show-overflow-tooltip
+        />
+      </el-table>
+      <div v-else-if="isExcelLoading" class="loading-message">
+        <div>正在加载Excel数据...</div>
+      </div>
+      <div v-else class="no-data-message">
+        <el-icon :size="48"><Document /></el-icon>
+        <div>暂无数据</div>
+        <div class="no-data-hint">请上传Excel文件查看数据</div>
+        <el-button type="primary" size="small" @click="uploadExcelForPreview" style="margin-top: 15px;">
+          上传Excel文件
+        </el-button>
+      </div>
+    </div>
+    <div class="preview-note">
+      提示：此处显示原始Excel数据，包括表头行和所有列
+    </div>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="previewDialogVisible = false">关闭</el-button>
+      </span>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
 import { ref, computed, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Setting, ArrowDown, Search } from '@element-plus/icons-vue'
+import { Setting, ArrowDown, Search, Document } from '@element-plus/icons-vue'
+import * as XLSX from 'xlsx'
 
 const router = useRouter()
 const activeTab = ref('objectList')
@@ -291,28 +395,29 @@ const editForm = reactive({
     row: '',
     col: ''
   },
-  constraint: '',
-  transferControl: '',
+  constraint: [],
+  transferControl: [],
   auditInfo: '',
   status: '',
-  feedback: ''
+  feedback: '',
+  excelData: null // 新增保存Excel文件数据
 })
 const editingIndex = ref(-1)
 
 // 表格数据
 const tableData = ref([
-  { id: 1, entity: '表1', locationInfo: '(表1, -, -)', constraint: '访问权限', transferControl: '可修改', auditInfo: '查看日志', status: '已合格', feedback: '' },
-  { id: 2, entity: '表2', locationInfo: '(表2, 1-2, 3-6)', constraint: '', transferControl: '可修改', auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件' },
-  { id: 3, entity: '表3', locationInfo: '(表3, 1-6, 12-50)', constraint: '访问权限', transferControl: '可读', auditInfo: '查看日志', status: '已合格', feedback: '' },
-  { id: 4, entity: '表4', locationInfo: '(表4, 1-6, 21-52)', constraint: '', transferControl: '可修改', auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件' },
-  { id: 5, entity: '表5', locationInfo: '(表5, 1-4, 31-56)', constraint: '', transferControl: '可读', auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件' },
-  { id: 6, entity: '表6', locationInfo: '(表6, 11-12, 1-6)', constraint: '访问权限', transferControl: '可读', auditInfo: '查看日志', status: '已合格', feedback: '' },
-  { id: 7, entity: '表7', locationInfo: '(表7, -, -)', constraint: '共享约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '' },
-  { id: 8, entity: '表8', locationInfo: '(表8, -, -)', constraint: '开放约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '' },
-  { id: 9, entity: '表9', locationInfo: '(表9, 1-4, 61-70)', constraint: '访问权限', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '' },
-  { id: 10, entity: '表10', locationInfo: '(表10, -, -)', constraint: '访问权限', transferControl: '可修改', auditInfo: '查看日志', status: '已合格', feedback: '' },
-  { id: 11, entity: '表11', locationInfo: '(表11, 14-16, 1-7)', constraint: '开放约束', transferControl: '可读', auditInfo: '查看日志', status: '待检验', feedback: '' },
-  { id: 12, entity: '表12', locationInfo: '(表12, 1-6, 12-14)', constraint: '开放约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '' }
+  { id: 1, entity: '表1', locationInfo: '(表1, -, -)', constraint: ['访问权限'], transferControl: ['可修改'], auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
+  { id: 2, entity: '表2', locationInfo: '(表2, 1-2, 3-6)', constraint: [], transferControl: ['可修改'], auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件', excelData: null },
+  { id: 3, entity: '表3', locationInfo: '(表3, 1-6, 12-50)', constraint: ['访问权限'], transferControl: ['可读'], auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
+  { id: 4, entity: '表4', locationInfo: '(表4, 1-6, 21-52)', constraint: [], transferControl: ['可修改'], auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件', excelData: null },
+  { id: 5, entity: '表5', locationInfo: '(表5, 1-4, 31-56)', constraint: [], transferControl: ['可读'], auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件', excelData: null },
+  { id: 6, entity: '表6', locationInfo: '(表6, 11-12, 1-6)', constraint: ['访问权限'], transferControl: ['可读'], auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
+  { id: 7, entity: '表7', locationInfo: '(表7, -, -)', constraint: ['共享约束'], transferControl: ['可销毁'], auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
+  { id: 8, entity: '表8', locationInfo: '(表8, -, -)', constraint: ['开放约束'], transferControl: ['可销毁'], auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
+  { id: 9, entity: '表9', locationInfo: '(表9, 1-4, 61-70)', constraint: ['访问权限'], transferControl: ['可销毁'], auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
+  { id: 10, entity: '表10', locationInfo: '(表10, -, -)', constraint: ['访问权限'], transferControl: ['可修改'], auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
+  { id: 11, entity: '表11', locationInfo: '(表11, 14-16, 1-7)', constraint: ['开放约束'], transferControl: ['可读'], auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
+  { id: 12, entity: '表12', locationInfo: '(表12, 1-6, 12-14)', constraint: ['开放约束'], transferControl: ['可销毁'], auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null }
 ])
 
 // 排序状态
@@ -320,6 +425,14 @@ const sortState = reactive({
   prop: '',
   order: ''
 })
+
+// 确保数据是数组格式
+const ensureArray = (value) => {
+  if (Array.isArray(value)) {
+    return [...value]
+  }
+  return value ? [value] : []
+}
 
 // 根据状态和搜索条件过滤数据
 const filteredTableData = computed(() => {
@@ -333,12 +446,27 @@ const filteredTableData = computed(() => {
   // 关键字搜索
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
-    result = result.filter(item => 
-      item.id.toString().includes(keyword) || 
-      item.entity.toLowerCase().includes(keyword) || 
-      item.constraint.toLowerCase().includes(keyword) || 
-      item.transferControl.toLowerCase().includes(keyword)
-    )
+    result = result.filter(item => {
+      // 检查ID和实体
+      if (item.id.toString().includes(keyword) || 
+          item.entity.toLowerCase().includes(keyword)) {
+        return true
+      }
+      
+      // 确保约束条件是数组并检查
+      const constraints = ensureArray(item.constraint)
+      if (constraints.some(c => c && c.toLowerCase().includes(keyword))) {
+        return true
+      }
+      
+      // 确保传输控制操作是数组并检查
+      const transferControls = ensureArray(item.transferControl)
+      if (transferControls.some(t => t && t.toLowerCase().includes(keyword))) {
+        return true
+      }
+      
+      return false
+    })
   }
 
   // 排序
@@ -398,11 +526,16 @@ const handleEdit = (row) => {
   editForm.entity = row.entity
   editForm.locationInfo.row = locationParts[0]
   editForm.locationInfo.col = locationParts[1]
-  editForm.constraint = row.constraint
-  editForm.transferControl = row.transferControl
+  
+  // 使用辅助函数确保约束条件和传输控制是数组
+  editForm.constraint = ensureArray(row.constraint)
+  editForm.transferControl = ensureArray(row.transferControl)
+  
   editForm.auditInfo = row.auditInfo
   editForm.status = row.status
   editForm.feedback = row.feedback
+  
+  editForm.excelData = row.excelData // 保留原有的Excel文件数据
   
   editDialogVisible.value = true
 }
@@ -417,33 +550,31 @@ const cancelEdit = () => {
     row: '',
     col: ''
   }
-  editForm.constraint = ''
-  editForm.transferControl = ''
+  editForm.constraint = []
+  editForm.transferControl = []
   editForm.auditInfo = ''
   editForm.status = ''
   editForm.feedback = ''
+  editForm.excelData = null
   
   editingIndex.value = -1
 }
 
 // 保存编辑
 const saveEdit = () => {
-  // 如果状态为"已合格"，清空反馈意见
-  if (editForm.status === '已合格') {
-    editForm.feedback = ''
-  }
-  
   // 构建更新后的对象
   const entityName = editForm.entity
   const updatedObject = {
     id: editForm.id,
     entity: entityName,
     locationInfo: `(${entityName}, ${editForm.locationInfo.row}, ${editForm.locationInfo.col})`,
-    constraint: editForm.constraint || '',
-    transferControl: editForm.transferControl || '',
+    constraint: ensureArray(editForm.constraint),
+    transferControl: ensureArray(editForm.transferControl),
     auditInfo: editForm.auditInfo,
     status: editForm.status,
-    feedback: editForm.feedback
+    feedback: editForm.feedback, // 保留原有反馈意见
+    // 如果上传了新的Excel文件，使用新的数据，否则保留原来的
+    excelData: editForm.excelData || tableData.value[editingIndex.value].excelData
   }
   
   // 更新表格数据
@@ -453,6 +584,9 @@ const saveEdit = () => {
   
   ElMessage.success(`已保存对 ${entityName} 的编辑`)
   editDialogVisible.value = false
+  
+  // 重置表单
+  editForm.excelData = null
 }
 
 // 删除对象
@@ -488,9 +622,10 @@ const showCreateDialog = () => {
     row: '',
     col: ''
   }
-  createForm.constraint = ''
-  createForm.transferControl = ''
+  createForm.constraint = []
+  createForm.transferControl = []
   createForm.classificationValue = ''
+  createForm.excelData = null // 新增保存Excel文件数据
   
   createDialogVisible.value = true
 }
@@ -502,9 +637,10 @@ const createForm = reactive({
     row: '',
     col: ''
   },
-  constraint: '',
-  transferControl: '',
-  classificationValue: ''
+  constraint: [],
+  transferControl: [],
+  classificationValue: '',
+  excelData: null // 新增保存Excel文件数据
 })
 
 // 表单校验规则
@@ -525,10 +661,35 @@ const formRules = {
 
 // 处理文件变更
 const handleFileChange = (file) => {
-  if (file) {
-    createForm.entity = file.name
-    ElMessage.success(`已选择"${file.name}"`)
+  // 验证文件类型
+  const isExcel = file.raw.type === 'application/vnd.ms-excel' || 
+                 file.raw.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if (!isExcel) {
+    ElMessage.warning('请上传Excel格式的文件（.xls或.xlsx）');
+    return false;
   }
+  
+  // 设置实体名称为文件名（不带扩展名）
+  const fileName = file.name;
+  const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+  createForm.entity = fileNameWithoutExt;
+  
+  // 读取并保存Excel文件内容
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      // 保存文件的二进制数据
+      createForm.excelData = e.target.result;
+      ElMessage.success(`已选择Excel表格"${fileName}"`);
+    } catch (error) {
+      console.error('读取Excel文件失败:', error);
+      ElMessage.error('读取Excel文件失败');
+    }
+  };
+  reader.onerror = () => {
+    ElMessage.error('读取文件失败');
+  };
+  reader.readAsBinaryString(file.raw);
 }
 
 // 取消新建
@@ -544,27 +705,38 @@ const saveCreate = () => {
     return
   }
   
+  // 检查是否已上传Excel文件
+  if (!createForm.excelData) {
+    ElMessage.warning('请上传Excel表格文件')
+    return
+  }
+  
   createFormRef.value.validate((valid) => {
     if (valid) {
       // 创建新对象
       const newId = tableData.value.length > 0 ? Math.max(...tableData.value.map(item => item.id)) + 1 : 1
       const entityName = createForm.entity || '未上传'
+      
       const newObject = {
         id: newId,
         entity: entityName,
         locationInfo: `(${entityName}, ${createForm.locationInfo.row}, ${createForm.locationInfo.col})`,
-        constraint: createForm.constraint || '',
-        transferControl: createForm.transferControl || '',
+        constraint: ensureArray(createForm.constraint),
+        transferControl: ensureArray(createForm.transferControl),
         auditInfo: '查看日志',
         status: '待检验',
-        feedback: ''
+        feedback: '',
+        excelData: createForm.excelData // 保存Excel文件数据
       }
       
       // 添加到表格数据
       tableData.value.unshift(newObject)
       
-      ElMessage.success(`成功新建数字对象`)
+      ElMessage.success(`成功新建数字对象，可点击实体名称预览Excel内容`)
       createDialogVisible.value = false
+      
+      // 重置表单
+      createForm.excelData = null
     } else {
       return false
     }
@@ -584,16 +756,291 @@ const handleSortChange = (column) => {
 
 // 处理编辑文件变更
 const handleEditFileChange = (file) => {
-  if (file) {
-    editForm.entity = file.name
-    ElMessage.success(`已选择"${file.name}"`)
+  // 验证文件类型
+  const isExcel = file.raw.type === 'application/vnd.ms-excel' || 
+                 file.raw.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if (!isExcel) {
+    ElMessage.warning('请上传Excel格式的文件（.xls或.xlsx）');
+    return false;
   }
+  
+  // 设置实体名称为文件名（不带扩展名）
+  const fileName = file.name;
+  const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+  editForm.entity = fileNameWithoutExt;
+  
+  // 读取并保存Excel文件内容
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      // 保存文件的二进制数据
+      editForm.excelData = e.target.result;
+      ElMessage.success(`已选择Excel表格"${fileName}"`);
+    } catch (error) {
+      console.error('读取Excel文件失败:', error);
+      ElMessage.error('读取Excel文件失败');
+    }
+  };
+  reader.onerror = () => {
+    ElMessage.error('读取文件失败');
+  };
+  reader.readAsBinaryString(file.raw);
 }
 
 // 处理每页显示数量变化
 const handleSizeChange = (val) => {
   pageSize.value = val
   currentPage.value = 1
+}
+
+// Excel预览相关
+const previewDialogVisible = ref(false)
+const previewForm = reactive({
+  id: '',
+  entity: '',
+  locationInfo: '',
+  constraint: [],
+  transferControl: [],
+  status: ''
+})
+
+// Excel表格数据
+const excelTableColumns = ref([])
+const excelTableData = ref([])
+const isExcelLoading = ref(false)
+const excelSheets = ref([]) // 存储工作表名称
+const activeSheet = ref('') // 当前激活的工作表
+const currentWorkbook = ref(null) // 当前工作簿对象
+
+// 预览实体
+const previewEntity = (row) => {
+  console.log('预览实体：', row)
+  
+  // 设置预览表单数据
+  previewForm.id = row.id
+  previewForm.entity = row.entity
+  previewForm.locationInfo = row.locationInfo
+  previewForm.constraint = ensureArray(row.constraint)
+  previewForm.transferControl = ensureArray(row.transferControl)
+  previewForm.status = row.status
+  
+  // 清空当前Excel数据
+  excelTableData.value = []
+  excelTableColumns.value = []
+  excelSheets.value = []
+  currentWorkbook.value = null
+  isExcelLoading.value = false
+  
+  // 显示预览对话框
+  previewDialogVisible.value = true
+  
+  // 如果已有保存的Excel数据，直接加载
+  if (row.excelData) {
+    isExcelLoading.value = true
+    
+    try {
+      // 解析Excel数据
+      const workbook = XLSX.read(row.excelData, { type: 'binary' })
+      
+      // 保存当前工作簿对象
+      currentWorkbook.value = workbook
+      
+      // 获取所有工作表名称
+      const sheetNames = workbook.SheetNames
+      excelSheets.value = sheetNames
+      
+      // 选择第一个工作表
+      if (sheetNames.length > 0) {
+        activeSheet.value = sheetNames[0]
+        
+        // 获取第一个工作表
+        const worksheet = workbook.Sheets[sheetNames[0]]
+        
+        // 处理并显示工作表数据
+        processWorksheet(worksheet)
+      }
+      
+      isExcelLoading.value = false
+      
+      if (excelTableData.value.length === 0) {
+        ElMessage.warning('Excel文件中没有数据')
+      }
+    } catch (error) {
+      console.error('解析Excel文件时出错:', error)
+      ElMessage.error('无法解析Excel文件，请确保文件格式正确')
+      isExcelLoading.value = false
+    }
+  }
+}
+
+// 切换工作表
+const changeSheet = (sheetName) => {
+  if (!currentWorkbook.value || !sheetName) return
+  
+  isExcelLoading.value = true
+  
+  // 获取选中的工作表
+  const worksheet = currentWorkbook.value.Sheets[sheetName]
+  
+  // 处理并显示工作表数据
+  processWorksheet(worksheet)
+  
+  isExcelLoading.value = false
+}
+
+// 处理单个工作表数据
+const processWorksheet = (worksheet) => {
+  try {
+    // 获取工作表范围
+    const range = XLSX.utils.decode_range(worksheet['!ref'])
+    
+    // 设置表格列
+    const columns = []
+    
+    // 创建表头
+    for (let c = 0; c <= range.e.c; c++) {
+      columns.push({
+        prop: `col${c}`,
+        label: getExcelColName(c)
+      })
+    }
+    excelTableColumns.value = columns
+    
+    // 获取所有单元格数据，包括表头行
+    const tableData = []
+    for (let r = range.s.r; r <= range.e.r; r++) {
+      const rowData = {}
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const cellAddress = XLSX.utils.encode_cell({ r, c })
+        const cell = worksheet[cellAddress]
+        
+        // 格式化单元格数据
+        let cellValue = ''
+        if (cell) {
+          // 特殊处理日期类型
+          if (cell.t === 'd') {
+            cellValue = cell.w || new Date(cell.v).toLocaleDateString()
+          } else {
+            cellValue = XLSX.utils.format_cell(cell)
+          }
+        }
+        
+        rowData[`col${c}`] = cellValue
+      }
+      tableData.push(rowData)
+    }
+    
+    excelTableData.value = tableData
+  } catch (error) {
+    console.error('处理工作表数据出错:', error)
+    ElMessage.error('处理工作表数据时出错')
+    excelTableData.value = []
+  }
+}
+
+// 处理Excel文件选择
+const handleExcelFileSelected = (files) => {
+  if (!files || files.length === 0) {
+    isExcelLoading.value = false
+    return
+  }
+  
+  const file = files[0]
+  
+  // 验证文件类型
+  if (!/\.(xls|xlsx)$/i.test(file.name)) {
+    ElMessage.warning('请选择Excel文件（.xls或.xlsx格式）')
+    isExcelLoading.value = false
+    return
+  }
+  
+  // 设置加载状态
+  isExcelLoading.value = true
+  
+  // 读取文件内容
+  const reader = new FileReader()
+  
+  reader.onload = (e) => {
+    try {
+      // 解析Excel数据
+      const data = e.target.result
+      const workbook = XLSX.read(data, { type: 'binary' })
+      
+      // 保存当前工作簿对象
+      currentWorkbook.value = workbook
+      
+      // 获取所有工作表名称
+      const sheetNames = workbook.SheetNames
+      excelSheets.value = sheetNames
+      
+      // 选择第一个工作表
+      if (sheetNames.length > 0) {
+        activeSheet.value = sheetNames[0]
+        
+        // 获取第一个工作表
+        const worksheet = workbook.Sheets[sheetNames[0]]
+        
+        // 处理并显示工作表数据
+        processWorksheet(worksheet)
+      }
+      
+      isExcelLoading.value = false
+      
+      if (excelTableData.value.length === 0) {
+        ElMessage.warning('Excel文件中没有数据')
+      } else {
+        ElMessage.success(`成功加载"${previewForm.entity}"的Excel数据，共${sheetNames.length}个工作表，${excelTableData.value.length}行，${excelTableColumns.value.length}列`)
+      }
+    } catch (error) {
+      console.error('解析Excel文件时出错:', error)
+      ElMessage.error('无法解析Excel文件，请确保文件格式正确')
+      isExcelLoading.value = false
+      excelTableData.value = []
+      excelSheets.value = []
+      currentWorkbook.value = null
+    }
+  }
+  
+  reader.onerror = () => {
+    ElMessage.error('读取文件失败')
+    isExcelLoading.value = false
+  }
+  
+  reader.readAsBinaryString(file)
+}
+
+// 上传Excel文件预览
+const uploadExcelForPreview = () => {
+  // 创建文件输入元素
+  const fileInput = document.createElement('input')
+  fileInput.type = 'file'
+  fileInput.accept = '.xlsx, .xls'
+  fileInput.style.display = 'none'
+  document.body.appendChild(fileInput)
+  
+  // 监听文件选择事件
+  fileInput.addEventListener('change', (event) => {
+    handleExcelFileSelected(event.target.files)
+    // 移除元素
+    document.body.removeChild(fileInput)
+  })
+  
+  // 打开文件选择对话框
+  fileInput.click()
+}
+
+// 获取Excel列名
+const getExcelColName = (index) => {
+  // 转换列索引为Excel列名（A, B, C, ... Z, AA, AB, ...）
+  let colName = ''
+  let n = index
+  
+  while (n >= 0) {
+    colName = String.fromCharCode(65 + (n % 26)) + colName
+    n = Math.floor(n / 26) - 1
+  }
+  
+  return colName
 }
 </script>
 
@@ -766,5 +1213,140 @@ const handleSizeChange = (val) => {
 
 :deep(.custom-dialog) {
   margin-top: 15vh !important;
+}
+
+/* 纯文本样式 */
+.plain-text-container {
+  color: #333;
+  text-align: center;
+  line-height: 1.5;
+  padding: 2px 0;
+}
+
+/* 标签样式 */
+.constraint-tag {
+  margin: 2px;
+  max-width: 90%;
+  white-space: normal;
+  display: inline-block;
+}
+
+.transfer-tag {
+  margin: 2px;
+  max-width: 90%;
+  white-space: normal;
+  display: inline-block;
+}
+
+.tag-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-height: 24px;
+}
+
+/* 自定义选择控件样式 */
+:deep(.custom-select) {
+  width: 100%;
+}
+
+:deep(.custom-select .el-select__tags) {
+  max-width: 100%;
+  overflow: hidden;
+  flex-wrap: wrap;
+}
+
+:deep(.custom-select .el-tag) {
+  margin: 2px 4px;
+  max-width: calc(100% - 8px);
+  display: flex;
+  align-items: center;
+}
+
+:deep(.custom-select .el-select__input) {
+  margin: 2px 0;
+}
+
+:deep(.el-select-dropdown__item) {
+  padding: 0 10px;
+  height: 34px;
+  line-height: 34px;
+}
+
+/* 上传提示样式 */
+.upload-tip {
+  color: #909399;
+  font-size: 14px;
+}
+
+/* 添加预览相关的样式 */
+.preview-header {
+  margin-bottom: 20px;
+  border-bottom: 1px solid #ebeef5;
+  padding-bottom: 15px;
+}
+
+.preview-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.preview-info > div {
+  flex: 1;
+  min-width: 200px;
+}
+
+.excel-preview {
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+.preview-note {
+  font-size: 12px;
+  color: #909399;
+  text-align: center;
+  margin-top: 10px;
+}
+
+.no-data-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #909399;
+}
+
+.no-data-hint {
+  font-size: 12px;
+  margin-top: 5px;
+  color: #c0c4cc;
+}
+
+.loading-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #909399;
+}
+
+/* 工作表切换相关样式 */
+.sheets-selector {
+  margin-bottom: 10px;
+}
+
+.sheet-label {
+  font-size: 14px;
+  color: #333;
+  margin-right: 10px;
 }
 </style> 
