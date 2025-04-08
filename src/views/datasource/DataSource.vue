@@ -298,70 +298,13 @@
       </div>
     </div>
     
-    <!-- 工作表切换 -->
-    <div v-if="excelSheets.length > 0" class="sheets-selector">
-      <span class="sheet-label">工作表：</span>
-      <el-radio-group v-model="activeSheet" size="small" @change="changeSheet">
-        <el-radio-button 
-          v-for="sheet in excelSheets" 
-          :key="sheet" 
-          :label="sheet"
-        >{{ sheet }}</el-radio-button>
-      </el-radio-group>
-    </div>
-    
-    <div class="excel-preview">
-      <el-table
-        v-if="excelTableData.length > 0"
-        :data="excelTableData"
-        style="width: 100%"
-        border
-        stripe
-        v-loading="isExcelLoading"
-        max-height="600px"
-        :cell-style="{ padding: '6px 8px' }"
-        :header-cell-style="{ backgroundColor: '#f5f7fa', color: '#606266', fontWeight: 'bold', textAlign: 'center' }"
-      >
-        <!-- 行号列 -->
-        <el-table-column 
-          type="index" 
-          label="行号" 
-          width="60" 
-          fixed="left"
-          align="center"
-          :index="(index) => index + 1"
-        />
-        <!-- 数据列 -->
-        <el-table-column 
-          v-for="(column, index) in excelTableColumns" 
-          :key="index"
-          :prop="column.prop"
-          :label="getExcelColName(index)"
-          min-width="120"
-          align="center"
-          show-overflow-tooltip
-        />
-      </el-table>
-      <div v-else-if="isExcelLoading" class="loading-message">
-        <div>正在加载Excel数据...</div>
-      </div>
-      <div v-else class="no-data-message">
-        <el-icon :size="48"><Document /></el-icon>
-        <div>暂无数据</div>
-        <div class="no-data-hint">请上传Excel文件查看数据</div>
-        <el-button type="primary" size="small" @click="uploadExcelForPreview" style="margin-top: 15px;">
-          上传Excel文件
-        </el-button>
-      </div>
-    </div>
-    <div class="preview-note">
-      提示：此处显示原始Excel数据，包括表头行和所有列
-    </div>
-    <template #footer>
-      <span class="dialog-footer">
-        <el-button @click="previewDialogVisible = false">关闭</el-button>
-      </span>
-    </template>
+    <ExcelPreview
+      :file="currentExcelFile"
+      :title="previewForm.entity"
+      @close="previewDialogVisible = false"
+      @data-loaded="handleExcelDataLoaded"
+      @error="handleExcelError"
+    />
   </el-dialog>
 </template>
 
@@ -371,6 +314,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Setting, ArrowDown, Search, Document } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
+import ExcelPreview from '@/components/ExcelPreview.vue'
 
 const router = useRouter()
 const activeTab = ref('objectList')
@@ -812,10 +756,11 @@ const excelSheets = ref([]) // 存储工作表名称
 const activeSheet = ref('') // 当前激活的工作表
 const currentWorkbook = ref(null) // 当前工作簿对象
 
-// 预览实体
+// 在script setup部分添加新的变量和方法
+const currentExcelFile = ref(null)
+
+// 修改previewEntity方法
 const previewEntity = (row) => {
-  console.log('预览实体：', row)
-  
   // 设置预览表单数据
   previewForm.id = row.id
   previewForm.entity = row.entity
@@ -824,223 +769,24 @@ const previewEntity = (row) => {
   previewForm.transferControl = ensureArray(row.transferControl)
   previewForm.status = row.status
   
-  // 清空当前Excel数据
-  excelTableData.value = []
-  excelTableColumns.value = []
-  excelSheets.value = []
-  currentWorkbook.value = null
-  isExcelLoading.value = false
+  // 设置Excel文件数据
+  if (row.excelData) {
+    currentExcelFile.value = row.excelData
+  } else {
+    currentExcelFile.value = null
+  }
   
   // 显示预览对话框
   previewDialogVisible.value = true
-  
-  // 如果已有保存的Excel数据，直接加载
-  if (row.excelData) {
-    isExcelLoading.value = true
-    
-    try {
-      // 解析Excel数据
-      const workbook = XLSX.read(row.excelData, { type: 'binary' })
-      
-      // 保存当前工作簿对象
-      currentWorkbook.value = workbook
-      
-      // 获取所有工作表名称
-      const sheetNames = workbook.SheetNames
-      excelSheets.value = sheetNames
-      
-      // 选择第一个工作表
-      if (sheetNames.length > 0) {
-        activeSheet.value = sheetNames[0]
-        
-        // 获取第一个工作表
-        const worksheet = workbook.Sheets[sheetNames[0]]
-        
-        // 处理并显示工作表数据
-        processWorksheet(worksheet)
-      }
-      
-      isExcelLoading.value = false
-      
-      if (excelTableData.value.length === 0) {
-        ElMessage.warning('Excel文件中没有数据')
-      }
-    } catch (error) {
-      console.error('解析Excel文件时出错:', error)
-      ElMessage.error('无法解析Excel文件，请确保文件格式正确')
-      isExcelLoading.value = false
-    }
-  }
 }
 
-// 切换工作表
-const changeSheet = (sheetName) => {
-  if (!currentWorkbook.value || !sheetName) return
-  
-  isExcelLoading.value = true
-  
-  // 获取选中的工作表
-  const worksheet = currentWorkbook.value.Sheets[sheetName]
-  
-  // 处理并显示工作表数据
-  processWorksheet(worksheet)
-  
-  isExcelLoading.value = false
+// 添加新的处理方法
+const handleExcelDataLoaded = (data) => {
+  console.log('Excel数据加载完成:', data)
 }
 
-// 处理单个工作表数据
-const processWorksheet = (worksheet) => {
-  try {
-    // 获取工作表范围
-    const range = XLSX.utils.decode_range(worksheet['!ref'])
-    
-    // 设置表格列
-    const columns = []
-    
-    // 创建表头
-    for (let c = 0; c <= range.e.c; c++) {
-      columns.push({
-        prop: `col${c}`,
-        label: getExcelColName(c)
-      })
-    }
-    excelTableColumns.value = columns
-    
-    // 获取所有单元格数据，包括表头行
-    const tableData = []
-    for (let r = range.s.r; r <= range.e.r; r++) {
-      const rowData = {}
-      for (let c = range.s.c; c <= range.e.c; c++) {
-        const cellAddress = XLSX.utils.encode_cell({ r, c })
-        const cell = worksheet[cellAddress]
-        
-        // 格式化单元格数据
-        let cellValue = ''
-        if (cell) {
-          // 特殊处理日期类型
-          if (cell.t === 'd') {
-            cellValue = cell.w || new Date(cell.v).toLocaleDateString()
-          } else {
-            cellValue = XLSX.utils.format_cell(cell)
-          }
-        }
-        
-        rowData[`col${c}`] = cellValue
-      }
-      tableData.push(rowData)
-    }
-    
-    excelTableData.value = tableData
-  } catch (error) {
-    console.error('处理工作表数据出错:', error)
-    ElMessage.error('处理工作表数据时出错')
-    excelTableData.value = []
-  }
-}
-
-// 处理Excel文件选择
-const handleExcelFileSelected = (files) => {
-  if (!files || files.length === 0) {
-    isExcelLoading.value = false
-    return
-  }
-  
-  const file = files[0]
-  
-  // 验证文件类型
-  if (!/\.(xls|xlsx)$/i.test(file.name)) {
-    ElMessage.warning('请选择Excel文件（.xls或.xlsx格式）')
-    isExcelLoading.value = false
-    return
-  }
-  
-  // 设置加载状态
-  isExcelLoading.value = true
-  
-  // 读取文件内容
-  const reader = new FileReader()
-  
-  reader.onload = (e) => {
-    try {
-      // 解析Excel数据
-      const data = e.target.result
-      const workbook = XLSX.read(data, { type: 'binary' })
-      
-      // 保存当前工作簿对象
-      currentWorkbook.value = workbook
-      
-      // 获取所有工作表名称
-      const sheetNames = workbook.SheetNames
-      excelSheets.value = sheetNames
-      
-      // 选择第一个工作表
-      if (sheetNames.length > 0) {
-        activeSheet.value = sheetNames[0]
-        
-        // 获取第一个工作表
-        const worksheet = workbook.Sheets[sheetNames[0]]
-        
-        // 处理并显示工作表数据
-        processWorksheet(worksheet)
-      }
-      
-      isExcelLoading.value = false
-      
-      if (excelTableData.value.length === 0) {
-        ElMessage.warning('Excel文件中没有数据')
-      } else {
-        ElMessage.success(`成功加载"${previewForm.entity}"的Excel数据，共${sheetNames.length}个工作表，${excelTableData.value.length}行，${excelTableColumns.value.length}列`)
-      }
-    } catch (error) {
-      console.error('解析Excel文件时出错:', error)
-      ElMessage.error('无法解析Excel文件，请确保文件格式正确')
-      isExcelLoading.value = false
-      excelTableData.value = []
-      excelSheets.value = []
-      currentWorkbook.value = null
-    }
-  }
-  
-  reader.onerror = () => {
-    ElMessage.error('读取文件失败')
-    isExcelLoading.value = false
-  }
-  
-  reader.readAsBinaryString(file)
-}
-
-// 上传Excel文件预览
-const uploadExcelForPreview = () => {
-  // 创建文件输入元素
-  const fileInput = document.createElement('input')
-  fileInput.type = 'file'
-  fileInput.accept = '.xlsx, .xls'
-  fileInput.style.display = 'none'
-  document.body.appendChild(fileInput)
-  
-  // 监听文件选择事件
-  fileInput.addEventListener('change', (event) => {
-    handleExcelFileSelected(event.target.files)
-    // 移除元素
-    document.body.removeChild(fileInput)
-  })
-  
-  // 打开文件选择对话框
-  fileInput.click()
-}
-
-// 获取Excel列名
-const getExcelColName = (index) => {
-  // 转换列索引为Excel列名（A, B, C, ... Z, AA, AB, ...）
-  let colName = ''
-  let n = index
-  
-  while (n >= 0) {
-    colName = String.fromCharCode(65 + (n % 26)) + colName
-    n = Math.floor(n / 26) - 1
-  }
-  
-  return colName
+const handleExcelError = (error) => {
+  ElMessage.error(error)
 }
 </script>
 
