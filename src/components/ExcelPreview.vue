@@ -2,9 +2,9 @@
     <div class="excel-preview-container">
       <div class="excel-preview-header">
         <h3>{{ title || '数据预览' }}</h3>
-        <div class="excel-actions">
+        <!-- <div class="excel-actions">
           <el-button size="small" type="primary" @click="$emit('close')" v-if="showClose">关闭预览</el-button>
-        </div>
+        </div> -->
       </div>
       
       <div class="excel-content" v-loading="loading">
