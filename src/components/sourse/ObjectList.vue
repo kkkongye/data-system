@@ -1,0 +1,387 @@
+<template>
+  <div class="object-list-container">
+    <!-- 状态筛选按钮 -->
+    <div class="status-filter">
+      <el-button 
+        :class="['status-btn', { active: currentStatus === '' }]" 
+        @click="setStatus('')"
+      >全部数字对象</el-button>
+      <el-button 
+        :class="['status-btn', { active: currentStatus === '待检验' }]" 
+        @click="setStatus('待检验')"
+      >待检验</el-button>
+      <el-button 
+        :class="['status-btn', { active: currentStatus === '已合格' }]" 
+        @click="setStatus('已合格')"
+      >已合格</el-button>
+      <el-button 
+        :class="['status-btn', { active: currentStatus === '不合格' }]" 
+        @click="setStatus('不合格')"
+      >不合格</el-button>
+    </div>
+    
+    <!-- 搜索和操作区 -->
+    <div class="action-bar">
+      <div class="search-area">
+        <el-input
+          v-model="searchValue"
+          placeholder="请输入ID/实体/约束条件/传输控制操作"
+          class="search-input"
+          @input="handleSearchInput"
+        >
+          <template #suffix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+      </div>
+      <div class="action-buttons">
+        <el-button type="primary" plain @click="$emit('export')">导出检验</el-button>
+        <el-button type="primary" @click="$emit('create')">新建数字对象</el-button>
+      </div>
+    </div>
+    
+    <!-- 数据表格 -->
+    <div class="table-container">
+      <el-table
+        :data="tableData"
+        style="width: 100%"
+        @selection-change="handleSelectionChange"
+        @sort-change="handleSortChange"
+        :cell-style="{ padding: '8px 0', textAlign: 'center' }"
+        :header-cell-style="{ padding: '10px 0', background: '#f5f7fa', color: '#606266', fontWeight: 'bold', textAlign: 'center' }"
+        border
+        height="100%"
+        fit
+      >
+        <el-table-column 
+          type="selection" 
+          width="50" 
+          align="center"
+          :selectable="(row) => row.status !== '已合格'"
+        />
+        <el-table-column 
+          prop="id" 
+          label="ID" 
+          width="70" 
+          align="center"
+          sortable
+        />
+        <el-table-column prop="entity" label="实体" width="100" align="center">
+          <template #default="scope">
+            <el-link type="primary" @click="handlePreview(scope.row)">{{ scope.row.entity }}</el-link>
+          </template>
+        </el-table-column>
+        <el-table-column prop="locationInfo" label="定位信息" min-width="150" align="center" />
+        <el-table-column prop="constraint" label="约束条件" min-width="160" align="center">
+          <template #default="scope">
+            <div class="plain-text-container">
+              <template v-if="scope.row.constraint && scope.row.constraint.length">
+                {{ Array.isArray(scope.row.constraint) ? scope.row.constraint.join('；') : scope.row.constraint }}
+              </template>
+              <template v-else>-</template>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="transferControl" label="传输控制操作" min-width="160" align="center">
+          <template #default="scope">
+            <div class="plain-text-container">
+              <template v-if="scope.row.transferControl && scope.row.transferControl.length">
+                {{ Array.isArray(scope.row.transferControl) ? scope.row.transferControl.join('；') : scope.row.transferControl }}
+              </template>
+              <template v-else>-</template>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="auditInfo" label="审计控制信息" width="130" align="center">
+          <template #default="scope">
+            <el-link type="primary">{{ scope.row.auditInfo }}</el-link>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="100" align="center">
+          <template #default="scope">
+            <span :class="['status-tag', getStatusClass(scope.row.status)]">
+              {{ scope.row.status }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column v-if="!isQualifiedStatus" prop="feedback" label="反馈意见" min-width="160" align="center">
+          <template #default="scope">
+            <span>{{ scope.row.feedback }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="150" align="center">
+          <template #default="scope">
+            <el-button link type="primary" size="small" @click="handleEdit(scope.row)">编辑</el-button>
+            <el-button link type="danger" size="small" @click="handleDelete(scope.row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+    
+    <!-- 分页 -->
+    <div class="pagination-area">
+      <span class="total-text">共{{ totalCount }}条信息</span>
+      <el-pagination
+        v-model:current-page="currentPageValue"
+        v-model:page-size="pageSizeValue"
+        :page-sizes="[10, 20, 30, 50]"
+        layout="total, sizes, prev, pager, next"
+        :total="totalCount"
+        @size-change="handleSizeChange"
+        @current-change="handleCurrentChange"
+      />
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, watch } from 'vue'
+import { Search } from '@element-plus/icons-vue'
+
+const props = defineProps({
+  // 表格数据
+  data: {
+    type: Array,
+    default: () => []
+  },
+  // 当前状态筛选
+  currentStatus: {
+    type: String,
+    default: ''
+  },
+  // 搜索关键词
+  searchKeyword: {
+    type: String,
+    default: ''
+  },
+  // 当前页
+  currentPage: {
+    type: Number,
+    default: 1
+  },
+  // 每页大小
+  pageSize: {
+    type: Number,
+    default: 10
+  },
+  // 总数据量
+  totalCount: {
+    type: Number,
+    default: 0
+  },
+  // 是否为已合格状态
+  isQualifiedStatus: {
+    type: Boolean,
+    default: false
+  }
+})
+
+const emit = defineEmits([
+  'update:currentStatus', 
+  'update:searchKeyword', 
+  'update:currentPage', 
+  'update:pageSize',
+  'selection-change',
+  'sort-change',
+  'edit',
+  'delete',
+  'preview',
+  'create',
+  'export'
+])
+
+// 内部状态
+const searchValue = ref(props.searchKeyword)
+const currentPageValue = ref(props.currentPage)
+const pageSizeValue = ref(props.pageSize)
+const selectedRows = ref([])
+
+// 组件内计算属性和方法
+const tableData = computed(() => {
+  if (!props.data) return []
+  
+  // 在组件内部进行分页
+  const startIndex = (props.currentPage - 1) * props.pageSize
+  const endIndex = startIndex + props.pageSize
+  
+  // 确保不超出数组范围
+  return props.data.slice(startIndex, Math.min(endIndex, props.data.length))
+})
+
+// 监听props变化
+watch(() => props.searchKeyword, (newVal) => {
+  searchValue.value = newVal
+})
+
+watch(() => props.currentPage, (newVal) => {
+  currentPageValue.value = newVal
+})
+
+watch(() => props.pageSize, (newVal) => {
+  pageSizeValue.value = newVal
+})
+
+// 监听内部状态变化，向外发出事件
+watch(searchValue, (newVal) => {
+  emit('update:searchKeyword', newVal)
+})
+
+watch(currentPageValue, (newVal) => {
+  emit('update:currentPage', newVal)
+})
+
+watch(pageSizeValue, (newVal) => {
+  emit('update:pageSize', newVal)
+})
+
+// 处理状态筛选
+const setStatus = (status) => {
+  emit('update:currentStatus', status)
+}
+
+// 处理搜索输入
+const handleSearchInput = (value) => {
+  emit('update:searchKeyword', value)
+}
+
+// 处理表格选择变更
+const handleSelectionChange = (rows) => {
+  selectedRows.value = rows
+  emit('selection-change', rows)
+}
+
+// 处理编辑
+const handleEdit = (row) => {
+  emit('edit', row)
+}
+
+// 处理删除
+const handleDelete = (row) => {
+  emit('delete', row)
+}
+
+// 处理预览
+const handlePreview = (row) => {
+  emit('preview', row)
+}
+
+// 处理分页大小变化
+const handleSizeChange = (size) => {
+  pageSizeValue.value = size
+  emit('update:pageSize', size)
+}
+
+// 处理当前页变化
+const handleCurrentChange = (page) => {
+  currentPageValue.value = page
+  emit('update:currentPage', page)
+}
+
+// 处理排序变化
+const handleSortChange = (column) => {
+  emit('sort-change', column)
+}
+
+// 获取状态对应的样式类名
+const getStatusClass = (status) => {
+  switch (status) {
+    case '已合格': return 'status-success'
+    case '不合格': return 'status-error'
+    case '待检验': return 'status-pending'
+    default: return ''
+  }
+}
+</script>
+
+<style scoped>
+.object-list-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 状态筛选按钮区域 */
+.status-filter {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.status-btn {
+  border: none;
+}
+
+.status-btn.active {
+  background-color: #1890ff;
+  color: #ffffff;
+}
+
+/* 搜索和操作区域 */
+.action-bar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.search-input {
+  width: 300px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+/* 表格容器区域 */
+.table-container {
+  margin-bottom: 16px;
+  height: calc(100vh - 340px);
+  overflow: hidden;
+  flex: 1;
+}
+
+/* 状态标签样式 */
+.status-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.status-success {
+  background-color: #f6ffed;
+  color: #52c41a;
+}
+
+.status-error {
+  background-color: #fff2f0;
+  color: #ff4d4f;
+}
+
+.status-pending {
+  background-color: #f5f5f5;
+  color: #8c8c8c;
+}
+
+/* 分页区域 */
+.pagination-area {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.total-text {
+  font-size: 14px;
+  color: #8c8c8c;
+}
+
+/* 纯文本样式 */
+.plain-text-container {
+  color: #333;
+  text-align: center;
+  line-height: 1.5;
+  padding: 2px 0;
+}
+</style> 

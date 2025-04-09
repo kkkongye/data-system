@@ -26,136 +26,23 @@
       <div class="content-card">
         <el-tabs v-model="activeTab">
           <el-tab-pane label="数字对象列表" name="objectList">
-            
-            <!-- 状态筛选按钮 -->
-            <div class="status-filter">
-              <el-button 
-                :class="['status-btn', { active: currentStatus === '' }]" 
-                @click="setStatus('')"
-              >全部数字对象</el-button>
-              <el-button 
-                :class="['status-btn', { active: currentStatus === '待检验' }]" 
-                @click="setStatus('待检验')"
-              >待检验</el-button>
-              <el-button 
-                :class="['status-btn', { active: currentStatus === '已合格' }]" 
-                @click="setStatus('已合格')"
-              >已合格</el-button>
-              <el-button 
-                :class="['status-btn', { active: currentStatus === '不合格' }]" 
-                @click="setStatus('不合格')"
-              >不合格</el-button>
-            </div>
-            
-            <!-- 搜索和操作区 -->
-            <div class="action-bar">
-              <div class="search-area">
-                <el-input
-                  v-model="searchKeyword"
-                  placeholder="请输入ID/实体/约束条件/传输控制操作"
-                  class="search-input"
-                >
-                  <template #suffix>
-                    <el-icon><Search /></el-icon>
-                  </template>
-                </el-input>
-              </div>
-              <div class="action-buttons">
-                <el-button type="primary" plain>导出检验</el-button>
-                <el-button type="primary" @click="showCreateDialog">新建数字对象</el-button>
-              </div>
-            </div>
-            
-            <!-- 数据表格 -->
-            <div class="table-container">
-              <el-table
-                :data="filteredTableData"
-                style="width: 100%"
-                @selection-change="handleSelectionChange"
-                @sort-change="handleSortChange"
-                :cell-style="{ padding: '8px 0', textAlign: 'center' }"
-                :header-cell-style="{ padding: '10px 0', background: '#f5f7fa', color: '#606266', fontWeight: 'bold', textAlign: 'center' }"
-                border
-                height="100%"
-                fit
-              >
-                <el-table-column 
-                  type="selection" 
-                  width="50" 
-                  align="center"
-                  :selectable="(row) => row.status !== '已合格'"
-                />
-                <el-table-column 
-                  prop="id" 
-                  label="ID" 
-                  width="70" 
-                  align="center"
-                  sortable
-                />
-                <el-table-column prop="entity" label="实体" width="100" align="center">
-                  <template #default="scope">
-                    <el-link type="primary" @click="previewEntity(scope.row)">{{ scope.row.entity }}</el-link>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="locationInfo" label="定位信息" min-width="150" align="center" />
-                <el-table-column prop="constraint" label="约束条件" min-width="160" align="center">
-                  <template #default="scope">
-                    <div class="plain-text-container">
-                      <template v-if="scope.row.constraint && scope.row.constraint.length">
-                        {{ scope.row.constraint.join('；') }}
-                      </template>
-                      <template v-else>-</template>
-                    </div>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="transferControl" label="传输控制操作" min-width="160" align="center">
-                  <template #default="scope">
-                    <div class="plain-text-container">
-                      <template v-if="scope.row.transferControl && scope.row.transferControl.length">
-                        {{ scope.row.transferControl.join('；') }}
-                      </template>
-                      <template v-else>-</template>
-                    </div>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="auditInfo" label="审计控制信息" width="130" align="center">
-                  <template #default="scope">
-                    <el-link type="primary">{{ scope.row.auditInfo }}</el-link>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="status" label="状态" width="100" align="center">
-                  <template #default="scope">
-                    <span :class="['status-tag', getStatusClass(scope.row.status)]">
-                      {{ scope.row.status }}
-                    </span>
-                  </template>
-                </el-table-column>
-                <el-table-column v-if="!isQualifiedStatus" prop="feedback" label="反馈意见" min-width="160" align="center">
-                  <template #default="scope">
-                    <span>{{ scope.row.feedback }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="操作" width="150" align="center">
-                  <template #default="scope">
-                    <el-button link type="primary" size="small" @click="handleEdit(scope.row)">编辑</el-button>
-                    <el-button link type="danger" size="small" @click="handleDelete(scope.row)">删除</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-            </div>
-            
-            <!-- 分页 -->
-            <div class="pagination-area">
-              <span class="total-text">共{{ totalCount }}条信息</span>
-              <el-pagination
-                v-model:current-page="currentPage"
-                v-model:page-size="pageSize"
-                :page-sizes="[10, 20, 30, 50]"
-                layout="total, sizes, prev, pager, next"
-                :total="totalCount"
-                @size-change="handleSizeChange"
-              />
-            </div>
+            <!-- 使用ObjectList组件代替原有的列表内容 -->
+            <ObjectList 
+              :data="filteredTableData"
+              v-model:current-status="currentStatus"
+              v-model:search-keyword="searchKeyword"
+              v-model:current-page="currentPage"
+              v-model:page-size="pageSize"
+              :total-count="totalCount"
+              :is-qualified-status="isQualifiedStatus"
+              @selection-change="handleSelectionChange"
+              @sort-change="handleSortChange"
+              @edit="handleEdit"
+              @delete="handleDelete"
+              @preview="previewEntity"
+              @create="showCreateDialog"
+              @export="handleExport"
+            />
           </el-tab-pane>
         </el-tabs>
       </div>
@@ -163,120 +50,22 @@
   </div>
   
   <!-- 编辑对象弹窗 -->
-  <el-dialog
-    v-model="editDialogVisible"
-    title="编辑数字对象"
-    width="40%"
-    :close-on-click-modal="false"
-    draggable
-    class="custom-dialog"
-  >
-    <el-form :model="editForm" label-width="120px" ref="editFormRef" :rules="formRules">
-      <el-form-item label="实体：" prop="entity">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <el-upload
-            action="#"
-            :auto-upload="false"
-            :show-file-list="false"
-            :on-change="handleEditFileChange"
-            accept=".xlsx,.xls"
-          >
-            <el-button type="primary" plain>
-              <el-icon style="margin-right: 4px;"><Document /></el-icon>上传Excel表格
-            </el-button>
-          </el-upload>
-          <span v-if="editForm.entity">已选择"{{ editForm.entity }}"</span>
-          <span v-else class="upload-tip">请上传Excel表格文件</span>
-        </div>
-      </el-form-item>
-      <el-form-item label="定位信息：" prop="locationInfo" style="margin-bottom: 22px;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <el-input v-model="editForm.locationInfo.row" placeholder="例：0-4" style="width: 150px;"></el-input>
-          <span>行</span>
-          <el-input v-model="editForm.locationInfo.col" placeholder="例：0-4" style="width: 150px;"></el-input>
-          <span>列</span>
-        </div>
-      </el-form-item>
-      <el-form-item label="约束条件：" prop="constraint">
-        <el-select v-model="editForm.constraint" placeholder="请选择约束条件" style="width: 100%" class="custom-select" multiple allow-create filterable default-first-option>
-          <el-option label="访问权限" value="访问权限"></el-option>
-          <el-option label="共享约束" value="共享约束"></el-option>
-          <el-option label="开放约束" value="开放约束"></el-option>
-        </el-select>
-      </el-form-item>
-      <el-form-item label="传输控制操作：" prop="transferControl">
-        <el-select v-model="editForm.transferControl" placeholder="请选择传输控制操作" style="width: 100%" class="custom-select" multiple allow-create filterable default-first-option>
-          <el-option label="可读" value="可读"></el-option>
-          <el-option label="可修改" value="可修改"></el-option>
-          <el-option label="可销毁" value="可销毁"></el-option>
-        </el-select>
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <span class="dialog-footer">
-        <el-button @click="cancelEdit">取消</el-button>
-        <el-button type="primary" @click="saveEdit">确定</el-button>
-      </span>
-    </template>
-  </el-dialog>
+  <EditObjectDialog
+    v-model:visible="editDialogVisible"
+    :title="'编辑数字对象'"
+    v-model:modelValue="editForm"
+    @save="saveEditObject"
+    @cancel="cancelEdit"
+  />
 
   <!-- 新建对象弹窗 -->
-  <el-dialog
-    v-model="createDialogVisible"
-    title="新建数字对象"
-    width="40%"
-    :close-on-click-modal="false"
-    draggable
-    class="custom-dialog"
-  >
-    <el-form :model="createForm" label-width="120px" ref="createFormRef" :rules="formRules">
-      <el-form-item label="实体：" prop="entity">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <el-upload
-            action="#"
-            :auto-upload="false"
-            :show-file-list="false"
-            :on-change="handleFileChange"
-            accept=".xlsx,.xls"
-          >
-            <el-button type="primary" plain>
-              <el-icon style="margin-right: 4px;"><Document /></el-icon>上传Excel表格
-            </el-button>
-          </el-upload>
-          <span v-if="createForm.entity">已选择"{{ createForm.entity }}"</span>
-          <span v-else class="upload-tip">请上传Excel表格文件</span>
-        </div>
-      </el-form-item>
-      <el-form-item label="定位信息：" prop="locationInfo" style="margin-bottom: 22px;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <el-input v-model="createForm.locationInfo.row" placeholder="例：0-4" style="width: 150px;"></el-input>
-          <span>行</span>
-          <el-input v-model="createForm.locationInfo.col" placeholder="例：0-4" style="width: 150px;"></el-input>
-          <span>列</span>
-        </div>
-      </el-form-item>
-      <el-form-item label="约束条件：" prop="constraint">
-        <el-select v-model="createForm.constraint" placeholder="请选择约束条件" style="width: 100%" class="custom-select" multiple allow-create filterable default-first-option>
-          <el-option label="访问权限" value="访问权限"></el-option>
-          <el-option label="共享约束" value="共享约束"></el-option>
-          <el-option label="开放约束" value="开放约束"></el-option>
-        </el-select>
-      </el-form-item>
-      <el-form-item label="传输控制操作：" prop="transferControl">
-        <el-select v-model="createForm.transferControl" placeholder="请选择传输控制操作" style="width: 100%" class="custom-select" multiple allow-create filterable default-first-option>
-          <el-option label="可读" value="可读"></el-option>
-          <el-option label="可修改" value="可修改"></el-option>
-          <el-option label="可销毁" value="可销毁"></el-option>
-        </el-select>
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <span class="dialog-footer">
-        <el-button @click="cancelCreate">取消</el-button>
-        <el-button type="primary" @click="saveCreate">确定</el-button>
-      </span>
-    </template>
-  </el-dialog>
+  <CreateObjectDialog
+    v-model:visible="createDialogVisible"
+    :title="'新建数字对象'"
+    v-model:modelValue="createForm"
+    @save="saveCreateObject"
+    @cancel="cancelCreate"
+  />
 
   <!-- Excel预览对话框 -->
   <el-dialog
@@ -310,12 +99,15 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Setting, ArrowDown, Search, Document } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
 import ExcelPreview from '@/components/sourse/ExcelPreview.vue'
+import EditObjectDialog from '@/components/sourse/EditObjectDialog.vue'
+import CreateObjectDialog from '@/components/sourse/CreateObjectDialog.vue'
+import ObjectList from '@/components/sourse/ObjectList.vue'
 
 const router = useRouter()
 const activeTab = ref('objectList')
@@ -426,30 +218,13 @@ const filteredTableData = computed(() => {
   // 更新总数据量
   totalCount.value = result.length
 
-  // 分页处理
-  const startIndex = (currentPage.value - 1) * pageSize.value
-  const endIndex = startIndex + pageSize.value
-  return result.slice(startIndex, endIndex)
+  // 分页计算已经由ObjectList组件处理
+  return result
 })
-
-// 设置当前状态
-const setStatus = (status) => {
-  currentStatus.value = status
-}
 
 // 处理表格选择变更
 const handleSelectionChange = (rows) => {
   selectedRows.value = rows
-}
-
-// 获取状态对应的样式类名
-const getStatusClass = (status) => {
-  switch (status) {
-    case '已合格': return 'status-success'
-    case '不合格': return 'status-error'
-    case '待检验': return 'status-pending'
-    default: return ''
-  }
 }
 
 // 编辑对象
@@ -506,29 +281,20 @@ const cancelEdit = () => {
 }
 
 // 保存编辑
-const saveEdit = () => {
-  // 构建更新后的对象
-  const entityName = editForm.entity
-  const updatedObject = {
-    id: editForm.id,
-    entity: entityName,
-    locationInfo: `(${entityName}, ${editForm.locationInfo.row}, ${editForm.locationInfo.col})`,
-    constraint: ensureArray(editForm.constraint),
-    transferControl: ensureArray(editForm.transferControl),
-    auditInfo: editForm.auditInfo,
-    status: editForm.status,
-    feedback: editForm.feedback, // 保留原有反馈意见
-    // 如果上传了新的Excel文件，使用新的数据，否则保留原来的
-    excelData: editForm.excelData || tableData.value[editingIndex.value].excelData
+const saveEditObject = (updatedObject) => {
+  // 处理定位信息为字符串格式
+  const entityName = updatedObject.entity
+  const displayObject = {
+    ...updatedObject,
+    locationInfo: `(${entityName}, ${updatedObject.locationInfo.row}, ${updatedObject.locationInfo.col})`,
   }
   
   // 更新表格数据
   if (editingIndex.value > -1) {
-    tableData.value[editingIndex.value] = updatedObject
+    tableData.value[editingIndex.value] = displayObject
   }
   
   ElMessage.success(`已保存对 ${entityName} 的编辑`)
-  editDialogVisible.value = false
   
   // 重置表单
   editForm.excelData = null
@@ -637,55 +403,33 @@ const handleFileChange = (file) => {
   reader.readAsBinaryString(file.raw);
 }
 
-// 取消新建
-const cancelCreate = () => {
-  createDialogVisible.value = false
+// 保存新建
+const saveCreateObject = (newObject) => {
+  // 创建新对象
+  const newId = tableData.value.length > 0 ? Math.max(...tableData.value.map(item => item.id)) + 1 : 1
+  const entityName = newObject.entity || '未上传'
+  
+  const displayObject = {
+    id: newId,
+    entity: entityName,
+    locationInfo: `(${entityName}, ${newObject.locationInfo.row}, ${newObject.locationInfo.col})`,
+    constraint: newObject.constraint,
+    transferControl: newObject.transferControl,
+    auditInfo: '查看日志',
+    status: '待检验',
+    feedback: '',
+    excelData: newObject.excelData // 保存Excel文件数据
+  }
+  
+  // 添加到表格数据
+  tableData.value.unshift(displayObject)
+  
+  ElMessage.success(`成功新建数字对象，可点击实体名称预览Excel内容`)
 }
 
-// 保存新建
-const saveCreate = () => {
-  // 直接检查定位信息
-  if (!createForm.locationInfo.row || !createForm.locationInfo.col) {
-    ElMessage.warning('请输入完整的定位信息（行和列）')
-    return
-  }
-  
-  // 检查是否已上传Excel文件
-  if (!createForm.excelData) {
-    ElMessage.warning('请上传Excel表格文件')
-    return
-  }
-  
-  createFormRef.value.validate((valid) => {
-    if (valid) {
-      // 创建新对象
-      const newId = tableData.value.length > 0 ? Math.max(...tableData.value.map(item => item.id)) + 1 : 1
-      const entityName = createForm.entity || '未上传'
-      
-      const newObject = {
-        id: newId,
-        entity: entityName,
-        locationInfo: `(${entityName}, ${createForm.locationInfo.row}, ${createForm.locationInfo.col})`,
-        constraint: ensureArray(createForm.constraint),
-        transferControl: ensureArray(createForm.transferControl),
-        auditInfo: '查看日志',
-        status: '待检验',
-        feedback: '',
-        excelData: createForm.excelData // 保存Excel文件数据
-      }
-      
-      // 添加到表格数据
-      tableData.value.unshift(newObject)
-      
-      ElMessage.success(`成功新建数字对象，可点击实体名称预览Excel内容`)
-      createDialogVisible.value = false
-      
-      // 重置表单
-      createForm.excelData = null
-    } else {
-      return false
-    }
-  })
+// 取消新建
+const cancelCreate = () => {
+  // 对话框会自动关闭，不需要额外处理
 }
 
 // 处理排序变化
@@ -697,45 +441,6 @@ const handleSortChange = (column) => {
     sortState.prop = ''
     sortState.order = ''
   }
-}
-
-// 处理编辑文件变更
-const handleEditFileChange = (file) => {
-  // 验证文件类型
-  const isExcel = file.raw.type === 'application/vnd.ms-excel' || 
-                 file.raw.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-  if (!isExcel) {
-    ElMessage.warning('请上传Excel格式的文件（.xls或.xlsx）');
-    return false;
-  }
-  
-  // 设置实体名称为文件名（不带扩展名）
-  const fileName = file.name;
-  const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
-  editForm.entity = fileNameWithoutExt;
-  
-  // 读取并保存Excel文件内容
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      // 保存文件的二进制数据
-      editForm.excelData = e.target.result;
-      ElMessage.success(`已选择Excel表格"${fileName}"`);
-    } catch (error) {
-      console.error('读取Excel文件失败:', error);
-      ElMessage.error('读取Excel文件失败');
-    }
-  };
-  reader.onerror = () => {
-    ElMessage.error('读取文件失败');
-  };
-  reader.readAsBinaryString(file.raw);
-}
-
-// 处理每页显示数量变化
-const handleSizeChange = (val) => {
-  pageSize.value = val
-  currentPage.value = 1
 }
 
 // Excel预览相关
@@ -760,75 +465,10 @@ const currentWorkbook = ref(null) // 当前工作簿对象
 // 在script setup部分添加新的变量和方法
 const currentExcelFile = ref(null)
 
-// 添加生成测试数据的方法
-const generateTestExcelData = (rows = 5000) => {
-  // 创建一个新的工作簿
-  const workbook = XLSX.utils.book_new()
-  
-  // 创建测试数据 - 大表格，以测试性能
-  const data = []
-  const headers = ['ID', '姓名', '年龄', '性别', '城市', '职业', '收入', '电话', '邮箱', '备注',
-                  '属性1', '属性2', '属性3', '属性4', '属性5', '属性6', '属性7', '属性8', '属性9', '属性10']
-  
-  // 添加表头
-  data.push(headers)
-  
-  // 生成指定行数的测试数据
-  for (let i = 1; i <= rows; i++) {
-    const row = [
-      i, // ID
-      `测试用户${i}`, // 姓名
-      Math.floor(Math.random() * 50) + 18, // 年龄
-      Math.random() > 0.5 ? '男' : '女', // 性别
-      ['北京', '上海', '广州', '深圳', '杭州'][Math.floor(Math.random() * 5)], // 城市
-      ['工程师', '教师', '医生', '销售', '设计师'][Math.floor(Math.random() * 5)], // 职业
-      Math.floor(Math.random() * 10000) + 5000, // 收入
-      `1${Math.floor(Math.random() * 9000000000) + 1000000000}`, // 电话
-      `user${i}@example.com`, // 邮箱
-      `这是第${i}条测试数据`, // 备注
-      `属性值1-${i}`,
-      `属性值2-${i}`,
-      `属性值3-${i}`,
-      `属性值4-${i}`,
-      `属性值5-${i}`,
-      `属性值6-${i}`,
-      `属性值7-${i}`,
-      `属性值8-${i}`,
-      `属性值9-${i}`,
-      `属性值10-${i}`
-    ]
-    data.push(row)
-    
-    // 添加进度提示
-    if (i % 1000 === 0) {
-      console.log(`生成测试数据: ${i}/${rows} 行`)
-    }
-  }
-  
-  console.log(`完成生成 ${rows} 行测试数据`)
-  
-  // 创建工作表
-  const worksheet = XLSX.utils.aoa_to_sheet(data)
-  
-  // 添加第二个工作表（小数据量）
-  const smallData = [
-    ['ID', '名称', '数量', '单价', '总价'],
-    [1, '产品A', 10, 100, 1000],
-    [2, '产品B', 20, 50, 1000],
-    [3, '产品C', 30, 30, 900]
-  ]
-  const smallSheet = XLSX.utils.aoa_to_sheet(smallData)
-  
-  // 将工作表添加到工作簿
-  XLSX.utils.book_append_sheet(workbook, worksheet, '大数据表')
-  XLSX.utils.book_append_sheet(workbook, smallSheet, '小数据表')
-  
-  // 转为二进制字符串
-  return XLSX.write(workbook, { type: 'binary', bookType: 'xlsx' })
-}
-
 // 修改previewEntity方法
 const previewEntity = (row) => {
+  console.log('预览实体数据:', row)
+  
   // 设置预览表单数据
   previewForm.id = row.id
   previewForm.entity = row.entity
@@ -837,46 +477,73 @@ const previewEntity = (row) => {
   previewForm.transferControl = ensureArray(row.transferControl)
   previewForm.status = row.status
   
-  // 显示预览对话框（先显示再加载数据，这样用户体验更好）
+  // 清空当前Excel数据
+  currentExcelFile.value = null
+  excelTableData.value = []
+  excelTableColumns.value = []
+  excelSheets.value = []
+  
+  // 显示预览对话框
   previewDialogVisible.value = true
   
-  // 设置Excel文件数据
-  ElMessage.info('正在准备Excel数据，请稍候...')
-  isExcelLoading.value = true
-  
-  // 使用setTimeout避免UI阻塞
-  setTimeout(() => {
-    try {
-      if (row.excelData) {
+  // 检查是否有实际的Excel数据
+  if (row.excelData) {
+    console.log('有Excel数据，开始加载')
+    ElMessage.info('正在准备Excel数据，请稍候...')
+    isExcelLoading.value = true
+    
+    // 使用setTimeout避免UI阻塞
+    setTimeout(() => {
+      try {
         currentExcelFile.value = row.excelData
-      } else {
-        // 使用模拟数据进行测试
-        const dataRows = 5000 // 可以调整此值来测试不同数据量
-        console.time('生成Excel测试数据')
-        currentExcelFile.value = generateTestExcelData(dataRows)
-        console.timeEnd('生成Excel测试数据')
+      } catch (error) {
+        console.error('加载Excel数据出错:', error)
+        ElMessage.error(`加载Excel数据出错: ${error.message}`)
+        isExcelLoading.value = false
+        currentExcelFile.value = null
       }
-    } catch (error) {
-      console.error('生成Excel数据出错:', error)
-      ElMessage.error(`生成Excel数据出错: ${error.message}`)
-      isExcelLoading.value = false
-    }
-  }, 100)
+    }, 100)
+  } else {
+    console.log('没有Excel数据，显示空状态')
+    currentExcelFile.value = null
+    isExcelLoading.value = false
+  }
 }
 
 // 添加新的处理方法
 const handleExcelDataLoaded = (data) => {
   console.log('Excel数据加载完成:', data)
+  
+  // 检查是否为真实上传的Excel文件
+  const isUserUploadedFile = tableData.value.some(row => 
+    row.id === previewForm.id && row.excelData && row.excelData === currentExcelFile.value);
+  
+  // 只有当不是用户上传的文件时才禁用数据显示
+  if (!isUserUploadedFile) {
+    console.warn('检测到非用户上传的Excel数据，已屏蔽');
+    excelTableColumns.value = [];
+    excelTableData.value = [];
+    excelSheets.value = [];
+    isExcelLoading.value = false;
+    currentExcelFile.value = null;
+    return;
+  }
+  
   // 可以在这里处理加载完的数据，例如根据定位信息高亮显示特定单元格
-  const { headers, data: tableData, sheets } = data
+  const { headers, data: tableData, sheets } = data;
   
   // 存储Excel表格数据，以便后续可能的操作
-  excelTableColumns.value = headers || []
-  excelTableData.value = tableData || []
-  excelSheets.value = sheets || []
+  excelTableColumns.value = headers || [];
+  excelTableData.value = tableData || [];
+  excelSheets.value = sheets || [];
   
-  isExcelLoading.value = false
-  ElMessage.success(`已成功加载 ${tableData?.length || 0} 行数据`)
+  isExcelLoading.value = false;
+  
+  if (tableData && tableData.length) {
+    ElMessage.success(`已成功加载 ${tableData.length} 行数据`);
+  } else {
+    console.warn('加载的Excel数据为空');
+  }
 }
 
 const handleExcelError = (error) => {
@@ -884,6 +551,31 @@ const handleExcelError = (error) => {
   isExcelLoading.value = false
   ElMessage.error(`加载Excel时出错: ${error}`)
 }
+
+// 处理导出功能
+const handleExport = () => {
+  ElMessage.success('导出功能待实现')
+}
+
+// 清除所有测试数据
+const clearAllTestData = () => {
+  console.log('清除所有测试数据')
+  // 确保所有表格行的excelData为null
+  tableData.value.forEach(row => {
+    row.excelData = null
+  })
+  
+  // 清空当前Excel文件和相关数据
+  currentExcelFile.value = null
+  excelTableData.value = []
+  excelTableColumns.value = []
+  excelSheets.value = []
+}
+
+// 在组件挂载后执行清理
+onMounted(() => {
+  clearAllTestData()
+})
 </script>
 
 <style scoped>
