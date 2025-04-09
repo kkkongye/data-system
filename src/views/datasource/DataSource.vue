@@ -301,7 +301,8 @@
     <ExcelPreview
       :file="currentExcelFile"
       :title="previewForm.entity"
-      @close="previewDialogVisible = false"
+      :use-web-worker="true"
+      :max-visible-columns="30"
       @data-loaded="handleExcelDataLoaded"
       @error="handleExcelError"
     />
@@ -314,7 +315,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Setting, ArrowDown, Search, Document } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
-import ExcelPreview from '@/components/ExcelPreview.vue'
+import ExcelPreview from '@/components/sourse/ExcelPreview.vue'
 
 const router = useRouter()
 const activeTab = ref('objectList')
@@ -759,6 +760,73 @@ const currentWorkbook = ref(null) // 当前工作簿对象
 // 在script setup部分添加新的变量和方法
 const currentExcelFile = ref(null)
 
+// 添加生成测试数据的方法
+const generateTestExcelData = (rows = 5000) => {
+  // 创建一个新的工作簿
+  const workbook = XLSX.utils.book_new()
+  
+  // 创建测试数据 - 大表格，以测试性能
+  const data = []
+  const headers = ['ID', '姓名', '年龄', '性别', '城市', '职业', '收入', '电话', '邮箱', '备注',
+                  '属性1', '属性2', '属性3', '属性4', '属性5', '属性6', '属性7', '属性8', '属性9', '属性10']
+  
+  // 添加表头
+  data.push(headers)
+  
+  // 生成指定行数的测试数据
+  for (let i = 1; i <= rows; i++) {
+    const row = [
+      i, // ID
+      `测试用户${i}`, // 姓名
+      Math.floor(Math.random() * 50) + 18, // 年龄
+      Math.random() > 0.5 ? '男' : '女', // 性别
+      ['北京', '上海', '广州', '深圳', '杭州'][Math.floor(Math.random() * 5)], // 城市
+      ['工程师', '教师', '医生', '销售', '设计师'][Math.floor(Math.random() * 5)], // 职业
+      Math.floor(Math.random() * 10000) + 5000, // 收入
+      `1${Math.floor(Math.random() * 9000000000) + 1000000000}`, // 电话
+      `user${i}@example.com`, // 邮箱
+      `这是第${i}条测试数据`, // 备注
+      `属性值1-${i}`,
+      `属性值2-${i}`,
+      `属性值3-${i}`,
+      `属性值4-${i}`,
+      `属性值5-${i}`,
+      `属性值6-${i}`,
+      `属性值7-${i}`,
+      `属性值8-${i}`,
+      `属性值9-${i}`,
+      `属性值10-${i}`
+    ]
+    data.push(row)
+    
+    // 添加进度提示
+    if (i % 1000 === 0) {
+      console.log(`生成测试数据: ${i}/${rows} 行`)
+    }
+  }
+  
+  console.log(`完成生成 ${rows} 行测试数据`)
+  
+  // 创建工作表
+  const worksheet = XLSX.utils.aoa_to_sheet(data)
+  
+  // 添加第二个工作表（小数据量）
+  const smallData = [
+    ['ID', '名称', '数量', '单价', '总价'],
+    [1, '产品A', 10, 100, 1000],
+    [2, '产品B', 20, 50, 1000],
+    [3, '产品C', 30, 30, 900]
+  ]
+  const smallSheet = XLSX.utils.aoa_to_sheet(smallData)
+  
+  // 将工作表添加到工作簿
+  XLSX.utils.book_append_sheet(workbook, worksheet, '大数据表')
+  XLSX.utils.book_append_sheet(workbook, smallSheet, '小数据表')
+  
+  // 转为二进制字符串
+  return XLSX.write(workbook, { type: 'binary', bookType: 'xlsx' })
+}
+
 // 修改previewEntity方法
 const previewEntity = (row) => {
   // 设置预览表单数据
@@ -769,24 +837,52 @@ const previewEntity = (row) => {
   previewForm.transferControl = ensureArray(row.transferControl)
   previewForm.status = row.status
   
-  // 设置Excel文件数据
-  if (row.excelData) {
-    currentExcelFile.value = row.excelData
-  } else {
-    currentExcelFile.value = null
-  }
-  
-  // 显示预览对话框
+  // 显示预览对话框（先显示再加载数据，这样用户体验更好）
   previewDialogVisible.value = true
+  
+  // 设置Excel文件数据
+  ElMessage.info('正在准备Excel数据，请稍候...')
+  isExcelLoading.value = true
+  
+  // 使用setTimeout避免UI阻塞
+  setTimeout(() => {
+    try {
+      if (row.excelData) {
+        currentExcelFile.value = row.excelData
+      } else {
+        // 使用模拟数据进行测试
+        const dataRows = 5000 // 可以调整此值来测试不同数据量
+        console.time('生成Excel测试数据')
+        currentExcelFile.value = generateTestExcelData(dataRows)
+        console.timeEnd('生成Excel测试数据')
+      }
+    } catch (error) {
+      console.error('生成Excel数据出错:', error)
+      ElMessage.error(`生成Excel数据出错: ${error.message}`)
+      isExcelLoading.value = false
+    }
+  }, 100)
 }
 
 // 添加新的处理方法
 const handleExcelDataLoaded = (data) => {
   console.log('Excel数据加载完成:', data)
+  // 可以在这里处理加载完的数据，例如根据定位信息高亮显示特定单元格
+  const { headers, data: tableData, sheets } = data
+  
+  // 存储Excel表格数据，以便后续可能的操作
+  excelTableColumns.value = headers || []
+  excelTableData.value = tableData || []
+  excelSheets.value = sheets || []
+  
+  isExcelLoading.value = false
+  ElMessage.success(`已成功加载 ${tableData?.length || 0} 行数据`)
 }
 
 const handleExcelError = (error) => {
-  ElMessage.error(error)
+  console.error('Excel加载错误:', error)
+  isExcelLoading.value = false
+  ElMessage.error(`加载Excel时出错: ${error}`)
 }
 </script>
 
