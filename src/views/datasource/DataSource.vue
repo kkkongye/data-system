@@ -86,6 +86,7 @@
     </template>
   </el-dialog>
 
+
 </template>
 
 <script setup>
@@ -522,17 +523,17 @@ const handleExcelDataLoaded = (data) => {
   }
   
   // 可以在这里处理加载完的数据，例如根据定位信息高亮显示特定单元格
-  const { headers, data: tableData, sheets } = data;
+  const { headers, data: excelRows, sheets } = data;
   
   // 存储Excel表格数据，以便后续可能的操作
   excelTableColumns.value = headers || [];
-  excelTableData.value = tableData || [];
+  excelTableData.value = excelRows || [];
   excelSheets.value = sheets || [];
   
   isExcelLoading.value = false;
   
-  if (tableData && tableData.length) {
-    ElMessage.success(`已成功加载 ${tableData.length} 行数据`);
+  if (excelRows && excelRows.length) {
+    ElMessage.success(`已成功加载 ${excelRows.length} 行数据`);
   } else {
     console.warn('加载的Excel数据为空');
   }
@@ -665,18 +666,18 @@ const handleSizeChange = (val) => {
 }
 
 .status-success {
-  background-color: #f6ffed;
-  color: #52c41a;
+  background-color: #e1f3d8;
+  color: #67c23a;
 }
 
 .status-error {
-  background-color: #fff2f0;
-  color: #ff4d4f;
+  background-color: #fde2e2;
+  color: #f56c6c;
 }
 
 .status-pending {
-  background-color: #f5f5f5;
-  color: #8c8c8c;
+  background-color: #f4f4f5;
+  color: #909399;
 }
 
 /* 分页区域 */
@@ -685,6 +686,7 @@ const handleSizeChange = (val) => {
   justify-content: space-between;
   align-items: center;
   margin-top: 12px;
+  height: 32px;
 }
 
 .total-text {
@@ -692,149 +694,91 @@ const handleSizeChange = (val) => {
   color: #8c8c8c;
 }
 
-/* 对话框样式 */
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-:deep(.custom-dialog) {
-  margin-top: 15vh !important;
-}
-
-/* 纯文本样式 */
-.plain-text-container {
-  color: #333;
-  text-align: center;
-  line-height: 1.5;
-  padding: 2px 0;
-}
-
-/* 标签样式 */
-.constraint-tag {
-  margin: 2px;
-  max-width: 90%;
-  white-space: normal;
-  display: inline-block;
-}
-
-.transfer-tag {
-  margin: 2px;
-  max-width: 90%;
-  white-space: normal;
-  display: inline-block;
-}
-
-.tag-container {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 4px;
-  max-width: 100%;
-  min-height: 24px;
-}
-
-/* 自定义选择控件样式 */
-:deep(.custom-select) {
-  width: 100%;
-}
-
-:deep(.custom-select .el-select__tags) {
-  max-width: 100%;
+/* 预览对话框样式 */
+.custom-dialog :deep(.el-dialog__body) {
+  padding: 0;
+  height: calc(90vh - 100px);
+  max-height: calc(90vh - 100px);
   overflow: hidden;
-  flex-wrap: wrap;
-}
-
-:deep(.custom-select .el-tag) {
-  margin: 2px 4px;
-  max-width: calc(100% - 8px);
   display: flex;
-  align-items: center;
+  flex-direction: column;
 }
 
-:deep(.custom-select .el-select__input) {
-  margin: 2px 0;
-}
-
-:deep(.el-select-dropdown__item) {
-  padding: 0 10px;
-  height: 34px;
-  line-height: 34px;
-}
-
-/* 上传提示样式 */
-.upload-tip {
-  color: #909399;
-  font-size: 14px;
-}
-
-/* 添加预览相关的样式 */
 .preview-header {
-  margin-bottom: 20px;
+  padding: 15px 20px;
+  background-color: #f5f7fa;
   border-bottom: 1px solid #ebeef5;
-  padding-bottom: 15px;
 }
 
 .preview-info {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px 24px;
+}
+
+.preview-info div {
   font-size: 14px;
-  margin-top: 10px;
+  color: #333;
 }
 
-.preview-info > div {
+.excel-preview-wrapper {
   flex: 1;
-  min-width: 200px;
+  display: flex;
+  overflow: hidden;
 }
 
-.excel-preview {
-  border: 1px solid #ebeef5;
+:deep(.excel-preview-container) {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+}
+
+/* 创建数字对象弹窗 */
+.create-dialog .upload-region {
+  border: 1px dashed #d9d9d9;
   border-radius: 4px;
-  margin-bottom: 15px;
-}
-
-.preview-note {
-  font-size: 12px;
-  color: #909399;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  padding: 20px;
   text-align: center;
   margin-top: 10px;
 }
 
-.no-data-message {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 0;
-  color: #909399;
-}
-
-.no-data-hint {
-  font-size: 12px;
-  margin-top: 5px;
+.create-dialog .upload-icon {
+  font-size: 32px;
   color: #c0c4cc;
+  margin-bottom: 8px;
 }
 
-.loading-message {
+.create-dialog .upload-text {
+  color: #606266;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.create-dialog .upload-tip {
+  color: #909399;
+  font-size: 12px;
+}
+
+/* 数据锁定状态占位符 */
+.data-locked-placeholder {
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  padding: 40px 0;
+  align-items: center;
+  height: 100%;
+}
+
+.locked-icon {
+  font-size: 48px;
   color: #909399;
+  margin-bottom: 16px;
 }
 
-/* 工作表切换相关样式 */
-.sheets-selector {
-  margin-bottom: 10px;
-}
-
-.sheet-label {
-  font-size: 14px;
-  color: #333;
-  margin-right: 10px;
+.data-locked-placeholder p {
+  color: #606266;
+  font-size: 16px;
 }
 </style> 
