@@ -86,17 +86,6 @@
     </template>
   </el-dialog>
 
-  <!-- 分页 -->
-  <div class="pagination-area">
-    <CommonPagination
-      v-model:current-page="currentPage"
-      v-model:page-size="pageSize"
-      :total-count="totalCount"
-      :show-border="true"
-      background
-      @size-change="handleSizeChange"
-    />
-  </div>
 </template>
 
 <script setup>
