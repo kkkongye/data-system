@@ -1,24 +1,7 @@
 <template>
   <div class="datasource-container">
     <!-- 头部导航 -->
-    <div class="header">
-      <div class="title">个人可信数据空间</div>
-      <div class="user-info">
-        <el-icon class="setting-icon"><Setting /></el-icon>
-        <el-dropdown trigger="click">
-          <div class="user-dropdown">
-            <el-avatar :size="32" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png"></el-avatar>
-            <span class="user-role">数源方</span>
-            <el-icon><ArrowDown /></el-icon>
-          </div>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item @click="logout">退出登录</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-      </div>
-    </div>
+    <AppHeader role-name="数源方" @logout="logout" />
     
     <!-- 主内容区域 -->
     <div class="main-content">
@@ -95,19 +78,39 @@
       @data-loaded="handleExcelDataLoaded"
       @error="handleExcelError"
     />
+    
+    <template #footer v-if="currentExcelFile">
+      <span class="dialog-footer">
+        <el-button @click="previewDialogVisible = false">关闭</el-button>
+      </span>
+    </template>
   </el-dialog>
+
+  <!-- 分页 -->
+  <div class="pagination-area">
+    <CommonPagination
+      v-model:current-page="currentPage"
+      v-model:page-size="pageSize"
+      :total-count="totalCount"
+      :show-border="true"
+      background
+      @size-change="handleSizeChange"
+    />
+  </div>
 </template>
 
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Setting, ArrowDown, Search, Document } from '@element-plus/icons-vue'
+import { Search, Document } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
-import ExcelPreview from '@/components/sourse/ExcelPreview.vue'
+import ExcelPreview from '@/components/ExcelPreview.vue'
 import EditObjectDialog from '@/components/sourse/EditObjectDialog.vue'
 import CreateObjectDialog from '@/components/sourse/CreateObjectDialog.vue'
 import ObjectList from '@/components/sourse/ObjectList.vue'
+import AppHeader from '@/components/AppHeader.vue'
+import CommonPagination from '@/components/CommonPagination.vue'
 
 const router = useRouter()
 const activeTab = ref('objectList')
@@ -576,6 +579,12 @@ const clearAllTestData = () => {
 onMounted(() => {
   clearAllTestData()
 })
+
+// 处理每页显示数量变化
+const handleSizeChange = (val) => {
+  pageSize.value = val
+  currentPage.value = 1
+}
 </script>
 
 <style scoped>
@@ -591,50 +600,6 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-}
-
-/* 头部样式 */
-.header {
-  height: 60px;
-  width: 100%;
-  background-color: #ffffff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 20px;
-  border-bottom: 1px solid #e8e8e8;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  z-index: 10;
-}
-
-.title {
-  font-size: 25px;
-  font-weight: bold;
-  color: #1890ff;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.setting-icon {
-  font-size: 18px;
-  cursor: pointer;
-}
-
-.user-dropdown {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-
-.user-role {
-  font-size: 14px;
-  color: #333;
 }
 
 /* 主内容区域样式 */

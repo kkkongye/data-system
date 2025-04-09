@@ -120,13 +120,12 @@
     
     <!-- 分页 -->
     <div class="pagination-area">
-      <span class="total-text">共{{ totalCount }}条信息</span>
-      <el-pagination
+      <CommonPagination
         v-model:current-page="currentPageValue"
         v-model:page-size="pageSizeValue"
+        :total-count="totalCount"
         :page-sizes="[10, 20, 30, 50]"
-        layout="total, sizes, prev, pager, next"
-        :total="totalCount"
+        background
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
       />
@@ -137,6 +136,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { Search } from '@element-plus/icons-vue'
+import CommonPagination from '@/components/CommonPagination.vue'
 
 const props = defineProps({
   // 表格数据

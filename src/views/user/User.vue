@@ -1,24 +1,7 @@
 <template>
   <div class="datasource-container">
     <!-- 头部导航 -->
-    <div class="header">
-      <div class="title">个人可信数据空间</div>
-      <div class="user-info">
-        <el-icon class="setting-icon"><Setting /></el-icon>
-        <el-dropdown trigger="click">
-          <div class="user-dropdown">
-            <el-avatar :size="32" src="https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png"></el-avatar>
-            <span class="user-role">使用方</span>
-            <el-icon><ArrowDown /></el-icon>
-          </div>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item @click="logout">退出登录</el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-      </div>
-    </div>
+    <AppHeader role-name="使用方" @logout="logout" />
     
     <!-- 主内容区域 -->
     <div class="main-content">
@@ -27,14 +10,7 @@
         <el-tabs v-model="activeTab">
           <el-tab-pane label="数字对象列表" name="objectList">
             
-            <!-- 状态筛选按钮 -->
-            <!-- <div class="status-filter">
-              <el-button 
-                :class="['status-btn', { active: currentStatus === '' }]" 
-                @click="setStatus('')"
-              >全部数字对象</el-button>
 
-            </div> -->
             
             <!-- 搜索和操作区 -->
             <div class="action-bar">
@@ -92,14 +68,13 @@
             
             <!-- 分页 -->
             <div class="pagination-area">
-              <span class="total-text">共{{ totalCount }}条信息</span>
-              <el-pagination
+              <CommonPagination
                 v-if="isDecrypted"
                 v-model:current-page="currentPage"
                 v-model:page-size="pageSize"
-                :page-sizes="[10, 20, 30, 50]"
-                layout="total, sizes, prev, pager, next"
-                :total="totalCount"
+                :total-count="totalCount"
+                :disabled="!isDecrypted"
+                background
                 @size-change="handleSizeChange"
               />
             </div>
@@ -205,63 +180,15 @@
       </div>
     </div>
     
-    <!-- 工作表切换 -->
-    <div v-if="excelSheets.length > 0" class="sheets-selector">
-      <span class="sheet-label">工作表：</span>
-      <el-radio-group v-model="activeSheet" size="small" @change="changeSheet">
-        <el-radio-button 
-          v-for="sheet in excelSheets" 
-          :key="sheet" 
-          :label="sheet"
-        >{{ sheet }}</el-radio-button>
-      </el-radio-group>
-    </div>
+    <!-- 使用数源方的ExcelPreview组件 -->
+    <ExcelPreview 
+      :file="excelBinaryData"
+      :title="`${previewForm.entity}的Excel数据`"
+      @data-loaded="handleExcelDataLoaded"
+      @error="handleExcelError"
+    />
     
-    <div class="excel-preview">
-      <el-table
-        v-if="excelTableData.length > 0"
-        :data="excelTableData"
-        style="width: 100%"
-        border
-        stripe
-        v-loading="isExcelLoading"
-        max-height="600px"
-        :cell-style="{ padding: '6px 8px' }"
-        :header-cell-style="{ backgroundColor: '#f5f7fa', color: '#606266', fontWeight: 'bold', textAlign: 'center' }"
-      >
-        <!-- 行号列 -->
-        <el-table-column 
-          type="index" 
-          label="行号" 
-          width="60" 
-          fixed="left"
-          align="center"
-          :index="(index) => index + 1"
-        />
-        <!-- 数据列 -->
-        <el-table-column 
-          v-for="(column, index) in excelTableColumns" 
-          :key="index"
-          :prop="column.prop"
-          :label="getExcelColName(index)"
-          min-width="120"
-          align="center"
-          show-overflow-tooltip
-        />
-      </el-table>
-      <div v-else-if="isExcelLoading" class="loading-message">
-        <div>正在加载Excel数据...</div>
-      </div>
-      <div v-else class="no-data-message">
-        <el-icon :size="48"><Document /></el-icon>
-        <div>暂无数据</div>
-        <div class="no-data-hint">该数字对象没有可用的Excel数据</div>
-      </div>
-    </div>
-    <div class="preview-note">
-      提示：此处显示原始Excel数据，包括表头行和所有列
-    </div>
-    <template #footer>
+    <template #footer v-if="excelBinaryData">
       <span class="dialog-footer">
         <el-button @click="previewDialogVisible = false">关闭</el-button>
       </span>
@@ -270,11 +197,14 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Setting, ArrowDown, Search, Lock, Document } from '@element-plus/icons-vue'
+import { Search, Lock, Document } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
+import ExcelPreview from '@/components/ExcelPreview.vue'
+import AppHeader from '@/components/AppHeader.vue'
+import CommonPagination from '@/components/CommonPagination.vue'
 
 const router = useRouter()
 const activeTab = ref('objectList')
@@ -488,13 +418,19 @@ const previewForm = reactive({
   transferControl: ''
 })
 
-// Excel表格数据
-const excelTableColumns = ref([])
-const excelTableData = ref([])
-const isExcelLoading = ref(false)
-const excelSheets = ref([]) // 存储工作表名称
-const activeSheet = ref('') // 当前激活的工作表
-const currentWorkbook = ref(null) // 当前工作簿对象
+// 存储当前预览的Excel二进制数据
+const excelBinaryData = ref(null)
+
+// 处理Excel数据加载完成事件
+const handleExcelDataLoaded = (data) => {
+  console.log('Excel数据加载完成:', data)
+}
+
+// 处理Excel加载错误事件
+const handleExcelError = (error) => {
+  console.error('Excel加载错误:', error)
+  ElMessage.error('加载Excel数据时出错: ' + error)
+}
 
 // 预览实体
 const previewEntity = (row) => {
@@ -508,131 +444,10 @@ const previewEntity = (row) => {
   previewForm.transferControl = row.transferControl
   
   // 清空当前Excel数据
-  excelTableData.value = []
-  excelTableColumns.value = []
-  excelSheets.value = []
-  currentWorkbook.value = null
-  isExcelLoading.value = false
+  excelBinaryData.value = row.excelData || null
   
   // 显示预览对话框
   previewDialogVisible.value = true
-  
-  // 如果已有保存的Excel数据，直接加载
-  if (row.excelData) {
-    isExcelLoading.value = true
-    
-    try {
-      // 解析Excel数据
-      const workbook = XLSX.read(row.excelData, { type: 'binary' })
-      
-      // 保存当前工作簿对象
-      currentWorkbook.value = workbook
-      
-      // 获取所有工作表名称
-      const sheetNames = workbook.SheetNames
-      excelSheets.value = sheetNames
-      
-      // 选择第一个工作表
-      if (sheetNames.length > 0) {
-        activeSheet.value = sheetNames[0]
-        
-        // 获取第一个工作表
-        const worksheet = workbook.Sheets[sheetNames[0]]
-        
-        // 处理并显示工作表数据
-        processWorksheet(worksheet)
-      }
-      
-      isExcelLoading.value = false
-      
-      if (excelTableData.value.length === 0) {
-        ElMessage.warning('Excel文件中没有数据')
-      }
-    } catch (error) {
-      console.error('解析Excel文件时出错:', error)
-      ElMessage.error('无法解析Excel文件，请确保文件格式正确')
-      isExcelLoading.value = false
-    }
-  }
-}
-
-// 切换工作表
-const changeSheet = (sheetName) => {
-  if (!currentWorkbook.value || !sheetName) return
-  
-  isExcelLoading.value = true
-  
-  // 获取选中的工作表
-  const worksheet = currentWorkbook.value.Sheets[sheetName]
-  
-  // 处理并显示工作表数据
-  processWorksheet(worksheet)
-  
-  isExcelLoading.value = false
-}
-
-// 处理单个工作表数据
-const processWorksheet = (worksheet) => {
-  try {
-    // 获取工作表范围
-    const range = XLSX.utils.decode_range(worksheet['!ref'])
-    
-    // 设置表格列
-    const columns = []
-    
-    // 创建表头
-    for (let c = 0; c <= range.e.c; c++) {
-      columns.push({
-        prop: `col${c}`,
-        label: getExcelColName(c)
-      })
-    }
-    excelTableColumns.value = columns
-    
-    // 获取所有单元格数据，包括表头行
-    const tableData = []
-    for (let r = range.s.r; r <= range.e.r; r++) {
-      const rowData = {}
-      for (let c = range.s.c; c <= range.e.c; c++) {
-        const cellAddress = XLSX.utils.encode_cell({ r, c })
-        const cell = worksheet[cellAddress]
-        
-        // 格式化单元格数据
-        let cellValue = ''
-        if (cell) {
-          // 特殊处理日期类型
-          if (cell.t === 'd') {
-            cellValue = cell.w || new Date(cell.v).toLocaleDateString()
-          } else {
-            cellValue = XLSX.utils.format_cell(cell)
-          }
-        }
-        
-        rowData[`col${c}`] = cellValue
-      }
-      tableData.push(rowData)
-    }
-    
-    excelTableData.value = tableData
-  } catch (error) {
-    console.error('处理工作表数据出错:', error)
-    ElMessage.error('处理工作表数据时出错')
-    excelTableData.value = []
-  }
-}
-
-// 获取Excel列名
-const getExcelColName = (index) => {
-  // 转换列索引为Excel列名（A, B, C, ... Z, AA, AB, ...）
-  let colName = ''
-  let n = index
-  
-  while (n >= 0) {
-    colName = String.fromCharCode(65 + (n % 26)) + colName
-    n = Math.floor(n / 26) - 1
-  }
-  
-  return colName
 }
 </script>
 
@@ -649,50 +464,6 @@ const getExcelColName = (index) => {
   left: 0;
   right: 0;
   bottom: 0;
-}
-
-/* 头部样式 */
-.header {
-  height: 60px;
-  width: 100%;
-  background-color: #ffffff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 20px;
-  border-bottom: 1px solid #e8e8e8;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  z-index: 10;
-}
-
-.title {
-  font-size: 25px;
-  font-weight: bold;
-  color: #1890ff;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.setting-icon {
-  font-size: 18px;
-  cursor: pointer;
-}
-
-.user-dropdown {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-
-.user-role {
-  font-size: 14px;
-  color: #333;
 }
 
 /* 主内容区域样式 */
@@ -974,51 +745,5 @@ const getExcelColName = (index) => {
   min-width: 200px;
 }
 
-.excel-preview {
-  border: 1px solid #ebeef5;
-  border-radius: 4px;
-  margin-bottom: 15px;
-}
-
-.preview-note {
-  font-size: 12px;
-  color: #909399;
-  text-align: center;
-  margin-top: 10px;
-}
-
-.no-data-message {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 0;
-  color: #909399;
-}
-
-.no-data-hint {
-  font-size: 12px;
-  margin-top: 5px;
-  color: #c0c4cc;
-}
-
-.loading-message {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 0;
-  color: #909399;
-}
-
-/* 工作表切换相关样式 */
-.sheets-selector {
-  margin-bottom: 10px;
-}
-
-.sheet-label {
-  font-size: 14px;
-  color: #333;
-  margin-right: 10px;
-}
+/* 保留对话框样式但移除与Excel预览相关的样式 */
 </style> 

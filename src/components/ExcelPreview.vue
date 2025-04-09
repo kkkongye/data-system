@@ -57,12 +57,13 @@
           
           <!-- 分页 -->
           <div class="excel-pagination" v-if="showPagination && total > 0">
-            <el-pagination
+            <CommonPagination
               v-model:current-page="currentPage"
               v-model:page-size="pageSize"
+              :total-count="total"
               :page-sizes="[10, 20, 50, 100, 500]"
-              layout="total, sizes, prev, pager, next, jumper"
-              :total="total"
+              small
+              :show-info="false"
               @size-change="handleSizeChange"
               @current-change="handleCurrentChange"
             />
@@ -89,6 +90,7 @@
   import * as XLSX from 'xlsx'
   import { ElMessage } from 'element-plus'
   import { Document } from '@element-plus/icons-vue'
+  import CommonPagination from '@/components/CommonPagination.vue'
   
   const props = defineProps({
     // 文件对象或文件路径
