@@ -686,7 +686,10 @@ const handleSizeChange = (val) => {
   justify-content: space-between;
   align-items: center;
   margin-top: 12px;
+  margin-bottom: 20px; /* 增加底部边距 */
   height: 32px;
+  position: relative; /* 确保定位上下文 */
+  z-index: 1; /* 提高层级 */
 }
 
 .total-text {

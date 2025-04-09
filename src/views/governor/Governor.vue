@@ -586,7 +586,10 @@ const previewEntity = (row) => {
   justify-content: space-between;
   align-items: center;
   margin-top: 12px;
+  margin-bottom: 20px;
   height: 32px;
+  position: relative;
+  z-index: 1;
 }
 
 .total-text {
