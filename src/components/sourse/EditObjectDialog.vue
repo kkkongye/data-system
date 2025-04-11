@@ -35,18 +35,96 @@
         </div>
       </el-form-item>
       <el-form-item label="约束条件：" prop="constraint">
-        <el-select v-model="form.constraint" placeholder="请选择约束条件" style="width: 100%" class="custom-select" multiple allow-create filterable default-first-option>
-          <el-option label="访问权限" value="访问权限"></el-option>
-          <el-option label="共享约束" value="共享约束"></el-option>
-          <el-option label="开放约束" value="开放约束"></el-option>
-        </el-select>
+        <div class="constraint-section">
+          <div class="constraint-item">
+            <label>格式约束：</label>
+            <div class="custom-select-wrapper">
+              <el-select 
+                v-model="form.formatConstraint" 
+                placeholder="请选择格式" 
+                class="custom-select-component"
+              >
+                <el-option label="jpg" value="jpg"></el-option>
+                <el-option label="xlsx" value="xlsx"></el-option>
+              </el-select>
+              <div v-if="form.formatConstraint" class="selected-value">{{ form.formatConstraint }}</div>
+            </div>
+          </div>
+          
+          <div class="constraint-item">
+            <label>访问权限：</label>
+            <div class="custom-select-wrapper">
+              <el-select 
+                v-model="form.accessConstraint" 
+                placeholder="请选择访问权限" 
+                class="custom-select-component"
+              >
+                <el-option label="只允许管理方获取" value="只允许管理方获取"></el-option>
+                <el-option label="全部允许" value="全部允许"></el-option>
+              </el-select>
+              <div v-if="form.accessConstraint" class="selected-value">{{ form.accessConstraint }}</div>
+            </div>
+          </div>
+          
+          <div class="constraint-item">
+            <label>传输路径约束：</label>
+            <div class="custom-select-wrapper">
+              <el-select 
+                v-model="form.pathConstraint" 
+                placeholder="请选择传输路径" 
+                class="custom-select-component"
+              >
+                <el-option label="点对点" value="点对点"></el-option>
+                <el-option label="面对面" value="面对面"></el-option>
+              </el-select>
+              <div v-if="form.pathConstraint" class="selected-value">{{ form.pathConstraint }}</div>
+            </div>
+          </div>
+          
+          <div class="constraint-item">
+            <label>地域性约束：</label>
+            <div class="custom-select-wrapper">
+              <el-select 
+                v-model="form.regionConstraint" 
+                placeholder="请选择地域性约束" 
+                class="custom-select-component"
+              >
+                <el-option label="内网" value="内网"></el-option>
+                <el-option label="外网" value="外网"></el-option>
+              </el-select>
+              <div v-if="form.regionConstraint" class="selected-value">{{ form.regionConstraint }}</div>
+            </div>
+          </div>
+          
+          <div class="constraint-item">
+            <label>共享约束：</label>
+            <div class="custom-select-wrapper">
+              <el-select 
+                v-model="form.shareConstraint" 
+                placeholder="请选择共享约束" 
+                class="custom-select-component"
+              >
+                <el-option label="不允许共享" value="不允许共享"></el-option>
+                <el-option label="允许共享" value="允许共享"></el-option>
+              </el-select>
+              <div v-if="form.shareConstraint" class="selected-value">{{ form.shareConstraint }}</div>
+            </div>
+          </div>
+        </div>
       </el-form-item>
       <el-form-item label="传输控制操作：" prop="transferControl">
-        <el-select v-model="form.transferControl" placeholder="请选择传输控制操作" style="width: 100%" class="custom-select" multiple allow-create filterable default-first-option>
-          <el-option label="可读" value="可读"></el-option>
-          <el-option label="可修改" value="可修改"></el-option>
-          <el-option label="可销毁" value="可销毁"></el-option>
-        </el-select>
+        <div class="custom-multi-select-wrapper">
+          <el-select 
+            v-model="form.transferControl" 
+            placeholder="请选择传输控制操作" 
+            multiple
+            class="custom-multi-select"
+          >
+            <el-option label="可读" value="可读"></el-option>
+            <el-option label="可修改" value="可修改"></el-option>
+            <el-option label="可销毁" value="可销毁"></el-option>
+          </el-select>
+        </div>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -111,6 +189,11 @@ const form = reactive({
     col: ''
   },
   constraint: [],
+  formatConstraint: '',
+  accessConstraint: '',
+  pathConstraint: '',
+  regionConstraint: '',
+  shareConstraint: '',
   transferControl: [],
   auditInfo: '',
   status: '',
@@ -131,6 +214,21 @@ const formRules = {
       },
       trigger: 'blur'
     }
+  ],
+  formatConstraint: [
+    { required: true, message: '请选择格式约束', trigger: 'change' }
+  ],
+  accessConstraint: [
+    { required: true, message: '请选择访问权限', trigger: 'change' }
+  ],
+  pathConstraint: [
+    { required: true, message: '请选择传输路径约束', trigger: 'change' }
+  ],
+  regionConstraint: [
+    { required: true, message: '请选择地域性约束', trigger: 'change' }
+  ],
+  shareConstraint: [
+    { required: true, message: '请选择共享约束', trigger: 'change' }
   ]
 }
 
@@ -162,7 +260,37 @@ watch(() => props.modelValue, (newVal) => {
       form.locationInfo.col = matches[3].trim()
     }
   }
+
+  // 设置约束条件数组
   form.constraint = Array.isArray(newVal.constraint) ? [...newVal.constraint] : (newVal.constraint ? [newVal.constraint] : [])
+  
+  // 处理约束条件字段
+  // 如果有明确设置的各约束字段值，则直接使用
+  form.formatConstraint = newVal.formatConstraint || ''
+  form.accessConstraint = newVal.accessConstraint || ''
+  form.pathConstraint = newVal.pathConstraint || ''
+  form.regionConstraint = newVal.regionConstraint || ''
+  form.shareConstraint = newVal.shareConstraint || ''
+  
+  // 如果没有明确设置的各约束字段值，尝试从数组中解析
+  if ((!form.formatConstraint || !form.accessConstraint || !form.pathConstraint || !form.regionConstraint || !form.shareConstraint) && Array.isArray(newVal.constraint)) {
+    newVal.constraint.forEach(item => {
+      if (typeof item === 'string') {
+        const parts = item.split(':')
+        if (parts.length === 2) {
+          const type = parts[0].trim()
+          const value = parts[1].trim()
+          
+          if (type === '格式约束') form.formatConstraint = value
+          else if (type === '访问权限') form.accessConstraint = value
+          else if (type === '传输路径约束') form.pathConstraint = value
+          else if (type === '地域性约束') form.regionConstraint = value
+          else if (type === '共享约束') form.shareConstraint = value
+        }
+      }
+    })
+  }
+  
   form.transferControl = Array.isArray(newVal.transferControl) ? [...newVal.transferControl] : (newVal.transferControl ? [newVal.transferControl] : [])
   form.auditInfo = newVal.auditInfo || ''
   form.status = newVal.status || ''
@@ -172,6 +300,14 @@ watch(() => props.modelValue, (newVal) => {
 
 // 监听form变化，更新v-model
 watch(form, (newVal) => {
+  // 构建约束条件数组
+  const constraintArray = []
+  if (newVal.formatConstraint) constraintArray.push(`格式约束:${newVal.formatConstraint}`)
+  if (newVal.accessConstraint) constraintArray.push(`访问权限:${newVal.accessConstraint}`)
+  if (newVal.pathConstraint) constraintArray.push(`传输路径约束:${newVal.pathConstraint}`)
+  if (newVal.regionConstraint) constraintArray.push(`地域性约束:${newVal.regionConstraint}`)
+  if (newVal.shareConstraint) constraintArray.push(`共享约束:${newVal.shareConstraint}`)
+  
   emit('update:modelValue', {
     id: newVal.id,
     entity: newVal.entity,
@@ -179,7 +315,12 @@ watch(form, (newVal) => {
       row: newVal.locationInfo.row,
       col: newVal.locationInfo.col
     },
-    constraint: newVal.constraint,
+    constraint: constraintArray,
+    formatConstraint: newVal.formatConstraint,
+    accessConstraint: newVal.accessConstraint,
+    pathConstraint: newVal.pathConstraint,
+    regionConstraint: newVal.regionConstraint,
+    shareConstraint: newVal.shareConstraint,
     transferControl: newVal.transferControl,
     auditInfo: newVal.auditInfo,
     status: newVal.status,
@@ -223,8 +364,42 @@ const handleFileChange = (file) => {
 
 // 保存按钮处理
 const handleSave = () => {
+  // 验证约束条件
+  if (!form.formatConstraint.length) {
+    ElMessage.warning('请选择格式约束')
+    return
+  }
+  
+  if (!form.accessConstraint) {
+    ElMessage.warning('请选择访问权限')
+    return
+  }
+  
+  if (!form.pathConstraint) {
+    ElMessage.warning('请选择传输路径约束')
+    return
+  }
+  
+  if (!form.regionConstraint) {
+    ElMessage.warning('请选择地域性约束')
+    return
+  }
+  
+  if (!form.shareConstraint) {
+    ElMessage.warning('请选择共享约束')
+    return
+  }
+
   formRef.value.validate((valid) => {
     if (valid) {
+      // 构建约束条件数组
+      const constraintArray = []
+      if (form.formatConstraint) constraintArray.push(`格式约束:${form.formatConstraint}`)
+      if (form.accessConstraint) constraintArray.push(`访问权限:${form.accessConstraint}`)
+      if (form.pathConstraint) constraintArray.push(`传输路径约束:${form.pathConstraint}`)
+      if (form.regionConstraint) constraintArray.push(`地域性约束:${form.regionConstraint}`)
+      if (form.shareConstraint) constraintArray.push(`共享约束:${form.shareConstraint}`)
+      
       // 构建更新后的对象
       const entityName = form.entity
       const updatedObject = {
@@ -234,7 +409,12 @@ const handleSave = () => {
           row: form.locationInfo.row,
           col: form.locationInfo.col
         },
-        constraint: form.constraint,
+        constraint: constraintArray,
+        formatConstraint: form.formatConstraint,
+        accessConstraint: form.accessConstraint,
+        pathConstraint: form.pathConstraint,
+        regionConstraint: form.regionConstraint,
+        shareConstraint: form.shareConstraint,
         transferControl: form.transferControl,
         auditInfo: form.auditInfo,
         status: form.status,
@@ -281,31 +461,98 @@ const handleDialogClosed = () => {
 }
 
 /* 自定义选择控件样式 */
-:deep(.custom-select) {
+.custom-select-wrapper {
+  position: relative;
   width: 100%;
-}
-
-:deep(.custom-select .el-select__tags) {
-  max-width: 100%;
-  overflow: hidden;
-  flex-wrap: wrap;
-}
-
-:deep(.custom-select .el-tag) {
-  margin: 2px 4px;
-  max-width: calc(100% - 8px);
+  min-height: 40px;
   display: flex;
   align-items: center;
 }
 
-:deep(.custom-select .el-select__input) {
-  margin: 2px 0;
+.custom-select-component {
+  width: 100%;
+  min-width: 180px; /* 确保选择框足够宽 */
 }
 
-:deep(.el-select-dropdown__item) {
-  padding: 0 10px;
-  height: 34px;
-  line-height: 34px;
+/* 选中值显示 */
+.selected-value {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+  color: #409EFF;
+  font-weight: bold;
+  background-color: #fff;
+  border-radius: 4px;
+  border: 1px solid #dcdfe6;
+  z-index: 1;
+  pointer-events: none; /* 允许点击穿透到下面的select */
+}
+
+/* 覆盖Element Plus的下拉箭头样式 */
+:deep(.custom-select-component .el-input__wrapper) {
+  z-index: 2;
+  opacity: 0.01; /* 几乎透明但仍可交互 */
+}
+
+:deep(.custom-select-component .el-input__inner) {
+  opacity: 0;
+}
+
+/* 添加自定义下拉箭头 */
+.custom-select-wrapper::after {
+  content: '▼';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #409EFF;
+  font-size: 14px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* 传输控制操作样式 */
+.custom-multi-select-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  flex-direction: column;
+}
+
+.custom-multi-select {
+  width: 100%;
+  min-width: 180px; /* 确保选择框足够宽 */
+}
+
+/* 约束条件样式 */
+.constraint-section {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 10px;
+}
+
+.constraint-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.constraint-item label {
+  min-width: 110px;
+  text-align: right;
+  font-size: 14px;
+  color: #606266;
+}
+
+.constraint-item .el-select {
+  flex: 1;
 }
 
 /* 上传提示样式 */

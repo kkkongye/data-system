@@ -191,6 +191,7 @@ import * as XLSX from 'xlsx'
 import ExcelPreview from '@/components/ExcelPreview.vue'
 import AppHeader from '@/components/AppHeader.vue'
 import CommonPagination from '@/components/CommonPagination.vue'
+import dataObjectService from '@/services/dataObjectService'
 
 const router = useRouter()
 const activeTab = ref('objectList')
@@ -218,21 +219,17 @@ const editForm = reactive({
 })
 const editingIndex = ref(-1)
 
-// 表格数据
-const tableData = ref([
-  { id: 1, entity: '表1', locationInfo: '(表1, -, -)', constraint: '访问权限', transferControl: '可修改', auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
-  { id: 2, entity: '表2', locationInfo: '(表2, 1-2, 3-6)', constraint: '', transferControl: '可修改', auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件', excelData: null },
-  { id: 3, entity: '表3', locationInfo: '(表3, 1-6, 12-50)', constraint: '访问权限', transferControl: '可读', auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
-  { id: 4, entity: '表4', locationInfo: '(表4, 1-6, 21-52)', constraint: '', transferControl: '可修改', auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件', excelData: null },
-  { id: 5, entity: '表5', locationInfo: '(表5, 1-4, 31-56)', constraint: '', transferControl: '可读', auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件', excelData: null },
-  { id: 6, entity: '表6', locationInfo: '(表6, 11-12, 1-6)', constraint: '访问权限', transferControl: '可读', auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
-  { id: 7, entity: '表7', locationInfo: '(表7, -, -)', constraint: '共享约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
-  { id: 8, entity: '表8', locationInfo: '(表8, -, -)', constraint: '开放约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
-  { id: 9, entity: '表9', locationInfo: '(表9, 1-4, 61-70)', constraint: '访问权限', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
-  { id: 10, entity: '表10', locationInfo: '(表10, -, -)', constraint: '访问权限', transferControl: '可修改', auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
-  { id: 11, entity: '表11', locationInfo: '(表11, 14-16, 1-7)', constraint: '开放约束', transferControl: '可读', auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
-  { id: 12, entity: '表12', locationInfo: '(表12, 1-6, 12-14)', constraint: '开放约束', transferControl: '可销毁', auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null }
-])
+// 表格数据 - 从共享服务获取
+const tableData = ref(dataObjectService.getAllDataObjects())
+
+// 监听共享服务数据变化
+onMounted(() => {
+  // 添加数据变化监听器
+  dataObjectService.addChangeListener((newData) => {
+    console.log('治理方收到数据变化:', newData)
+    // 无需手动更新tableData，因为是响应式引用
+  })
+})
 
 // 计算实际数据量
 const totalCount = computed(() => {
@@ -352,34 +349,29 @@ const handleDelete = (row) => {
 // 更新数字对象状态
 const updateStatus = (row, newStatus) => {
   // 查找数据行索引
-  const index = tableData.value.findIndex(item => item.id === row.id)
-  if (index > -1) {
-    // 如果是已合格状态或待检验状态，清空反馈意见
-    if (newStatus === '已合格' || newStatus === '待检验') {
-      tableData.value[index].feedback = ''
-      tableData.value[index].status = newStatus
-      ElMessage.success(`${row.entity} 已更新为"${newStatus}"状态`)
-    } 
-    // 如果是不合格状态，弹出对话框要求输入反馈意见
-    else if (newStatus === '不合格') {
-      ElMessageBox.prompt('请输入不合格的反馈意见', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        inputValue: row.feedback || '',
-        customClass: 'feedback-dialog',
-        inputType: 'textarea',
-        inputPlaceholder: '请详细描述不合格的原因...',
-        inputValidator: (value) => {
-          return value.trim() !== '' || '反馈意见不能为空'
-        }
-      }).then(({ value }) => {
-        tableData.value[index].status = newStatus
-        tableData.value[index].feedback = value
-        ElMessage.success(`${row.entity} 已更新为"不合格"状态`)
-      }).catch(() => {
-        ElMessage.info('已取消状态更新')
-      })
-    }
+  if (newStatus === '已合格' || newStatus === '待检验') {
+    // 如果是已合格状态或待检验状态，直接更新
+    dataObjectService.updateObjectStatus(row.id, newStatus)
+    ElMessage.success(`${row.entity} 已更新为"${newStatus}"状态`)
+  } 
+  // 如果是不合格状态，弹出对话框要求输入反馈意见
+  else if (newStatus === '不合格') {
+    ElMessageBox.prompt('请输入不合格的反馈意见', '提示', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputValue: row.feedback || '',
+      customClass: 'feedback-dialog',
+      inputType: 'textarea',
+      inputPlaceholder: '请详细描述不合格的原因...',
+      inputValidator: (value) => {
+        return value.trim() !== '' || '反馈意见不能为空'
+      }
+    }).then(({ value }) => {
+      dataObjectService.updateObjectStatus(row.id, newStatus, value)
+      ElMessage.success(`${row.entity} 已更新为"不合格"状态`)
+    }).catch(() => {
+      ElMessage.info('已取消状态更新')
+    })
   }
 }
 

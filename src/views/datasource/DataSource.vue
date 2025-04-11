@@ -101,6 +101,7 @@ import CreateObjectDialog from '@/components/sourse/CreateObjectDialog.vue'
 import ObjectList from '@/components/sourse/ObjectList.vue'
 import AppHeader from '@/components/AppHeader.vue'
 import CommonPagination from '@/components/CommonPagination.vue'
+import dataObjectService from '@/services/dataObjectService'
 
 const router = useRouter()
 const activeTab = ref('objectList')
@@ -134,21 +135,8 @@ const editForm = reactive({
 })
 const editingIndex = ref(-1)
 
-// 表格数据
-const tableData = ref([
-  { id: 1, entity: '表1', locationInfo: '(表1, -, -)', constraint: ['访问权限'], transferControl: ['可修改'], auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
-  { id: 2, entity: '表2', locationInfo: '(表2, 1-2, 3-6)', constraint: [], transferControl: ['可修改'], auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件', excelData: null },
-  { id: 3, entity: '表3', locationInfo: '(表3, 1-6, 12-50)', constraint: ['访问权限'], transferControl: ['可读'], auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
-  { id: 4, entity: '表4', locationInfo: '(表4, 1-6, 21-52)', constraint: [], transferControl: ['可修改'], auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件', excelData: null },
-  { id: 5, entity: '表5', locationInfo: '(表5, 1-4, 31-56)', constraint: [], transferControl: ['可读'], auditInfo: '查看日志', status: '不合格', feedback: '缺少约束条件', excelData: null },
-  { id: 6, entity: '表6', locationInfo: '(表6, 11-12, 1-6)', constraint: ['访问权限'], transferControl: ['可读'], auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
-  { id: 7, entity: '表7', locationInfo: '(表7, -, -)', constraint: ['共享约束'], transferControl: ['可销毁'], auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
-  { id: 8, entity: '表8', locationInfo: '(表8, -, -)', constraint: ['开放约束'], transferControl: ['可销毁'], auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
-  { id: 9, entity: '表9', locationInfo: '(表9, 1-4, 61-70)', constraint: ['访问权限'], transferControl: ['可销毁'], auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
-  { id: 10, entity: '表10', locationInfo: '(表10, -, -)', constraint: ['访问权限'], transferControl: ['可修改'], auditInfo: '查看日志', status: '已合格', feedback: '', excelData: null },
-  { id: 11, entity: '表11', locationInfo: '(表11, 14-16, 1-7)', constraint: ['开放约束'], transferControl: ['可读'], auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null },
-  { id: 12, entity: '表12', locationInfo: '(表12, 1-6, 12-14)', constraint: ['开放约束'], transferControl: ['可销毁'], auditInfo: '查看日志', status: '待检验', feedback: '', excelData: null }
-])
+// 表格数据 - 从共享服务获取
+const tableData = ref(dataObjectService.getAllDataObjects())
 
 // 排序状态
 const sortState = reactive({
@@ -240,17 +228,48 @@ const handleEdit = (row) => {
   editForm.locationInfo.row = locationParts[0]
   editForm.locationInfo.col = locationParts[1]
   
+  // 设置约束条件
   // 使用辅助函数确保约束条件和传输控制是数组
   editForm.constraint = ensureArray(row.constraint)
-  editForm.transferControl = ensureArray(row.transferControl)
   
+  // 设置各约束字段
+  editForm.formatConstraint = row.formatConstraint || ''
+  editForm.accessConstraint = row.accessConstraint || ''
+  editForm.pathConstraint = row.pathConstraint || ''
+  editForm.regionConstraint = row.regionConstraint || ''
+  editForm.shareConstraint = row.shareConstraint || ''
+  
+  // 如果没有明确的各约束字段值，尝试从约束数组中解析
+  if ((!editForm.formatConstraint || !editForm.accessConstraint || !editForm.pathConstraint || 
+      !editForm.regionConstraint || !editForm.shareConstraint) && editForm.constraint.length > 0) {
+    
+    editForm.constraint.forEach(item => {
+      if (typeof item === 'string') {
+        const parts = item.split(':')
+        if (parts.length === 2) {
+          const type = parts[0].trim()
+          const value = parts[1].trim()
+          
+          if (type === '格式约束') editForm.formatConstraint = value
+          else if (type === '访问权限') editForm.accessConstraint = value
+          else if (type === '传输路径约束') editForm.pathConstraint = value
+          else if (type === '地域性约束') editForm.regionConstraint = value
+          else if (type === '共享约束') editForm.shareConstraint = value
+        }
+      }
+    })
+  }
+  
+  editForm.transferControl = ensureArray(row.transferControl)
   editForm.auditInfo = row.auditInfo
   editForm.status = row.status
   editForm.feedback = row.feedback
   
   editForm.excelData = row.excelData // 保留原有的Excel文件数据
   
+  console.log('打开编辑对话框，设置表单数据:', editForm)
   editDialogVisible.value = true
+  console.log('editDialogVisible已设置为:', editDialogVisible.value)
 }
 
 // 取消编辑
@@ -282,15 +301,15 @@ const saveEditObject = (updatedObject) => {
     locationInfo: `(${entityName}, ${updatedObject.locationInfo.row}, ${updatedObject.locationInfo.col})`,
   }
   
-  // 更新表格数据
-  if (editingIndex.value > -1) {
-    tableData.value[editingIndex.value] = displayObject
+  // 使用服务更新数据对象
+  const updated = dataObjectService.updateDataObject(displayObject)
+  
+  if (updated) {
+    console.log('保存编辑后的对象:', displayObject)
+    ElMessage.success(`已保存对 ${entityName} 的编辑`)
+  } else {
+    ElMessage.error(`编辑失败：未找到ID为 ${updatedObject.id} 的对象`)
   }
-  
-  ElMessage.success(`已保存对 ${entityName} 的编辑`)
-  
-  // 重置表单
-  editForm.excelData = null
 }
 
 // 删除对象
@@ -300,12 +319,13 @@ const handleDelete = (row) => {
     cancelButtonText: '取消',
     type: 'warning',
   }).then(() => {
-    // 找到要删除的数据索引
-    const index = tableData.value.findIndex(item => item.id === row.id)
-    // 从数组中删除该元素
-    if (index !== -1) {
-      tableData.value.splice(index, 1)
+    // 使用服务删除数据对象
+    const deleted = dataObjectService.deleteDataObject(row.id)
+    
+    if (deleted) {
       ElMessage.success(`已删除: ${row.entity}`)
+    } else {
+      ElMessage.error(`删除失败：未找到ID为 ${row.id} 的对象`)
     }
   }).catch(() => {
     ElMessage.info('已取消删除')
@@ -327,11 +347,19 @@ const showCreateDialog = () => {
     col: ''
   }
   createForm.constraint = []
+  // 重置约束条件字段
+  createForm.formatConstraint = ''
+  createForm.accessConstraint = ''
+  createForm.pathConstraint = ''
+  createForm.regionConstraint = ''
+  createForm.shareConstraint = ''
   createForm.transferControl = []
   createForm.classificationValue = ''
   createForm.excelData = null // 新增保存Excel文件数据
   
+  console.log('打开新建对话框')
   createDialogVisible.value = true
+  console.log('createDialogVisible已设置为:', createDialogVisible.value)
 }
 
 // 创建表单数据
@@ -342,6 +370,11 @@ const createForm = reactive({
     col: ''
   },
   constraint: [],
+  formatConstraint: '',
+  accessConstraint: '',
+  pathConstraint: '',
+  regionConstraint: '',
+  shareConstraint: '',
   transferControl: [],
   classificationValue: '',
   excelData: null // 新增保存Excel文件数据
@@ -398,25 +431,26 @@ const handleFileChange = (file) => {
 
 // 保存新建
 const saveCreateObject = (newObject) => {
-  // 创建新对象
-  const newId = tableData.value.length > 0 ? Math.max(...tableData.value.map(item => item.id)) + 1 : 1
   const entityName = newObject.entity || '未上传'
   
+  // 准备新对象
   const displayObject = {
-    id: newId,
     entity: entityName,
     locationInfo: `(${entityName}, ${newObject.locationInfo.row}, ${newObject.locationInfo.col})`,
     constraint: newObject.constraint,
+    formatConstraint: newObject.formatConstraint,
+    accessConstraint: newObject.accessConstraint,
+    pathConstraint: newObject.pathConstraint,
+    regionConstraint: newObject.regionConstraint,
+    shareConstraint: newObject.shareConstraint,
     transferControl: newObject.transferControl,
-    auditInfo: '查看日志',
-    status: '待检验',
-    feedback: '',
-    excelData: newObject.excelData // 保存Excel文件数据
+    excelData: newObject.excelData
   }
   
-  // 添加到表格数据
-  tableData.value.unshift(displayObject)
+  // 使用服务添加数据对象
+  const addedObject = dataObjectService.addDataObject(displayObject)
   
+  console.log('成功创建数字对象:', addedObject)
   ElMessage.success(`成功新建数字对象，可点击实体名称预览Excel内容`)
 }
 
@@ -568,6 +602,11 @@ const clearAllTestData = () => {
 // 在组件挂载后执行清理
 onMounted(() => {
   clearAllTestData()
+  // 添加数据变化监听器
+  dataObjectService.addChangeListener((newData) => {
+    console.log('数据源方收到数据变化:', newData)
+    // 无需手动更新tableData，因为是响应式引用
+  })
 })
 
 // 处理每页显示数量变化
