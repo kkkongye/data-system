@@ -108,8 +108,8 @@ const activeTab = ref('objectList')
 const currentStatus = ref('') // 默认显示全部数字对象
 const searchKeyword = ref('')
 const currentPage = ref(1)
-const pageSize = ref(10)
-const totalCount = ref(562)
+const pageSize = ref(5)
+const totalCount = ref(0)
 const selectedRows = ref([])
 
 // 添加计算属性判断是否为已合格状态

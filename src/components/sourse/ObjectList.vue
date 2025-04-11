@@ -72,21 +72,46 @@
           </template>
         </el-table-column>
         <el-table-column prop="locationInfo" label="定位信息" min-width="150" align="center" />
-        <el-table-column prop="constraint" label="约束条件" min-width="160" align="center">
+        <el-table-column prop="constraint" label="约束条件" min-width="250" align="center">
           <template #default="scope">
-            <div class="plain-text-container">
+            <div class="constraint-container">
               <template v-if="scope.row.constraint && scope.row.constraint.length">
-                {{ Array.isArray(scope.row.constraint) ? scope.row.constraint.join('；') : scope.row.constraint }}
+                <div 
+                  v-for="(_, rowIndex) in Math.ceil((Array.isArray(scope.row.constraint) ? scope.row.constraint : [scope.row.constraint]).length / 2)" 
+                  :key="rowIndex"
+                  class="constraint-row"
+                >
+                  <!-- 第一项 -->
+                  <div class="constraint-item-pair">
+                    <span v-if="(Array.isArray(scope.row.constraint) ? scope.row.constraint : [scope.row.constraint])[rowIndex * 2]" 
+                          v-html="formatConstraintText((Array.isArray(scope.row.constraint) ? scope.row.constraint : [scope.row.constraint])[rowIndex * 2])"></span>
+                  </div>
+                  
+                  <!-- 第二项 -->
+                  <div class="constraint-item-pair">
+                    <span v-if="(Array.isArray(scope.row.constraint) ? scope.row.constraint : [scope.row.constraint])[rowIndex * 2 + 1]" 
+                          v-html="formatConstraintText((Array.isArray(scope.row.constraint) ? scope.row.constraint : [scope.row.constraint])[rowIndex * 2 + 1])"></span>
+                  </div>
+                </div>
               </template>
               <template v-else>-</template>
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="transferControl" label="传输控制操作" min-width="160" align="center">
+        <el-table-column prop="transferControl" label="传输控制操作" min-width="180" align="center">
           <template #default="scope">
-            <div class="plain-text-container">
+            <div class="control-container">
               <template v-if="scope.row.transferControl && scope.row.transferControl.length">
-                {{ Array.isArray(scope.row.transferControl) ? scope.row.transferControl.join('；') : scope.row.transferControl }}
+                <el-tag
+                  v-for="(item, index) in (Array.isArray(scope.row.transferControl) ? scope.row.transferControl : [scope.row.transferControl])"
+                  :key="index"
+                  size="small"
+                  type="primary"
+                  effect="plain"
+                  class="control-tag"
+                >
+                  {{ item }}
+                </el-tag>
               </template>
               <template v-else>-</template>
             </div>
@@ -124,7 +149,7 @@
         v-model:current-page="currentPageValue"
         v-model:page-size="pageSizeValue"
         :total-count="totalCount"
-        :page-sizes="[10, 20, 30, 50]"
+        :page-sizes="[5, 10, 20, 30, 50]"
         background
         @size-change="handleSizeChange"
         @current-change="handleCurrentChange"
@@ -162,7 +187,7 @@ const props = defineProps({
   // 每页大小
   pageSize: {
     type: Number,
-    default: 10
+    default: 5
   },
   // 总数据量
   totalCount: {
@@ -193,7 +218,7 @@ const emit = defineEmits([
 // 内部状态
 const searchValue = ref(props.searchKeyword)
 const currentPageValue = ref(props.currentPage)
-const pageSizeValue = ref(props.pageSize)
+const pageSizeValue = ref(props.pageSize || 5)
 const selectedRows = ref([])
 
 // 组件内计算属性和方法
@@ -291,6 +316,19 @@ const getStatusClass = (status) => {
     default: return ''
   }
 }
+
+// 格式化约束条件文本
+const formatConstraintText = (text) => {
+  if (!text) return text
+  
+  // 如果包含冒号，分离前缀和内容
+  if (text.includes(':')) {
+    const parts = text.split(':')
+    return `<span class="constraint-prefix">${parts[0]}:</span>${parts[1]}`
+  }
+  
+  return text
+}
 </script>
 
 <style scoped>
@@ -383,5 +421,44 @@ const getStatusClass = (status) => {
   text-align: center;
   line-height: 1.5;
   padding: 2px 0;
+}
+
+/* 约束条件列样式 */
+.constraint-container {
+  text-align: left;
+  padding: 4px 8px;
+}
+
+.constraint-row {
+  display: flex;
+  margin-bottom: 8px;
+  gap: 20px;
+}
+
+.constraint-item-pair {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 5px;
+}
+
+:deep(.constraint-prefix) {
+  font-weight: bold;
+  color: #303133;
+}
+
+/* 传输控制操作样式 */
+.control-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px;
+}
+
+.control-tag {
+  margin: 2px;
 }
 </style> 
