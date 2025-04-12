@@ -873,10 +873,10 @@ const formatConstraintText = (text) => {
   white-space: nowrap;
 }
 
-.constraint-prefix {
-  font-weight: bold;
-  color: #333;
-  margin-right: 4px;
+:deep(.constraint-prefix) {
+  font-weight: bold !important;
+  color: #303133 !important;
+  margin-right: 4px !important;
 }
 
 /* 传输控制操作样式 */
