@@ -62,7 +62,7 @@ const props = defineProps({
   // 可选的每页数据条数
   pageSizes: {
     type: Array,
-    default: () => [10, 20, 50, 100, 200]
+    default: () => [5, 10, 20]
   },
   // 分页布局
   layout: {

@@ -55,9 +55,52 @@
                     <el-link type="primary" @click="previewEntity(scope.row)">{{ scope.row.entity }}</el-link>
                   </template>
                 </el-table-column>
-                <el-table-column prop="locationInfo" label="定位信息" width="140" align="center" />
-                <el-table-column prop="constraint" label="约束条件" width="160" align="center" />
-                <el-table-column prop="transferControl" label="传输控制操作" width="160" align="center" />
+                <el-table-column prop="locationInfo" label="定位信息" min-width="150" align="center" />
+                <el-table-column prop="constraint" label="约束条件" min-width="250" align="center">
+                  <template #default="scope">
+                    <div class="constraint-container">
+                      <template v-if="scope.row.constraint && scope.row.constraint.length">
+                        <div 
+                          v-for="(_, rowIndex) in Math.ceil((Array.isArray(scope.row.constraint) ? scope.row.constraint : [scope.row.constraint]).length / 2)" 
+                          :key="rowIndex"
+                          class="constraint-row"
+                        >
+                          <!-- 第一项 -->
+                          <div class="constraint-item-pair">
+                            <span v-if="(Array.isArray(scope.row.constraint) ? scope.row.constraint : [scope.row.constraint])[rowIndex * 2]" 
+                                  v-html="formatConstraintText((Array.isArray(scope.row.constraint) ? scope.row.constraint : [scope.row.constraint])[rowIndex * 2])"></span>
+                          </div>
+                          
+                          <!-- 第二项 -->
+                          <div class="constraint-item-pair">
+                            <span v-if="(Array.isArray(scope.row.constraint) ? scope.row.constraint : [scope.row.constraint])[rowIndex * 2 + 1]" 
+                                  v-html="formatConstraintText((Array.isArray(scope.row.constraint) ? scope.row.constraint : [scope.row.constraint])[rowIndex * 2 + 1])"></span>
+                          </div>
+                        </div>
+                      </template>
+                      <template v-else>-</template>
+                    </div>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="transferControl" label="传输控制操作" min-width="180" align="center">
+                  <template #default="scope">
+                    <div class="control-container">
+                      <template v-if="scope.row.transferControl && scope.row.transferControl.length">
+                        <el-tag
+                          v-for="(item, index) in (Array.isArray(scope.row.transferControl) ? scope.row.transferControl : [scope.row.transferControl])"
+                          :key="index"
+                          size="small"
+                          type="primary"
+                          effect="plain"
+                          class="control-tag"
+                        >
+                          {{ item }}
+                        </el-tag>
+                      </template>
+                      <template v-else>-</template>
+                    </div>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="auditInfo" label="审计控制信息" width="130" align="center">
                   <template #default="scope">
                     <el-link type="primary">{{ scope.row.auditInfo }}</el-link>
@@ -73,6 +116,7 @@
                 v-model:current-page="currentPage"
                 v-model:page-size="pageSize"
                 :total-count="totalCount"
+                :page-sizes="[5, 10, 20]"
                 :disabled="!isDecrypted"
                 background
                 @size-change="handleSizeChange"
@@ -212,7 +256,7 @@ const activeTab = ref('objectList')
 const currentStatus = ref('') // 默认显示全部数字对象
 const searchKeyword = ref('')
 const currentPage = ref(1)
-const pageSize = ref(10)
+const pageSize = ref(5) // 改为默认显示5条
 const isDecrypted = ref(false)
 const selectedRows = ref([])
 
@@ -445,6 +489,19 @@ const previewEntity = (row) => {
   
   // 显示预览对话框
   previewDialogVisible.value = true
+}
+
+// 格式化约束条件文本
+const formatConstraintText = (text) => {
+  if (!text) return text
+  
+  // 如果包含冒号，分离前缀和内容
+  if (text.includes(':')) {
+    const parts = text.split(':')
+    return `<span class="constraint-prefix">${parts[0]}:</span>${parts[1]}`
+  }
+  
+  return text
 }
 </script>
 
@@ -745,5 +802,44 @@ const previewEntity = (row) => {
   min-width: 200px;
 }
 
-/* 保留对话框样式但移除与Excel预览相关的样式 */
+/* 约束条件相关样式 */
+.constraint-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px;
+}
+
+.constraint-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.constraint-item-pair {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.constraint-prefix {
+  font-weight: bold;
+  color: #333;
+  margin-right: 4px;
+}
+
+/* 传输控制操作样式 */
+.control-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px;
+}
+
+.control-tag {
+  margin: 2px;
+}
 </style> 
