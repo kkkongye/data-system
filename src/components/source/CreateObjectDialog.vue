@@ -120,6 +120,7 @@
 import { ref, reactive, watch, defineProps, defineEmits } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Document } from '@element-plus/icons-vue'
+import excelUploadService from '@/services/excelUploadService'
 
 const props = defineProps({
   // 是否显示对话框
@@ -280,7 +281,7 @@ watch(form, (newVal) => {
 }, { deep: true })
 
 // 处理文件变更
-const handleFileChange = (file) => {
+const handleFileChange = async (file) => {
   // 验证文件类型
   const isExcel = file.raw.type === 'application/vnd.ms-excel' || 
                  file.raw.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -294,22 +295,50 @@ const handleFileChange = (file) => {
   const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName
   form.entity = fileNameWithoutExt
   
-  // 读取并保存Excel文件内容
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    try {
-      // 保存文件的二进制数据
-      form.excelData = e.target.result
-      ElMessage.success(`已选择Excel表格"${fileName}"`)
-    } catch (error) {
-      console.error('读取Excel文件失败:', error)
-      ElMessage.error('读取Excel文件失败')
+  // 显示上传中提示
+  ElMessage.info('正在上传Excel文件，请稍候...')
+  
+  try {
+    // 1. 上传文件到后端
+    const uploadResult = await excelUploadService.uploadExcelFile(file.raw)
+    
+    if (uploadResult.success) {
+      ElMessage.success(`已成功上传Excel表格"${fileName}"`)
+      
+      // 2. 同时保存本地副本用于前端预览
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          // 保存文件的二进制数据用于前端预览
+          form.excelData = e.target.result
+        } catch (error) {
+          console.error('读取Excel文件失败:', error)
+        }
+      }
+      reader.onerror = () => {
+        console.error('读取文件失败')
+      }
+      reader.readAsBinaryString(file.raw)
+      
+      // 3. 如果后端返回了文件URL或base64数据，也可以保存
+      if (uploadResult.data && uploadResult.data.excelData) {
+        // 如果后端返回的是URL或base64，可以在这里处理
+        console.log('后端返回的Excel数据:', uploadResult.data.excelData)
+      }
+    } else {
+      ElMessage.error(`上传失败: ${uploadResult.message}`)
     }
+  } catch (error) {
+    console.error('Excel文件上传过程出错:', error)
+    ElMessage.error('上传Excel文件过程中出错')
+    
+    // 上传失败时，仍然尝试本地读取用于预览
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      form.excelData = e.target.result
+    }
+    reader.readAsBinaryString(file.raw)
   }
-  reader.onerror = () => {
-    ElMessage.error('读取文件失败')
-  }
-  reader.readAsBinaryString(file.raw)
 }
 
 // 保存按钮处理

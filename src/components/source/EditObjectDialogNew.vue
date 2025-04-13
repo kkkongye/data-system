@@ -1,3 +1,4 @@
+<!-- 编辑对象对话框组件 -->
 <template>
   <el-dialog
     v-model="dialogVisible"
@@ -39,11 +40,7 @@
           <div class="constraint-item">
             <label>格式约束：</label>
             <div class="custom-select-wrapper">
-              <el-select 
-                v-model="form.formatConstraint" 
-                placeholder="请选择格式" 
-                class="custom-select-component"
-              >
+              <el-select v-model="form.formatConstraint" placeholder="请选择格式" class="custom-select-component">
                 <el-option label="jpg" value="jpg"></el-option>
                 <el-option label="xlsx" value="xlsx"></el-option>
               </el-select>
@@ -54,11 +51,7 @@
           <div class="constraint-item">
             <label>访问权限：</label>
             <div class="custom-select-wrapper">
-              <el-select 
-                v-model="form.accessConstraint" 
-                placeholder="请选择访问权限" 
-                class="custom-select-component"
-              >
+              <el-select v-model="form.accessConstraint" placeholder="请选择访问权限" class="custom-select-component">
                 <el-option label="只允许管理方获取" value="只允许管理方获取"></el-option>
                 <el-option label="全部允许" value="全部允许"></el-option>
               </el-select>
@@ -69,11 +62,7 @@
           <div class="constraint-item">
             <label>传输路径约束：</label>
             <div class="custom-select-wrapper">
-              <el-select 
-                v-model="form.pathConstraint" 
-                placeholder="请选择传输路径" 
-                class="custom-select-component"
-              >
+              <el-select v-model="form.pathConstraint" placeholder="请选择传输路径" class="custom-select-component">
                 <el-option label="点对点" value="点对点"></el-option>
                 <el-option label="面对面" value="面对面"></el-option>
               </el-select>
@@ -84,11 +73,7 @@
           <div class="constraint-item">
             <label>地域性约束：</label>
             <div class="custom-select-wrapper">
-              <el-select 
-                v-model="form.regionConstraint" 
-                placeholder="请选择地域性约束" 
-                class="custom-select-component"
-              >
+              <el-select v-model="form.regionConstraint" placeholder="请选择地域性约束" class="custom-select-component">
                 <el-option label="内网" value="内网"></el-option>
                 <el-option label="外网" value="外网"></el-option>
               </el-select>
@@ -99,11 +84,7 @@
           <div class="constraint-item">
             <label>共享约束：</label>
             <div class="custom-select-wrapper">
-              <el-select 
-                v-model="form.shareConstraint" 
-                placeholder="请选择共享约束" 
-                class="custom-select-component"
-              >
+              <el-select v-model="form.shareConstraint" placeholder="请选择共享约束" class="custom-select-component">
                 <el-option label="不允许共享" value="不允许共享"></el-option>
                 <el-option label="允许共享" value="允许共享"></el-option>
               </el-select>
@@ -138,9 +119,10 @@
 
 <script setup>
 import { ref, reactive, watch, defineProps, defineEmits } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Document } from '@element-plus/icons-vue'
 import excelUploadService from '@/services/excelUploadService'
+import { API_URL, MOCK_ENABLED, AUTO_FALLBACK_TO_MOCK } from '@/services/apiConfig'
 
 const props = defineProps({
   // 是否显示对话框
@@ -173,6 +155,10 @@ const props = defineProps({
   }
 })
 
+// 添加离线模式状态
+const offlineMode = ref(false)
+const apiError = ref(null)
+
 const emit = defineEmits(['update:visible', 'update:modelValue', 'save', 'cancel'])
 
 // 表单引用
@@ -204,6 +190,9 @@ const form = reactive({
 
 // 表单校验规则
 const formRules = {
+  entity: [
+    { required: true, message: '请输入实体名称', trigger: 'blur' }
+  ],
   locationInfo: [
     { 
       validator: (rule, value, callback) => {
@@ -215,6 +204,9 @@ const formRules = {
       },
       trigger: 'blur'
     }
+  ],
+  constraint: [
+    { type: 'array', trigger: 'change' }
   ],
   formatConstraint: [
     { required: true, message: '请选择格式约束', trigger: 'change' }
@@ -230,6 +222,9 @@ const formRules = {
   ],
   shareConstraint: [
     { required: true, message: '请选择共享约束', trigger: 'change' }
+  ],
+  transferControl: [
+    { type: 'array', trigger: 'change' }
   ]
 }
 
@@ -250,32 +245,39 @@ watch(() => props.modelValue, (newVal) => {
   // 深拷贝对象，避免直接修改props
   form.id = newVal.id || ''
   form.entity = newVal.entity || ''
-  if (newVal.locationInfo && typeof newVal.locationInfo === 'object') {
-    form.locationInfo.row = newVal.locationInfo.row || ''
-    form.locationInfo.col = newVal.locationInfo.col || ''
-  } else if (typeof newVal.locationInfo === 'string') {
-    // 处理定位信息格式（如果是字符串）
-    const matches = newVal.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
-    if (matches && matches.length > 3) {
-      form.locationInfo.row = matches[2].trim()
-      form.locationInfo.col = matches[3].trim()
+  form.auditInfo = newVal.auditInfo || ''
+  form.status = newVal.status || ''
+  form.feedback = newVal.feedback || ''
+  
+  if (newVal.locationInfo) {
+    if (typeof newVal.locationInfo === 'object') {
+      form.locationInfo.row = newVal.locationInfo.row || ''
+      form.locationInfo.col = newVal.locationInfo.col || ''
+    } else if (typeof newVal.locationInfo === 'string') {
+      // 从格式如"(表1, 0-4, 0-4)"中提取行列信息
+      const matches = newVal.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
+      if (matches && matches.length > 3) {
+        form.locationInfo.row = matches[2].trim()
+        form.locationInfo.col = matches[3].trim()
+      }
     }
   }
-
+  
   // 设置约束条件数组
   form.constraint = Array.isArray(newVal.constraint) ? [...newVal.constraint] : (newVal.constraint ? [newVal.constraint] : [])
   
-  // 处理约束条件字段
-  // 如果有明确设置的各约束字段值，则直接使用
-  form.formatConstraint = newVal.formatConstraint || ''
-  form.accessConstraint = newVal.accessConstraint || ''
-  form.pathConstraint = newVal.pathConstraint || ''
-  form.regionConstraint = newVal.regionConstraint || ''
-  form.shareConstraint = newVal.shareConstraint || ''
+  // 设置各个约束条件字段
+  if (newVal.formatConstraint) form.formatConstraint = newVal.formatConstraint
+  if (newVal.accessConstraint) form.accessConstraint = newVal.accessConstraint
+  if (newVal.pathConstraint) form.pathConstraint = newVal.pathConstraint
+  if (newVal.regionConstraint) form.regionConstraint = newVal.regionConstraint
+  if (newVal.shareConstraint) form.shareConstraint = newVal.shareConstraint
   
-  // 如果没有明确设置的各约束字段值，尝试从数组中解析
-  if ((!form.formatConstraint || !form.accessConstraint || !form.pathConstraint || !form.regionConstraint || !form.shareConstraint) && Array.isArray(newVal.constraint)) {
-    newVal.constraint.forEach(item => {
+  // 如果没有明确的各约束字段值，尝试从约束数组中解析
+  if ((!form.formatConstraint || !form.accessConstraint || !form.pathConstraint || 
+      !form.regionConstraint || !form.shareConstraint) && form.constraint.length > 0) {
+    
+    form.constraint.forEach(item => {
       if (typeof item === 'string') {
         const parts = item.split(':')
         if (parts.length === 2) {
@@ -293,9 +295,6 @@ watch(() => props.modelValue, (newVal) => {
   }
   
   form.transferControl = Array.isArray(newVal.transferControl) ? [...newVal.transferControl] : (newVal.transferControl ? [newVal.transferControl] : [])
-  form.auditInfo = newVal.auditInfo || ''
-  form.status = newVal.status || ''
-  form.feedback = newVal.feedback || ''
   form.excelData = newVal.excelData || null
 }, { deep: true, immediate: true })
 
@@ -326,12 +325,13 @@ watch(form, (newVal) => {
     auditInfo: newVal.auditInfo,
     status: newVal.status,
     feedback: newVal.feedback,
-    excelData: newVal.excelData
+    excelData: newVal.excelData,
+    offlineMode: offlineMode.value
   })
 }, { deep: true })
 
 // 处理文件变更
-const handleFileChange = (file) => {
+const handleFileChange = async (file) => {
   // 验证文件类型
   const isExcel = file.raw.type === 'application/vnd.ms-excel' || 
                  file.raw.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -344,29 +344,101 @@ const handleFileChange = (file) => {
   const fileName = file.name
   const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName
   form.entity = fileNameWithoutExt
+
+  // 如果已经处于离线模式，直接读取本地文件而不尝试上传
+  if (offlineMode.value || MOCK_ENABLED) {
+    // 通知用户当前模式
+    if (MOCK_ENABLED) {
+      ElMessage.info('系统当前处于离线模式，Excel文件将保存在本地而非上传到服务器')
+      // 自动设置为离线模式
+      offlineMode.value = true
+    } else {
+      ElMessage.info('正在离线模式下处理Excel文件，仅进行本地预览...')
+    }
+    
+    // 直接读取本地文件
+    readLocalFile(file.raw)
+    return
+  }
   
-  // 读取并保存Excel文件内容
+  // 显示上传中提示
+  ElMessage.info('正在上传Excel文件，请稍候...')
+  
+  try {
+    // 尝试上传文件
+    if (form.id) {
+      // 如果是编辑模式且有ID，使用关联到特定对象的上传
+      const uploadResult = await excelUploadService.uploadExcelFileWithObjectId(form.id, file.raw)
+      handleUploadResult(uploadResult, fileName, file.raw)
+    } else {
+      // 否则使用普通上传
+      const uploadResult = await excelUploadService.uploadExcelFile(file.raw)
+      handleUploadResult(uploadResult, fileName, file.raw)
+    }
+  } catch (error) {
+    console.error('Excel文件上传过程出错:', error)
+    ElMessage.error('上传Excel文件过程中出错: ' + error.message)
+    
+    // 保存API错误信息
+    apiError.value = error
+    
+    // 切换到离线模式并读取本地文件
+    offlineMode.value = true
+    ElMessage.info('已切换到离线模式，Excel文件仅在本地预览')
+    readLocalFile(file.raw)
+  }
+}
+
+// 处理上传结果
+const handleUploadResult = (result, fileName, fileRaw) => {
+  if (result.success) {
+    // 上传成功
+    if (result.data && result.data.isMock) {
+      // 这是模拟的成功响应
+      ElMessage.warning(`[离线模式] 服务器不可用，但文件 "${fileName}" 已在本地保存`)
+      offlineMode.value = true
+    } else {
+      // 真实的成功响应
+      ElMessage.success(`已成功上传Excel表格"${fileName}"`)
+      offlineMode.value = false
+    }
+  } else {
+    // 上传失败
+    console.error('上传失败详情:', result.details)
+    ElMessage.error(`上传失败: ${result.message}`)
+    
+    // 切换到离线模式
+    offlineMode.value = true
+    ElMessage.warning('已切换到离线模式，Excel文件将只保存在本地')
+  }
+  
+  // 无论成功失败，都读取本地文件用于预览
+  readLocalFile(fileRaw)
+}
+
+// 本地文件读取函数
+const readLocalFile = (file) => {
   const reader = new FileReader()
   reader.onload = (e) => {
     try {
-      // 保存文件的二进制数据
       form.excelData = e.target.result
-      ElMessage.success(`已选择Excel表格"${fileName}"`)
+      console.log('本地文件读取成功，数据长度:', e.target.result.length)
     } catch (error) {
       console.error('读取Excel文件失败:', error)
-      ElMessage.error('读取Excel文件失败')
+      ElMessage.warning('文件内容读取失败，但您仍可以填写其他表单内容')
     }
   }
-  reader.onerror = () => {
-    ElMessage.error('读取文件失败')
+  reader.onerror = (e) => {
+    console.error('文件读取失败:', e)
+    ElMessage.warning('文件读取失败')
   }
-  reader.readAsBinaryString(file.raw)
+  reader.readAsBinaryString(file)
 }
 
 // 保存按钮处理
 const handleSave = () => {
   // 验证约束条件
-  if (!form.formatConstraint.length) {
+  if (!form.formatConstraint) {
     ElMessage.warning('请选择格式约束')
     return
   }
@@ -420,7 +492,13 @@ const handleSave = () => {
         auditInfo: form.auditInfo,
         status: form.status,
         feedback: form.feedback,
-        excelData: form.excelData
+        excelData: form.excelData,
+        offlineMode: offlineMode.value
+      }
+      
+      // 如果处于离线模式，添加警告
+      if (offlineMode.value && form.excelData) {
+        ElMessage.warning('您正在离线模式下保存，Excel文件将只保存在本地，未上传到服务器')
       }
       
       // 发送保存事件
@@ -446,6 +524,10 @@ const handleDialogClosed = () => {
   if (formRef.value) {
     formRef.value.resetFields()
   }
+  
+  // 重置离线模式状态
+  offlineMode.value = false
+  apiError.value = null
 }
 </script>
 
@@ -517,18 +599,10 @@ const handleDialogClosed = () => {
   pointer-events: none;
 }
 
-/* 传输控制操作样式 */
-.custom-multi-select-wrapper {
-  position: relative;
-  width: 100%;
-  min-height: 40px;
-  display: flex;
-  flex-direction: column;
-}
-
-.custom-multi-select {
-  width: 100%;
-  min-width: 180px; /* 确保选择框足够宽 */
+/* 上传提示样式 */
+.upload-tip {
+  color: #909399;
+  font-size: 14px;
 }
 
 /* 约束条件样式 */
@@ -556,9 +630,17 @@ const handleDialogClosed = () => {
   flex: 1;
 }
 
-/* 上传提示样式 */
-.upload-tip {
-  color: #909399;
-  font-size: 14px;
+/* 传输控制操作样式 */
+.custom-multi-select-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: 40px;
+  display: flex;
+  flex-direction: column;
+}
+
+.custom-multi-select {
+  width: 100%;
+  min-width: 180px; /* 确保选择框足够宽 */
 }
 </style> 

@@ -33,7 +33,7 @@
   </div>
   
   <!-- 编辑对象弹窗 -->
-  <EditObjectDialog
+  <EditObjectDialogNew
     v-model:visible="editDialogVisible"
     :title="'编辑数字对象'"
     v-model:modelValue="editForm"
@@ -96,7 +96,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Document } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
 import ExcelPreview from '@/components/ExcelPreview.vue'
-import EditObjectDialog from '@/components/source/EditObjectDialog.vue'
+import EditObjectDialogNew from '@/components/source/EditObjectDialogNew.vue'
 import CreateObjectDialog from '@/components/source/CreateObjectDialog.vue'
 import ObjectList from '@/components/source/ObjectList.vue'
 import AppHeader from '@/components/AppHeader.vue'
@@ -294,6 +294,9 @@ const cancelEdit = () => {
 
 // 保存编辑
 const saveEditObject = (updatedObject) => {
+  // 检查是否为离线模式上传（如果有excelData但没有通过API上传）
+  const isOfflineMode = updatedObject.offlineMode === true
+
   // 处理定位信息为字符串格式
   const entityName = updatedObject.entity
   const displayObject = {
@@ -306,7 +309,17 @@ const saveEditObject = (updatedObject) => {
   
   if (updated) {
     console.log('保存编辑后的对象:', displayObject)
-    ElMessage.success(`已保存对 ${entityName} 的编辑`)
+    
+    // 根据是否为离线模式显示不同的提示
+    if (isOfflineMode) {
+      ElMessage({
+        message: `已离线保存对 ${entityName} 的编辑，但Excel文件未上传到服务器`,
+        type: 'warning',
+        duration: 5000
+      })
+    } else {
+      ElMessage.success(`已保存对 ${entityName} 的编辑`)
+    }
   } else {
     ElMessage.error(`编辑失败：未找到ID为 ${updatedObject.id} 的对象`)
   }
@@ -431,6 +444,9 @@ const handleFileChange = (file) => {
 
 // 保存新建
 const saveCreateObject = (newObject) => {
+  // 检查是否为离线模式上传（如果有excelData但没有通过API上传）
+  const isOfflineMode = newObject.offlineMode === true
+  
   const entityName = newObject.entity || '未上传'
   
   // 准备新对象
@@ -451,7 +467,17 @@ const saveCreateObject = (newObject) => {
   const addedObject = dataObjectService.addDataObject(displayObject)
   
   console.log('成功创建数字对象:', addedObject)
-  ElMessage.success(`成功新建数字对象，可点击实体名称预览Excel内容`)
+  
+  // 根据是否为离线模式显示不同的提示
+  if (isOfflineMode) {
+    ElMessage({
+      message: `已在本地创建数字对象，可点击实体名称预览Excel内容，但Excel文件未上传到服务器`,
+      type: 'warning',
+      duration: 5000
+    })
+  } else {
+    ElMessage.success(`成功新建数字对象，可点击实体名称预览Excel内容`)
+  }
 }
 
 // 取消新建
