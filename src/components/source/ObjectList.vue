@@ -25,7 +25,7 @@
       <div class="search-area">
         <el-input
           v-model="searchValue"
-          placeholder="请输入ID/实体/约束条件/传输控制操作"
+          placeholder="搜索实体名、约束条件、传输控制操作"
           class="search-input"
           @input="handleSearchInput"
         >
