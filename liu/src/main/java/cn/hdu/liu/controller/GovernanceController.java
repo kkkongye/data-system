@@ -1,8 +1,9 @@
 package cn.hdu.liu.controller;
 
 import cn.hdu.liu.obj.Result;
-import cn.hdu.liu.obj.Tuple;
+import cn.hdu.liu.obj.DataObject;
 import cn.hdu.liu.service.GovernanceService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -28,6 +29,7 @@ public class GovernanceController {
     private static final String STORAGE_DIR = "./data/";
     private String currentEncryptedData;
     private String currentToken;
+    @Autowired
     private GovernanceService governanceService;
     private String cleanData;
     private String encryptedData;
@@ -82,11 +84,11 @@ public class GovernanceController {
     }
 
     @GetMapping("/inspect/{id}")
-    public Result inspectTuple(@PathVariable Integer id) {
+    public Result inspectTuple(@PathVariable String id) {
 
 
-        Tuple targetTuple = governanceService.search(id);
-        if (targetTuple == null) {
+        DataObject targetDataObject = governanceService.search(id);
+        if (targetDataObject == null) {
             return Result.error("ID对应的数据不存在");
         }
 

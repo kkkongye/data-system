@@ -26,8 +26,9 @@
                 </el-input>
               </div>
               <div class="action-buttons">
+                <el-button type="primary" :disabled="selectedRows.length === 0" @click="handleDownload">下载数字对象</el-button>
                 <el-button type="primary" plain @click="showDecryptDialog">解密</el-button>
-                <el-button type="primary">下载数字对象</el-button>
+
               </div>
             </div>
             
@@ -440,6 +441,53 @@ const formatConstraintText = (text) => {
   }
   
   return text
+}
+
+// 处理下载数字对象
+const handleDownload = () => {
+  if (selectedRows.value.length === 0) {
+    ElMessage.warning('请选择要下载的数字对象');
+    return;
+  }
+
+  // 对每个选中的对象进行处理
+  selectedRows.value.forEach(row => {
+    if (row.excelData) {
+      // 如果有Excel数据，直接下载
+      downloadExcelFile(row);
+    } else {
+      // 如果没有Excel数据，提示用户先点击实体名预览
+      ElMessage.info(`${row.entity} 没有可下载的数据，请先点击实体名进行预览`);
+    }
+  });
+}
+
+// 下载Excel文件
+const downloadExcelFile = (row) => {
+  try {
+    // 创建Blob对象
+    const blob = new Blob([row.excelData], { 
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    });
+    
+    // 创建下载链接
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${row.entity}.xlsx`;
+    
+    // 添加到文档并触发点击
+    document.body.appendChild(link);
+    link.click();
+    
+    // 清理
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+    
+    ElMessage.success(`${row.entity} 已下载`);
+  } catch (error) {
+    console.error('下载文件时出错:', error);
+    ElMessage.error(`下载 ${row.entity} 时出错: ${error.message}`);
+  }
 }
 </script>
 

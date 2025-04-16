@@ -1,9 +1,11 @@
 package cn.hdu.liu.mapper;
 
-import cn.hdu.liu.obj.Tuple;
+import cn.hdu.liu.obj.DataObject;
+import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
+@Mapper
 public interface GovernanceMapper {
-    @Select("select * from emp where id = #{id}")
-    Tuple search(Integer id);
+    @Select("SELECT * FROM data_objects WHERE id = #{id}")
+    DataObject search(String id);
 }

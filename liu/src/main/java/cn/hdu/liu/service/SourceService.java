@@ -1,20 +1,18 @@
 package cn.hdu.liu.service;
 
-import cn.hdu.liu.obj.PageBean;
-import cn.hdu.liu.obj.Tuple;
+import cn.hdu.liu.obj.DataObject;
 
-import java.time.LocalDate;
 import java.util.List;
 
 public interface SourceService {
 
     void delete(Integer id);
 
-    Tuple search(Integer id);
+    DataObject search(Integer id);
 
-    void update(Integer id,Tuple tuple);
+    void update(Integer id, DataObject dataObject);
 
-    void add(Tuple tuple);
+    void add(DataObject dataObject);
 
-    List<Tuple> list();
+    List<DataObject> list();
 }

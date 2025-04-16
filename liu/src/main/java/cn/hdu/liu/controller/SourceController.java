@@ -1,14 +1,13 @@
 package cn.hdu.liu.controller;
 
+import cn.hdu.liu.service.DataObjectService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import cn.hdu.liu.obj.PageBean;
 import cn.hdu.liu.obj.Result;
-import cn.hdu.liu.obj.Tuple;
+import cn.hdu.liu.obj.DataObject;
 import cn.hdu.liu.service.SourceService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -16,7 +15,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,42 +26,44 @@ public class SourceController {
     private static final Logger log = LoggerFactory.getLogger(SourceController.class);
 
     @Autowired
+
     private SourceService SourceService;
+    private DataObjectService dataObjectService;
     private String encryptedData;
     private String token;
 
 
     @DeleteMapping("/{id}")
-    public Result delete(@PathVariable Integer id) {
+    public Result delete(@PathVariable String id) {
         log.info("根据id删除数字对象:{}",id);
-        SourceService.delete(id);
+        dataObjectService.delete(id);
         return Result.success();
     }
 
     @GetMapping("/objects/{id}")
-    public Result search(@PathVariable Integer id) {
-        Tuple tuple =  SourceService.search(id);
-        return Result.success(tuple);
+    public Result search(@PathVariable String id) {
+        DataObject dataObject =  dataObjectService.findById(id);
+        return Result.success(dataObject);
     }
 
     @PostMapping("/objects")
-    public Result add(@RequestBody Tuple tuple) {
-        log.info("新增数字对象: {}" , tuple);
-        SourceService.add(tuple);
+    public Result add(@RequestBody DataObject dataObject) {
+        log.info("新增数字对象: {}" , dataObject);
+        dataObjectService.saveDataObject(dataObject);
         return Result.success();
     }
 
     @PutMapping("/objects/{id}")
-    public Result update(@PathVariable Integer id, @RequestBody Tuple tuple) {
-        log.info("根据ID修改数字对象: {}, 数据: {}", id, tuple);
-        SourceService.update(id, tuple);
+    public Result update(@PathVariable String id, @RequestBody DataObject dataObject) {
+        log.info("根据ID修改数字对象: {}, 数据: {}", id, dataObject);
+        dataObjectService.update(id, dataObject);
         return Result.success();
     }
     @GetMapping("/objects/list")
     public Result list() {
         log.info("查询全部数据对象信息");
-        List<Tuple> tupleList=SourceService.list();
-        return Result.success(tupleList);
+        List<DataObject> dataObjectList =dataObjectService.findAll();
+        return Result.success(dataObjectList);
     }
 
     @PostMapping("/encrypt")
@@ -97,7 +97,7 @@ public class SourceController {
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         ResponseEntity<String> response = restTemplate.postForEntity(
-                "http://localhost:8081/receive-data",
+                "http://localhost:8080/governance/receive",
                 new HttpEntity<>(requestBody, headers),
                 String.class
         );
