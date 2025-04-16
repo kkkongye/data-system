@@ -33,15 +33,15 @@
             <!-- 搜索和操作区 -->
             <div class="action-bar">
               <div class="search-area">
-                <el-input
-                  v-model="searchKeyword"
-                  placeholder="输入/约束对象/传输控制操作"
-                  class="search-input"
-                >
-                  <template #suffix>
-                    <el-icon><Search /></el-icon>
-                  </template>
-                </el-input>
+                  <el-input
+                    v-model="searchKeyword"
+                    placeholder="搜索实体名、约束条件、传输控制操作"
+                    class="search-input"
+                  >
+                    <template #suffix>
+                      <el-icon><Search /></el-icon>
+                    </template>
+                  </el-input>
               </div>
               <div class="action-buttons">
                 <el-button type="primary" plain @click="showDecryptDialog">解密</el-button>
@@ -236,6 +236,7 @@ import ExcelPreview from '@/components/ExcelPreview.vue'
 import AppHeader from '@/components/AppHeader.vue'
 import CommonPagination from '@/components/CommonPagination.vue'
 import dataObjectService from '@/services/dataObjectService'
+import { ensureArray, advancedSearch } from '@/utils/searchUtils';
 
 const router = useRouter()
 const activeTab = ref('objectList')
@@ -277,47 +278,37 @@ onMounted(() => {
 
 // 计算实际数据量
 const totalCount = computed(() => {
-  let result = tableData.value
+  let result = tableData.value;
   if (currentStatus.value) {
-    result = result.filter(item => item.status === currentStatus.value)
+    result = result.filter(item => item.status === currentStatus.value);
   }
   
   if (searchKeyword.value) {
-    const keyword = searchKeyword.value.toLowerCase()
-    result = result.filter(item => 
-      (item.constraint && item.constraint.toLowerCase().includes(keyword)) || 
-      item.entity.toLowerCase().includes(keyword) || 
-      item.transferControl.toLowerCase().includes(keyword)
-    )
+    result = advancedSearch(result, searchKeyword.value);
   }
   
-  return result.length
-})
+  return result.length;
+});
 
 // 根据状态和搜索条件过滤数据
 const filteredTableData = computed(() => {
-  let result = tableData.value
+  let result = tableData.value;
 
   // 状态过滤
   if (currentStatus.value) {
-    result = result.filter(item => item.status === currentStatus.value)
+    result = result.filter(item => item.status === currentStatus.value);
   }
 
   // 关键字搜索
   if (searchKeyword.value) {
-    const keyword = searchKeyword.value.toLowerCase()
-    result = result.filter(item => 
-      (item.constraint && item.constraint.toLowerCase().includes(keyword)) || 
-      item.entity.toLowerCase().includes(keyword) || 
-      item.transferControl.toLowerCase().includes(keyword)
-    )
+    result = advancedSearch(result, searchKeyword.value);
   }
 
   // 分页处理
-  const startIndex = (currentPage.value - 1) * pageSize.value
-  const endIndex = startIndex + pageSize.value
-  return result.slice(startIndex, endIndex)
-})
+  const startIndex = (currentPage.value - 1) * pageSize.value;
+  const endIndex = startIndex + pageSize.value;
+  return result.slice(startIndex, endIndex);
+});
 
 // 设置当前状态
 const setStatus = (status) => {
