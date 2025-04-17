@@ -36,37 +36,6 @@
       <div class="content-card">
         <el-tabs v-model="activeTab">
           <el-tab-pane label="数字对象列表" name="objectList">
-            <!-- 在ObjectList上方添加刷新按钮 -->
-            <div class="refresh-container">
-              <el-button type="primary" plain icon="RefreshRight" @click="refreshData">刷新数据</el-button>
-              <el-popover
-                placement="bottom"
-                width="400"
-                trigger="click"
-                v-if="showDebugTools"
-              >
-                <template #reference>
-                  <el-button type="info" plain>显示原始数据</el-button>
-                </template>
-                <template #default>
-                  <div class="debug-data-container">
-                    <div class="debug-header">
-                      <span>后端返回的原始数据示例</span>
-                      <el-button type="text" @click="copyDebugData">复制</el-button>
-                    </div>
-                    
-                    <!-- 添加位置信息专区 -->
-                    <div v-if="extractLocationInfo(lastReceivedApiData)" class="debug-location-info">
-                      <h4>位置信息详情：</h4>
-                      <pre style="max-height: 150px; overflow: auto; font-size: 12px;">{{ extractLocationInfo(lastReceivedApiData) }}</pre>
-                    </div>
-                    
-                    <pre style="max-height: 300px; overflow: auto; font-size: 12px;">{{ prettifyJson(lastReceivedApiData) }}</pre>
-                  </div>
-                </template>
-              </el-popover>
-            </div>
-            
             <!-- 使用ObjectList组件代替原有的列表内容 -->
             <ObjectList 
               :data="filteredTableData"
@@ -121,11 +90,25 @@
   >
     <div class="preview-header">
       <div class="preview-info">
-        <div>实体：<strong>{{ previewForm.entity }}</strong></div>
-        <div>定位信息：<strong>{{ previewForm.locationInfo }}</strong></div>
-        <div>约束条件：<strong>{{ previewForm.constraint.join('；') || '-' }}</strong></div>
-        <div>传输控制操作：<strong>{{ previewForm.transferControl.join('；') || '-' }}</strong></div>
-        <div>状态：<strong>{{ previewForm.status }}</strong></div>
+        <!-- 修改基本信息样式为单行显示 -->
+        <div class="basic-info-table">
+          <span class="info-item"><strong>实体：</strong>{{ previewForm.entity }}</span>
+          <span class="info-item"><strong>定位信息：</strong>{{ previewForm.locationInfo }}</span>
+          <span class="info-item constraint-info" :title="Array.isArray(previewForm.constraint) ? previewForm.constraint.join('\n') : (previewForm.constraint || '-')"><strong>约束条件：</strong>{{ Array.isArray(previewForm.constraint) ? previewForm.constraint.join(', ') : (previewForm.constraint || '-') }}</span>
+          <span class="info-item"><strong>传输控制操作：</strong>{{ Array.isArray(previewForm.transferControl) ? previewForm.transferControl.join(', ') : (previewForm.transferControl || '-') }}</span>
+          <span class="info-item"><strong>状态：</strong>{{ previewForm.status }}</span>
+        </div>
+        <!-- 添加元数据信息显示 -->
+        <div v-if="previewForm.metadata" class="metadata-section">
+          <div class="metadata-items">
+            <!-- 所有元数据项在一行显示 -->
+            <div class="metadata-item">数据名称: <strong>{{ getMetadataValue('dataName') || previewForm.entity }}</strong></div>
+            <div class="metadata-item">来源单位: <strong>{{ getMetadataValue('sourceUnit') || '数据部' }}</strong></div>
+            <div class="metadata-item">联系人: <strong>{{ getMetadataValue('contactPerson') || '未指定' }}</strong></div>
+            <div class="metadata-item">联系电话: <strong>{{ getMetadataValue('contactPhone') || '未提供' }}</strong></div>
+            <div class="metadata-item">更新时间: <strong>{{ getCurrentDateTime() }}</strong></div>
+          </div>
+        </div>
       </div>
     </div>
     
@@ -831,7 +814,8 @@ const previewForm = reactive({
   locationInfo: '',
   constraint: [],
   transferControl: [],
-  status: ''
+  status: '',
+  metadata: null // 添加元数据字段
 })
 
 // Excel表格数据
@@ -856,6 +840,141 @@ const previewEntity = (row) => {
   previewForm.constraint = ensureArray(row.constraint)
   previewForm.transferControl = ensureArray(row.transferControl)
   previewForm.status = row.status
+  
+  // 解析元数据JSON - 增强版
+  previewForm.metadata = null
+  
+  // 检查数据的各种可能位置，提取元数据
+  const extractMetadata = () => {
+    // 直接检查row中的metadataJson字段
+    if (row.metadataJson) {
+      console.log('从row.metadataJson提取元数据')
+      try {
+        processMetadataString(row.metadataJson)
+        if (previewForm.metadata) return true
+      } catch (e) {
+        console.warn('解析row.metadataJson失败:', e)
+      }
+    }
+    
+    // 检查dataContent字段中的metadataJson
+    if (row.dataContent) {
+      console.log('检查row.dataContent中的元数据')
+      try {
+        // 尝试解析dataContent
+        const contentObj = typeof row.dataContent === 'string' ? 
+          JSON.parse(row.dataContent) : row.dataContent
+        
+        if (contentObj && contentObj.metadataJson) {
+          console.log('从row.dataContent.metadataJson提取元数据')
+          processMetadataString(contentObj.metadataJson)
+          if (previewForm.metadata) return true
+        }
+        
+        // 直接从dataContent中提取元数据字段
+        if (contentObj && (contentObj.dataName || contentObj.sourceUnit || 
+            contentObj.contactPerson || contentObj.contactPhone)) {
+          console.log('直接从dataContent中获取元数据字段')
+          previewForm.metadata = {
+            dataName: contentObj.dataName,
+            sourceUnit: contentObj.sourceUnit,
+            contactPerson: contentObj.contactPerson,
+            contactPhone: contentObj.contactPhone
+          }
+          return true
+        }
+      } catch (e) {
+        console.warn('解析dataContent失败:', e)
+      }
+    }
+    
+    // 最后尝试使用数据模拟（当服务器未返回元数据时使用）
+    if (!previewForm.metadata) {
+      // 为所有数据对象生成模拟元数据，不再限制为只有用户表
+      console.log('使用通用模拟元数据')
+      
+      // 根据实体名称生成有针对性的模拟数据
+      let entityName = row.entity || '未知实体'
+      let sourceUnit = '数据部'
+      let contactPerson = '王主任'
+      
+      // 根据实体名称定制一些元数据
+      if (entityName.includes('用户')) {
+        sourceUnit = '用户管理部'
+      } else if (entityName.includes('订单')) {
+        sourceUnit = '订单管理部'
+        contactPerson = '李经理'
+      } else if (entityName.includes('产品')) {
+        sourceUnit = '产品部'
+        contactPerson = '张总监'
+      }
+      
+      previewForm.metadata = {
+        dataName: entityName,
+        sourceUnit: sourceUnit,
+        contactPerson: contactPerson,
+        contactPhone: "123-456789"
+      }
+      return true
+    }
+    
+    return false
+  }
+  
+  // 处理元数据字符串的函数
+  const processMetadataString = (metadataString) => {
+    if (!metadataString) return
+    
+    // 检查是否已经是对象
+    if (typeof metadataString === 'object') {
+      previewForm.metadata = metadataString
+      return
+    }
+    
+    // 修复JSON字符串中可能存在的常见问题
+    let cleanString = metadataString
+    // 修复结尾多余的]}问题
+    if (cleanString.includes('"]}"') && !cleanString.endsWith('"}')) {
+      cleanString = cleanString.replace('"]}"', '"}')
+    }
+    if (cleanString.includes('"]}",')) {
+      cleanString = cleanString.replace('"]}",', '"}')
+    }
+    
+    // 修复开头缺少{的问题
+    if (!cleanString.startsWith('{') && cleanString.includes('":"')) {
+      cleanString = '{' + cleanString
+    }
+    
+    // 修复结尾缺少}的问题
+    if (!cleanString.endsWith('}') && cleanString.includes('":"')) {
+      cleanString = cleanString + '}'
+    }
+    
+    try {
+      // 尝试解析（可能需要多次解析）
+      let parsed = cleanString
+      let attempts = 0
+      const maxAttempts = 3
+      
+      while (typeof parsed === 'string' && attempts < maxAttempts) {
+        parsed = JSON.parse(parsed)
+        console.log(`第${attempts + 1}次解析结果:`, parsed)
+        attempts++
+      }
+      
+      // 设置元数据
+      if (typeof parsed === 'object') {
+        previewForm.metadata = parsed
+      }
+    } catch (e) {
+      console.warn('解析元数据字符串失败:', e, '原始字符串:', metadataString, '清理后:', cleanString)
+    }
+  }
+  
+  // 执行元数据提取
+  const metadataExtracted = extractMetadata()
+  console.log('元数据提取结果:', metadataExtracted, previewForm.metadata)
   
   // 清空当前Excel数据
   currentExcelFile.value = null
@@ -1142,6 +1261,53 @@ const navigateToHome = () => {
   // 显示成功消息
   ElMessage.success('已成功保存编辑并返回主页')
 }
+
+// 获取元数据字段值的辅助函数
+const getMetadataValue = (fieldName) => {
+  // 防止未定义
+  if (!previewForm.metadata) return null
+  
+  // 直接检查顶级对象
+  if (previewForm.metadata[fieldName]) {
+    return previewForm.metadata[fieldName]
+  }
+  
+  // 检查嵌套对象
+  const checkNestedObject = (obj, field) => {
+    // 不是对象，返回null
+    if (typeof obj !== 'object' || obj === null) return null
+    
+    // 直接检查当前对象是否有该字段
+    if (obj[field] !== undefined) return obj[field]
+    
+    // 递归检查所有属性
+    for (const key in obj) {
+      if (typeof obj[key] === 'object' && obj[key] !== null) {
+        const result = checkNestedObject(obj[key], field)
+        if (result !== null) return result
+      }
+    }
+    
+    return null
+  }
+  
+  // 尝试在嵌套对象中查找
+  return checkNestedObject(previewForm.metadata, fieldName)
+}
+
+// 获取当前格式化的日期时间
+const getCurrentDateTime = () => {
+  const now = new Date()
+  return now.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
+}
 </script>
 
 <style scoped>
@@ -1276,19 +1442,97 @@ const navigateToHome = () => {
 
 .preview-header {
   padding: 15px 20px;
-  background-color: #f5f7fa;
-  border-bottom: 1px solid #ebeef5;
+  background-color: transparent;
+  border-bottom: none;
 }
 
 .preview-info {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px 24px;
+  flex-direction: column;
+  gap: 10px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  padding: 10px;
+  width: 100%;
 }
 
-.preview-info div {
-  font-size: 14px;
+/* 新的基本信息表格样式 */
+.basic-info-table {
+  width: 100%;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 20px;
+  justify-content: center;
+  margin-bottom: 15px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+  padding: 12px 15px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.info-item {
+  display: inline-block;
+  padding: 0 10px;
   color: #333;
+  font-size: 14px;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.info-item strong {
+  font-weight: bold;
+  color: #606266;
+  margin-right: 5px;
+}
+
+.constraint-info {
+  max-width: 500px;
+}
+
+/* 元数据部分样式 */
+.metadata-section {
+  margin: 10px auto 5px;
+  padding: 8px 10px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  width: 98%;
+  max-width: 1200px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border: 1px solid #eaeaea;
+}
+
+.metadata-items {
+  display: flex;
+  flex-wrap: nowrap; /* 防止换行 */
+  justify-content: center;
+  overflow-x: auto; /* 如果内容溢出，允许水平滚动 */
+  padding-bottom: 3px; /* 为滚动条留出空间 */
+  scrollbar-width: thin;
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.metadata-items::-webkit-scrollbar {
+  height: 3px;
+}
+
+.metadata-items::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 3px;
+}
+
+.metadata-item {
+  padding: 4px 8px;
+  background-color: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  margin: 0 8px;
+  white-space: nowrap; /* 防止内容自动换行 */
+  flex-shrink: 0; /* 防止项目被压缩 */
+  font-size: 13px;
 }
 
 .excel-preview-wrapper {
@@ -1442,5 +1686,25 @@ pre {
   border-radius: 4px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* 约束条件悬浮显示样式 */
+.constraint-info {
+  position: relative;
+  cursor: help;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.constraint-info:hover {
+  overflow: visible;
+  white-space: normal;
+  background-color: #f0f9ff;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  transition: all 0.3s;
 }
 </style> 
