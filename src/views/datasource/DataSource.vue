@@ -168,6 +168,12 @@ const editForm = reactive({
     row: '',
     col: ''
   },
+  metadata: {
+    dataName: '',
+    sourceUnit: '',
+    contactPerson: '',
+    contactPhone: ''
+  },
   constraint: [],
   transferControl: [],
   auditInfo: '',
@@ -353,6 +359,34 @@ const handleEdit = async (row) => {
       col: locationParts[1]
     }
     
+    // 提取元数据
+    editForm.metadata = {
+      dataName: '',
+      sourceUnit: '',
+      contactPerson: '',
+      contactPhone: ''
+    }
+    
+    // 如果对象有元数据，使用它
+    if (objectToEdit.metadata && typeof objectToEdit.metadata === 'object') {
+      editForm.metadata = { ...editForm.metadata, ...objectToEdit.metadata }
+    } else if (objectToEdit.metadataJson) {
+      // 尝试从metadataJson解析元数据
+      try {
+        const metadataObj = JSON.parse(objectToEdit.metadataJson)
+        if (metadataObj) {
+          editForm.metadata = { ...editForm.metadata, ...metadataObj }
+        }
+      } catch (e) {
+        console.warn('解析metadataJson失败:', e)
+      }
+    }
+    
+    // 如果没有设置数据名称，使用实体名称
+    if (!editForm.metadata.dataName) {
+      editForm.metadata.dataName = editForm.entity
+    }
+    
     // 处理约束条件
     // 尝试从constraintSetJson解析约束条件
     let constraints = []
@@ -487,6 +521,12 @@ const cancelEdit = () => {
     row: '',
     col: ''
   }
+  editForm.metadata = {
+    dataName: '',
+    sourceUnit: '',
+    contactPerson: '',
+    contactPhone: ''
+  }
   editForm.constraint = []
   editForm.transferControl = []
   editForm.auditInfo = ''
@@ -522,9 +562,17 @@ const saveEditObject = async (updatedObject) => {
 
   // 处理定位信息为字符串格式
   const entityName = updatedObject.entity
+  
+  // 准备元数据JSON
+  let metadataJson = null
+  if (updatedObject.metadata) {
+    metadataJson = JSON.stringify(updatedObject.metadata)
+  }
+  
   const displayObject = {
     ...updatedObject,
     locationInfo: `(${entityName}, ${updatedObject.locationInfo.row}, ${updatedObject.locationInfo.col})`,
+    metadataJson: metadataJson // 添加元数据JSON字符串
   }
   
   try {
@@ -726,6 +774,12 @@ const saveCreateObject = async (newObject) => {
     }
   }
   
+  // 准备元数据JSON
+  let metadataJson = null
+  if (newObject.metadata) {
+    metadataJson = JSON.stringify(newObject.metadata)
+  }
+  
   // 准备新对象
   const displayObject = {
     entity: entityName,
@@ -738,7 +792,9 @@ const saveCreateObject = async (newObject) => {
     shareConstraint: newObject.shareConstraint,
     transferControl: newObject.transferControl,
     propagationControl: newObject.propagationControl,
-    excelData: newObject.excelData
+    excelData: newObject.excelData,
+    metadata: newObject.metadata,
+    metadataJson: metadataJson // 添加元数据JSON字符串
   }
   
   try {

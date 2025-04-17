@@ -30,6 +30,21 @@
           <span v-else class="upload-tip">请上传Excel表格文件</span>
         </div>
       </el-form-item>
+      
+      <!-- 元数据区域 -->
+      <el-form-item label="数据名称：" prop="metadata.dataName" class="metadata-form-item">
+        <el-input v-model="form.metadata.dataName" placeholder="请输入数据名称" style="width: 300px;"></el-input>
+      </el-form-item>
+      <el-form-item label="来源单位：" prop="metadata.sourceUnit" class="metadata-form-item">
+        <el-input v-model="form.metadata.sourceUnit" placeholder="请输入来源单位" style="width: 300px;"></el-input>
+      </el-form-item>
+      <el-form-item label="联系人：" prop="metadata.contactPerson" class="metadata-form-item">
+        <el-input v-model="form.metadata.contactPerson" placeholder="请输入联系人" style="width: 300px;"></el-input>
+      </el-form-item>
+      <el-form-item label="联系电话：" prop="metadata.contactPhone" class="metadata-form-item">
+        <el-input v-model="form.metadata.contactPhone" placeholder="请输入联系电话" style="width: 300px;"></el-input>
+      </el-form-item>
+      
       <el-form-item label="定位信息：" prop="locationInfo" style="margin-bottom: 22px;">
         <div style="display: flex; align-items: center; gap: 10px;">
           <el-input v-model="form.locationInfo.row" placeholder="例：0-4" style="width: 150px;"></el-input>
@@ -180,6 +195,12 @@ const form = reactive({
     row: '',
     col: ''
   },
+  metadata: {
+    dataName: '',
+    sourceUnit: '',
+    contactPerson: '',
+    contactPhone: ''
+  },
   constraint: [],
   formatConstraint: '',
   accessConstraint: '',
@@ -196,7 +217,19 @@ const form = reactive({
 // 表单校验规则
 const formRules = {
   entity: [
-    { required: true, message: '请输入实体名称', trigger: 'blur' }
+    { required: false, message: '请输入实体名称', trigger: 'blur' }
+  ],
+  'metadata.dataName': [
+    { required: false, message: '请输入数据名称', trigger: 'blur' }
+  ],
+  'metadata.sourceUnit': [
+    { required: false, message: '请输入来源单位', trigger: 'blur' }
+  ],
+  'metadata.contactPerson': [
+    { required: false, message: '请输入联系人', trigger: 'blur' }
+  ],
+  'metadata.contactPhone': [
+    { required: false, message: '请输入联系电话', trigger: 'blur' }
   ],
   locationInfo: [
     { 
@@ -259,65 +292,64 @@ watch(() => props.modelValue, (newVal) => {
   
   // 设置其他字段
   form.entity = newVal.entity || ''
-  form.auditInfo = newVal.auditInfo || ''
-  form.status = newVal.status || ''
-  form.feedback = newVal.feedback || ''
   
-  if (newVal.locationInfo) {
-    if (typeof newVal.locationInfo === 'object') {
-      form.locationInfo.row = newVal.locationInfo.row || ''
-      form.locationInfo.col = newVal.locationInfo.col || ''
-    } else if (typeof newVal.locationInfo === 'string') {
-      // 从格式如"(表1, 0-4, 0-4)"中提取行列信息
+  // 设置元数据
+  if (newVal.metadata && typeof newVal.metadata === 'object') {
+    form.metadata.dataName = newVal.metadata.dataName || newVal.entity || ''
+    form.metadata.sourceUnit = newVal.metadata.sourceUnit || ''
+    form.metadata.contactPerson = newVal.metadata.contactPerson || ''
+    form.metadata.contactPhone = newVal.metadata.contactPhone || ''
+  } else {
+    // 如果没有元数据，则使用默认值
+    form.metadata.dataName = newVal.entity || ''
+    form.metadata.sourceUnit = ''
+    form.metadata.contactPerson = ''
+    form.metadata.contactPhone = ''
+  }
+  
+  // 处理定位信息
+  if (newVal.locationInfo && typeof newVal.locationInfo === 'object') {
+    form.locationInfo.row = newVal.locationInfo.row || ''
+    form.locationInfo.col = newVal.locationInfo.col || ''
+  } else if (typeof newVal.locationInfo === 'string') {
+    // 尝试从字符串格式的locationInfo中提取行列信息
+    try {
       const matches = newVal.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
       if (matches && matches.length > 3) {
         form.locationInfo.row = matches[2].trim()
         form.locationInfo.col = matches[3].trim()
       }
+    } catch (e) {
+      console.warn('解析locationInfo字符串失败:', e)
+      form.locationInfo.row = ''
+      form.locationInfo.col = ''
     }
+  } else {
+    form.locationInfo.row = ''
+    form.locationInfo.col = ''
   }
+  
+  // 设置auditInfo、status和feedback
+  form.auditInfo = newVal.auditInfo || ''
+  form.status = newVal.status || ''
+  form.feedback = newVal.feedback || ''
   
   // 设置约束条件数组
   form.constraint = Array.isArray(newVal.constraint) ? [...newVal.constraint] : (newVal.constraint ? [newVal.constraint] : [])
   
   // 设置各个约束条件字段
-  if (newVal.formatConstraint) form.formatConstraint = newVal.formatConstraint
-  if (newVal.accessConstraint) form.accessConstraint = newVal.accessConstraint
-  if (newVal.pathConstraint) form.pathConstraint = newVal.pathConstraint
-  if (newVal.regionConstraint) form.regionConstraint = newVal.regionConstraint
-  if (newVal.shareConstraint) form.shareConstraint = newVal.shareConstraint
+  form.formatConstraint = newVal.formatConstraint || ''
+  form.accessConstraint = newVal.accessConstraint || ''
+  form.pathConstraint = newVal.pathConstraint || ''
+  form.regionConstraint = newVal.regionConstraint || ''
+  form.shareConstraint = newVal.shareConstraint || ''
   
-  // 如果没有明确的各约束字段值，尝试从约束数组中解析
-  if ((!form.formatConstraint || !form.accessConstraint || !form.pathConstraint || 
-      !form.regionConstraint || !form.shareConstraint) && form.constraint.length > 0) {
-    
-    form.constraint.forEach(item => {
-      if (typeof item === 'string') {
-        const parts = item.split(':')
-        if (parts.length === 2) {
-          const type = parts[0].trim()
-          const value = parts[1].trim()
-          
-          if (type === '格式约束') form.formatConstraint = value
-          else if (type === '访问权限') form.accessConstraint = value
-          else if (type === '传输路径约束') form.pathConstraint = value
-          else if (type === '地域性约束') form.regionConstraint = value
-          else if (type === '共享约束') form.shareConstraint = value
-        }
-      }
-    })
-  }
+  // 设置传输控制操作
+  form.transferControl = Array.isArray(newVal.transferControl) ? [...newVal.transferControl] : (newVal.transferControl ? [newVal.transferControl] : [])
   
-  // 设置传输控制操作数组，如果为空则设置所有选项
-  if (Array.isArray(newVal.transferControl) && newVal.transferControl.length > 0) {
-    form.transferControl = [...newVal.transferControl]
-  } else {
-    // 默认选中所有传输控制操作
-    form.transferControl = ['可读', '可修改', '可销毁', '可共享', '可委托']
-  }
-  
-  form.excelData = newVal.excelData || null
-}, { deep: true, immediate: true })
+  // 设置Excel数据
+  form.excelData = newVal.excelData
+})
 
 // 监听form变化，更新v-model
 watch(form, (newVal) => {
@@ -716,5 +748,26 @@ const handleDialogClosed = () => {
 .custom-multi-select {
   width: 100%;
   min-width: 180px; /* 确保选择框足够宽 */
+}
+
+/* 添加元数据相关样式 */
+.metadata-form-title {
+  margin-bottom: 10px;
+}
+
+.metadata-form-item {
+  margin-left: 20px;
+  margin-bottom: 15px;
+}
+
+.metadata-form-item :deep(.el-form-item__label) {
+  font-weight: normal;
+  color: #606266;
+}
+
+:deep(.el-divider__text) {
+  font-size: 14px;
+  color: #409eff;
+  background-color: #f5f7fa;
 }
 </style> 

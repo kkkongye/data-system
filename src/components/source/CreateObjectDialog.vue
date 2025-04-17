@@ -26,6 +26,21 @@
           <span v-else class="upload-tip">请上传Excel表格文件</span>
         </div>
       </el-form-item>
+      
+      <!-- 元数据区域 -->
+      <el-form-item label="数据名称：" prop="metadata.dataName" class="metadata-form-item">
+        <el-input v-model="form.metadata.dataName" placeholder="请输入数据名称" style="width: 300px;"></el-input>
+      </el-form-item>
+      <el-form-item label="来源单位：" prop="metadata.sourceUnit" class="metadata-form-item">
+        <el-input v-model="form.metadata.sourceUnit" placeholder="请输入来源单位" style="width: 300px;"></el-input>
+      </el-form-item>
+      <el-form-item label="联系人：" prop="metadata.contactPerson" class="metadata-form-item">
+        <el-input v-model="form.metadata.contactPerson" placeholder="请输入联系人" style="width: 300px;"></el-input>
+      </el-form-item>
+      <el-form-item label="联系电话：" prop="metadata.contactPhone" class="metadata-form-item">
+        <el-input v-model="form.metadata.contactPhone" placeholder="请输入联系电话" style="width: 300px;"></el-input>
+      </el-form-item>
+      
       <el-form-item label="定位信息：" prop="locationInfo" style="margin-bottom: 22px;">
         <div style="display: flex; align-items: center; gap: 10px;">
           <el-input v-model="form.locationInfo.row" placeholder="例：0-4" style="width: 150px;"></el-input>
@@ -166,6 +181,12 @@ const form = reactive({
     row: '',
     col: ''
   },
+  metadata: {
+    dataName: '',
+    sourceUnit: '',
+    contactPerson: '',
+    contactPhone: ''
+  },
   constraint: [],
   formatConstraint: '',
   accessConstraint: '',
@@ -179,7 +200,19 @@ const form = reactive({
 // 表单校验规则
 const formRules = {
   entity: [
-    { required: true, message: '请上传Excel文件', trigger: 'change' }
+    { required: false, message: '请上传Excel文件', trigger: 'change' }
+  ],
+  'metadata.dataName': [
+    { required: false, message: '请输入数据名称', trigger: 'blur' }
+  ],
+  'metadata.sourceUnit': [
+    { required: false, message: '请输入来源单位', trigger: 'blur' }
+  ],
+  'metadata.contactPerson': [
+    { required: false, message: '请输入联系人', trigger: 'blur' }
+  ],
+  'metadata.contactPhone': [
+    { required: false, message: '请输入联系电话', trigger: 'blur' }
   ],
   locationInfo: [
     { 
@@ -241,6 +274,20 @@ watch(() => props.modelValue, (newVal) => {
     form.locationInfo.col = newVal.locationInfo.col || ''
   }
   
+  // 设置元数据
+  if (newVal.metadata && typeof newVal.metadata === 'object') {
+    form.metadata.dataName = newVal.metadata.dataName || newVal.entity || ''
+    form.metadata.sourceUnit = newVal.metadata.sourceUnit || ''
+    form.metadata.contactPerson = newVal.metadata.contactPerson || ''
+    form.metadata.contactPhone = newVal.metadata.contactPhone || ''
+  } else {
+    // 如果没有元数据，则使用实体名称和默认值
+    form.metadata.dataName = newVal.entity || ''
+    form.metadata.sourceUnit = ''
+    form.metadata.contactPerson = ''
+    form.metadata.contactPhone = ''
+  }
+  
   // 设置约束条件数组
   form.constraint = Array.isArray(newVal.constraint) ? [...newVal.constraint] : (newVal.constraint ? [newVal.constraint] : [])
   
@@ -251,9 +298,11 @@ watch(() => props.modelValue, (newVal) => {
   if (newVal.regionConstraint) form.regionConstraint = newVal.regionConstraint
   if (newVal.shareConstraint) form.shareConstraint = newVal.shareConstraint
   
-  form.transferControl = Array.isArray(newVal.transferControl) ? [...newVal.transferControl] : (newVal.transferControl ? [newVal.transferControl] : [])
-  form.excelData = newVal.excelData || null
-}, { deep: true, immediate: true })
+  // 传输控制
+  form.transferControl = Array.isArray(newVal.transferControl) ? [...newVal.transferControl] : (newVal.transferControl ? [newVal.transferControl] : ['可读', '可修改', '可销毁', '可共享', '可委托'])
+  
+  form.excelData = newVal.excelData
+}, { deep: true })
 
 // 监听form变化，更新v-model
 watch(form, (newVal) => {
@@ -442,17 +491,19 @@ const resetForm = () => {
   form.entity = ''
   form.locationInfo.row = ''
   form.locationInfo.col = ''
+  form.metadata.dataName = ''
+  form.metadata.sourceUnit = ''
+  form.metadata.contactPerson = ''
+  form.metadata.contactPhone = ''
   form.constraint = []
   form.formatConstraint = ''
   form.accessConstraint = ''
   form.pathConstraint = ''
   form.regionConstraint = ''
   form.shareConstraint = ''
-  // 确保所有传输控制操作默认为选中状态
   form.transferControl = ['可读', '可修改', '可销毁', '可共享', '可委托']
   form.excelData = null
   
-  // 重置表单验证
   if (formRef.value) {
     formRef.value.resetFields()
   }
@@ -582,5 +633,26 @@ const handleDialogClosed = () => {
 .custom-multi-select {
   width: 100%;
   min-width: 180px; /* 确保选择框足够宽 */
+}
+
+/* 添加元数据相关样式 */
+.metadata-form-title {
+  margin-bottom: 10px;
+}
+
+.metadata-form-item {
+  margin-left: 20px;
+  margin-bottom: 15px;
+}
+
+.metadata-form-item :deep(.el-form-item__label) {
+  font-weight: normal;
+  color: #606266;
+}
+
+:deep(.el-divider__text) {
+  font-size: 14px;
+  color: #409eff;
+  background-color: #f5f7fa;
 }
 </style> 
