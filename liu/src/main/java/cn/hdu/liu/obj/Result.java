@@ -1,34 +1,59 @@
 package cn.hdu.liu.obj;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
-public class Result {
-    private Integer code;  // 使用 Integer 类型
-    private String msg;     // 字段名严格为 msg
-    private Object data;    // 通用数据类型
+public class Result<T> {
+    private Integer code;
+    private String msg;
+    private T data;
 
-    public Result(Integer code, String msg, Object data) {
+    // 显式定义全参构造方法（避免Jackson序列化失败）
+    public Result(Integer code, String msg, T data) {
         this.code = code;
         this.msg = msg;
         this.data = data;
     }
-    // 增删改成功响应
-    public static Result success() {
-        return new Result(1, "success", null);  // int 自动装箱为 Integer
+
+    // 成功响应（无数据）
+    public static Result<?> success() {
+        return new Result<>(1, "success", null);
     }
 
-    // 查询成功响应（带数据）
-    public static Result success(Object data) {
-        return new Result(1, "success", data);
+    // 成功响应（带数据）
+    public static <T> Result<T> success(T data) {
+        return new Result<>(1, "success", data);
     }
 
     // 失败响应
-    public static Result error(String msg) {
-        return new Result(0, msg, null);  // int 自动装箱为 Integer
+    public static Result<?> error(String msg) {
+        return new Result<>(0, msg, null);
+    }
+
+    // Getter和Setter方法
+    public Integer getCode() {
+        return code;
+    }
+
+    public void setCode(Integer code) {
+        this.code = code;
+    }
+
+    public String getMsg() {
+        return msg;
+    }
+
+    public void setMsg(String msg) {
+        this.msg = msg;
+    }
+
+    public T getData() {
+        return data;
+    }
+
+    public void setData(T data) {
+        this.data = data;
     }
 }

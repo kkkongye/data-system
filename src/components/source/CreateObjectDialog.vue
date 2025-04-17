@@ -63,7 +63,7 @@
             <div class="custom-select-wrapper">
               <el-select v-model="form.pathConstraint" placeholder="请选择传输路径" class="custom-select-component">
                 <el-option label="点对点" value="点对点"></el-option>
-                <el-option label="面对面" value="面对面"></el-option>
+                <el-option label="广播" value="广播"></el-option>
               </el-select>
               <div v-if="form.pathConstraint" class="selected-value">{{ form.pathConstraint }}</div>
             </div>
@@ -103,6 +103,8 @@
             <el-option label="可读" value="可读"></el-option>
             <el-option label="可修改" value="可修改"></el-option>
             <el-option label="可销毁" value="可销毁"></el-option>
+            <el-option label="可共享" value="可共享"></el-option>
+            <el-option label="可委托" value="可委托"></el-option>
           </el-select>
         </div>
       </el-form-item>
@@ -170,7 +172,7 @@ const form = reactive({
   pathConstraint: '',
   regionConstraint: '',
   shareConstraint: '',
-  transferControl: ['可读', '可修改', '可销毁'],
+  transferControl: ['可读', '可修改', '可销毁', '可共享', '可委托'],
   excelData: null
 })
 
@@ -395,6 +397,15 @@ const handleSave = () => {
       if (form.regionConstraint) constraintArray.push(`地域性约束:${form.regionConstraint}`)
       if (form.shareConstraint) constraintArray.push(`共享约束:${form.shareConstraint}`)
       
+      // 构建传播控制对象，与transferControl数组对应
+      const propagationControl = {
+        canRead: form.transferControl.includes('可读'),
+        canModify: form.transferControl.includes('可修改'),
+        canDestroy: form.transferControl.includes('可销毁'),
+        canShare: form.transferControl.includes('可共享'),
+        canDelegate: form.transferControl.includes('可委托')
+      }
+      
       // 构建新对象
       const newObject = {
         entity: form.entity,
@@ -409,6 +420,7 @@ const handleSave = () => {
         regionConstraint: form.regionConstraint,
         shareConstraint: form.shareConstraint,
         transferControl: form.transferControl,
+        propagationControl: propagationControl,
         excelData: form.excelData
       }
       
@@ -436,7 +448,8 @@ const resetForm = () => {
   form.pathConstraint = ''
   form.regionConstraint = ''
   form.shareConstraint = ''
-  form.transferControl = ['可读', '可修改', '可销毁']
+  // 确保所有传输控制操作默认为选中状态
+  form.transferControl = ['可读', '可修改', '可销毁', '可共享', '可委托']
   form.excelData = null
   
   // 重置表单验证

@@ -64,7 +64,7 @@
             <div class="custom-select-wrapper">
               <el-select v-model="form.pathConstraint" placeholder="请选择传输路径" class="custom-select-component">
                 <el-option label="点对点" value="点对点"></el-option>
-                <el-option label="面对面" value="面对面"></el-option>
+                <el-option label="广播" value="广播"></el-option>
               </el-select>
               <div v-if="form.pathConstraint" class="selected-value">{{ form.pathConstraint }}</div>
             </div>
@@ -104,6 +104,8 @@
             <el-option label="可读" value="可读"></el-option>
             <el-option label="可修改" value="可修改"></el-option>
             <el-option label="可销毁" value="可销毁"></el-option>
+            <el-option label="可共享" value="可共享"></el-option>
+            <el-option label="可委托" value="可委托"></el-option>
           </el-select>
         </div>
       </el-form-item>
@@ -159,7 +161,7 @@ const props = defineProps({
 const offlineMode = ref(false)
 const apiError = ref(null)
 
-const emit = defineEmits(['update:visible', 'update:modelValue', 'save', 'cancel'])
+const emit = defineEmits(['update:visible', 'update:modelValue', 'save', 'cancel', 'navigate-home'])
 
 // 表单引用
 const formRef = ref(null)
@@ -294,7 +296,14 @@ watch(() => props.modelValue, (newVal) => {
     })
   }
   
-  form.transferControl = Array.isArray(newVal.transferControl) ? [...newVal.transferControl] : (newVal.transferControl ? [newVal.transferControl] : [])
+  // 设置传输控制操作数组，如果为空则设置所有选项
+  if (Array.isArray(newVal.transferControl) && newVal.transferControl.length > 0) {
+    form.transferControl = [...newVal.transferControl]
+  } else {
+    // 默认选中所有传输控制操作
+    form.transferControl = ['可读', '可修改', '可销毁', '可共享', '可委托']
+  }
+  
   form.excelData = newVal.excelData || null
 }, { deep: true, immediate: true })
 
@@ -343,7 +352,34 @@ const handleFileChange = async (file) => {
   // 设置实体名称为文件名（不带扩展名）
   const fileName = file.name
   const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName
-  form.entity = fileNameWithoutExt
+  
+  // 保留原实体名称
+  const originalEntityName = form.entity
+  
+  // 如果是编辑现有对象，询问是否要更改实体名称
+  if (form.id && originalEntityName && originalEntityName !== fileNameWithoutExt) {
+    try {
+      // 使用确认对话框询问用户
+      await ElMessageBox.confirm(
+        `您正在替换实体"${originalEntityName}"的Excel文件，是否同时更新实体名称为"${fileNameWithoutExt}"？`,
+        '更新实体名称',
+        {
+          confirmButtonText: '更新名称',
+          cancelButtonText: '保留原名称',
+          type: 'warning'
+        }
+      )
+      // 用户确认更新名称
+      form.entity = fileNameWithoutExt
+    } catch (error) {
+      // 用户选择保留原名称
+      console.log('用户选择保留原实体名称')
+      // 不更新实体名称，保留原名
+    }
+  } else {
+    // 新建对象或名称为空，直接设置
+    form.entity = fileNameWithoutExt
+  }
 
   // 如果已经处于离线模式，直接读取本地文件而不尝试上传
   if (offlineMode.value || MOCK_ENABLED) {
@@ -377,7 +413,7 @@ const handleFileChange = async (file) => {
     }
   } catch (error) {
     console.error('Excel文件上传过程出错:', error)
-    ElMessage.error('上传Excel文件过程中出错: ' + error.message)
+    ElMessage.error('上传Excel文件过程中出错: ' + (error.message || '未知错误'))
     
     // 保存API错误信息
     apiError.value = error
@@ -437,6 +473,17 @@ const readLocalFile = (file) => {
 
 // 保存按钮处理
 const handleSave = () => {
+  // 基本验证
+  if (!form.entity) {
+    ElMessage.warning('请输入实体名称')
+    return
+  }
+  
+  if (!form.locationInfo || !form.locationInfo.row || !form.locationInfo.col) {
+    ElMessage.warning('请输入定位信息（行和列）')
+    return
+  }
+
   // 验证约束条件
   if (!form.formatConstraint) {
     ElMessage.warning('请选择格式约束')
@@ -473,6 +520,15 @@ const handleSave = () => {
       if (form.regionConstraint) constraintArray.push(`地域性约束:${form.regionConstraint}`)
       if (form.shareConstraint) constraintArray.push(`共享约束:${form.shareConstraint}`)
       
+      // 构建传播控制对象，与transferControl数组对应
+      const propagationControl = {
+        canRead: form.transferControl.includes('可读'),
+        canModify: form.transferControl.includes('可修改'),
+        canDestroy: form.transferControl.includes('可销毁'),
+        canShare: form.transferControl.includes('可共享'),
+        canDelegate: form.transferControl.includes('可委托')
+      }
+      
       // 构建更新后的对象
       const entityName = form.entity
       const updatedObject = {
@@ -489,6 +545,7 @@ const handleSave = () => {
         regionConstraint: form.regionConstraint,
         shareConstraint: form.shareConstraint,
         transferControl: form.transferControl,
+        propagationControl: propagationControl,
         auditInfo: form.auditInfo,
         status: form.status,
         feedback: form.feedback,
@@ -503,7 +560,12 @@ const handleSave = () => {
       
       // 发送保存事件
       emit('save', updatedObject)
+      
+      // 关闭对话框
       dialogVisible.value = false
+      
+      // 发送导航回主页的事件
+      emit('navigate-home')
     } else {
       // 显示验证错误
       ElMessage.warning('请填写必填字段')

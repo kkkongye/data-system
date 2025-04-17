@@ -3,12 +3,70 @@
     <!-- 头部导航 -->
     <AppHeader role-name="数源方" @logout="logout" />
     
+    <!-- API错误提示 -->
+    <div v-if="apiErrorVisible" class="api-error-alert">
+      <el-alert
+        title="接口连接错误"
+        type="warning"
+        description="无法连接到后端API服务，可能原因: 1.后端服务未启动 2.跨域(CORS)限制 3.网络连接问题"
+        show-icon
+        :closable="true"
+        @close="apiErrorVisible = false"
+      >
+        <template #default>
+          <div class="api-error-content">
+            <p>可能的解决方案:</p>
+            <ol>
+              <li>确保后端服务在 http://localhost:8080 正常运行</li>
+              <li>在后端Controller类上添加 <code>@CrossOrigin(origins = "*")</code> 注解启用CORS</li>
+              <li>检查网络连接和防火墙设置</li>
+            </ol>
+            <div class="api-error-actions">
+              <el-button size="small" @click="apiErrorVisible = false">知道了</el-button>
+              <el-button size="small" type="primary" @click="refreshData">重试连接</el-button>
+            </div>
+          </div>
+        </template>
+      </el-alert>
+    </div>
+    
     <!-- 主内容区域 -->
     <div class="main-content">
       <!-- 标签页 -->
       <div class="content-card">
         <el-tabs v-model="activeTab">
           <el-tab-pane label="数字对象列表" name="objectList">
+            <!-- 在ObjectList上方添加刷新按钮 -->
+            <div class="refresh-container">
+              <el-button type="primary" plain icon="RefreshRight" @click="refreshData">刷新数据</el-button>
+              <el-popover
+                placement="bottom"
+                width="400"
+                trigger="click"
+                v-if="showDebugTools"
+              >
+                <template #reference>
+                  <el-button type="info" plain>显示原始数据</el-button>
+                </template>
+                <template #default>
+                  <div class="debug-data-container">
+                    <div class="debug-header">
+                      <span>后端返回的原始数据示例</span>
+                      <el-button type="text" @click="copyDebugData">复制</el-button>
+                    </div>
+                    
+                    <!-- 添加位置信息专区 -->
+                    <div v-if="extractLocationInfo(lastReceivedApiData)" class="debug-location-info">
+                      <h4>位置信息详情：</h4>
+                      <pre style="max-height: 150px; overflow: auto; font-size: 12px;">{{ extractLocationInfo(lastReceivedApiData) }}</pre>
+                    </div>
+                    
+                    <pre style="max-height: 300px; overflow: auto; font-size: 12px;">{{ prettifyJson(lastReceivedApiData) }}</pre>
+                  </div>
+                </template>
+              </el-popover>
+            </div>
+            
             <!-- 使用ObjectList组件代替原有的列表内容 -->
             <ObjectList 
               :data="filteredTableData"
@@ -39,6 +97,7 @@
     v-model:modelValue="editForm"
     @save="saveEditObject"
     @cancel="cancelEdit"
+    @navigate-home="navigateToHome"
   />
 
   <!-- 新建对象弹窗 -->
@@ -93,7 +152,7 @@
 import { ref, computed, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Document } from '@element-plus/icons-vue'
+import { Search, Document, RefreshRight } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
 import ExcelPreview from '@/components/ExcelPreview.vue'
 import EditObjectDialogNew from '@/components/source/EditObjectDialogNew.vue'
@@ -215,18 +274,24 @@ const handleEdit = (row) => {
   // 处理定位信息格式
   let locationParts = ['', '']
   if (row.locationInfo) {
-    // 从格式如"(表1, 0-4, 0-4)"中提取行列信息
-    const matches = row.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
-    if (matches && matches.length > 3) {
-      locationParts = [matches[2].trim(), matches[3].trim()]
+    if (typeof row.locationInfo === 'string') {
+      // 从格式如"(表1, 0-4, 0-4)"中提取行列信息
+      const matches = row.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
+      if (matches && matches.length > 3) {
+        locationParts = [matches[2].trim(), matches[3].trim()]
+      }
+    } else if (typeof row.locationInfo === 'object' && row.locationInfo.row && row.locationInfo.col) {
+      locationParts = [row.locationInfo.row, row.locationInfo.col]
     }
   }
   
   // 设置编辑表单数据
   editForm.id = row.id
   editForm.entity = row.entity
-  editForm.locationInfo.row = locationParts[0]
-  editForm.locationInfo.col = locationParts[1]
+  editForm.locationInfo = {
+    row: locationParts[0],
+    col: locationParts[1]
+  }
   
   // 设置约束条件
   // 使用辅助函数确保约束条件和传输控制是数组
@@ -261,9 +326,9 @@ const handleEdit = (row) => {
   }
   
   editForm.transferControl = ensureArray(row.transferControl)
-  editForm.auditInfo = row.auditInfo
-  editForm.status = row.status
-  editForm.feedback = row.feedback
+  editForm.auditInfo = row.auditInfo || ''
+  editForm.status = row.status || ''
+  editForm.feedback = row.feedback || ''
   
   editForm.excelData = row.excelData // 保留原有的Excel文件数据
   
@@ -297,6 +362,22 @@ const saveEditObject = (updatedObject) => {
   // 检查是否为离线模式上传（如果有excelData但没有通过API上传）
   const isOfflineMode = updatedObject.offlineMode === true
 
+  // 如果没有传输控制操作，设置默认值
+  if (!updatedObject.transferControl || updatedObject.transferControl.length === 0) {
+    updatedObject.transferControl = ['可读', '可修改', '可销毁', '可共享', '可委托']
+  }
+  
+  // 如果没有propagationControl对象，根据transferControl创建
+  if (!updatedObject.propagationControl) {
+    updatedObject.propagationControl = {
+      canRead: updatedObject.transferControl.includes('可读'),
+      canModify: updatedObject.transferControl.includes('可修改'),
+      canDestroy: updatedObject.transferControl.includes('可销毁'),
+      canShare: updatedObject.transferControl.includes('可共享'),
+      canDelegate: updatedObject.transferControl.includes('可委托')
+    }
+  }
+
   // 处理定位信息为字符串格式
   const entityName = updatedObject.entity
   const displayObject = {
@@ -320,6 +401,9 @@ const saveEditObject = (updatedObject) => {
     } else {
       ElMessage.success(`已保存对 ${entityName} 的编辑`)
     }
+    
+    // 刷新数据列表
+    refreshData()
   } else {
     ElMessage.error(`编辑失败：未找到ID为 ${updatedObject.id} 的对象`)
   }
@@ -449,6 +533,22 @@ const saveCreateObject = (newObject) => {
   
   const entityName = newObject.entity || '未上传'
   
+  // 如果没有传输控制操作，设置默认值
+  if (!newObject.transferControl || newObject.transferControl.length === 0) {
+    newObject.transferControl = ['可读', '可修改', '可销毁', '可共享', '可委托']
+  }
+  
+  // 如果没有propagationControl对象，根据transferControl创建
+  if (!newObject.propagationControl) {
+    newObject.propagationControl = {
+      canRead: newObject.transferControl.includes('可读'),
+      canModify: newObject.transferControl.includes('可修改'),
+      canDestroy: newObject.transferControl.includes('可销毁'),
+      canShare: newObject.transferControl.includes('可共享'),
+      canDelegate: newObject.transferControl.includes('可委托')
+    }
+  }
+  
   // 准备新对象
   const displayObject = {
     entity: entityName,
@@ -460,6 +560,7 @@ const saveCreateObject = (newObject) => {
     regionConstraint: newObject.regionConstraint,
     shareConstraint: newObject.shareConstraint,
     transferControl: newObject.transferControl,
+    propagationControl: newObject.propagationControl,
     excelData: newObject.excelData
   }
   
@@ -633,12 +734,187 @@ onMounted(() => {
     console.log('数据源方收到数据变化:', newData)
     // 无需手动更新tableData，因为是响应式引用
   })
+  
+  // 从后端API加载数据
+  loadDataFromBackend()
 })
+
+// 添加新的变量和方法
+const apiErrorVisible = ref(false)
+
+// 添加调试相关功能
+const showDebugTools = ref(true) // 设置为true显示调试工具
+const lastReceivedApiData = ref(null)
+
+// 复制调试数据到剪贴板
+const copyDebugData = () => {
+  const jsonStr = JSON.stringify(lastReceivedApiData.value, null, 2)
+  navigator.clipboard.writeText(jsonStr)
+    .then(() => {
+      ElMessage.success('已复制到剪贴板')
+    })
+    .catch(err => {
+      ElMessage.error('复制失败: ' + err)
+      console.error('复制失败:', err)
+    })
+}
+
+// 格式化JSON
+const prettifyJson = (json) => {
+  if (!json) return '暂无数据'
+  try {
+    return JSON.stringify(json, null, 2)
+  } catch (e) {
+    return '无法格式化: ' + e.message
+  }
+}
+
+// 从后端加载数据
+const loadDataFromBackend = async () => {
+  try {
+    console.log('开始从后端加载数据...')
+    ElMessage.info('正在从后端加载数据...')
+    await dataObjectService.fetchDataObjectsFromBackend()
+    
+    // 获取最后接收的API数据
+    lastReceivedApiData.value = dataObjectService.getLastReceivedApiData()
+    
+    console.log('后端数据加载完成')
+    ElMessage.success('数据加载成功')
+    
+    // 成功后隐藏错误提示
+    apiErrorVisible.value = false
+  } catch (error) {
+    console.error('从后端加载数据失败:', error)
+    
+    // 判断是否为跨域错误
+    const isCORSError = error.message && (
+      error.message.includes('NetworkError') || 
+      error.message.includes('Network Error') ||
+      error.message.includes('CORS') || 
+      error.message.includes('cross-origin')
+    )
+    
+    if (isCORSError) {
+      ElMessage.error('跨域请求失败，请确保后端已开启CORS支持')
+      apiErrorVisible.value = true
+    } else {
+      ElMessage.warning('从后端加载数据失败，已切换到本地模拟数据')
+      apiErrorVisible.value = true
+    }
+    
+    // 如果当前没有数据，则使用模拟数据
+    if (tableData.value.length === 0) {
+      console.log('使用本地模拟数据')
+    }
+  }
+}
+
+// 添加刷新数据的方法
+// 添加loadTableData作为refreshData的别名
+const loadTableData = () => {
+  // 调用refreshData作为实际实现
+  refreshData()
+}
+
+const refreshData = async () => {
+  try {
+    ElMessage.info('正在从后端刷新数据...')
+    await dataObjectService.fetchDataObjectsFromBackend()
+    
+    // 获取最后接收的API数据
+    lastReceivedApiData.value = dataObjectService.getLastReceivedApiData()
+    
+    ElMessage.success('数据刷新成功')
+    
+    // 成功后隐藏错误提示
+    apiErrorVisible.value = false
+  } catch (error) {
+    console.error('刷新数据失败:', error)
+    
+    // 判断是否为跨域错误
+    const isCORSError = error.message && (
+      error.message.includes('NetworkError') || 
+      error.message.includes('Network Error') ||
+      error.message.includes('CORS') || 
+      error.message.includes('cross-origin')
+    )
+    
+    if (isCORSError) {
+      ElMessage.error('跨域请求失败，请确保后端已开启CORS支持并且服务正常运行')
+      apiErrorVisible.value = true
+    } else if (error.response && error.response.status) {
+      // 处理HTTP错误
+      ElMessage.error(`请求服务器失败: ${error.response.status} ${error.response.statusText || ''}`)
+      apiErrorVisible.value = true
+    } else {
+      ElMessage.error('刷新数据失败，请检查后端服务是否正常运行')
+      apiErrorVisible.value = true
+    }
+  }
+}
 
 // 处理每页显示数量变化
 const handleSizeChange = (val) => {
   pageSize.value = val
   currentPage.value = 1
+}
+
+// 添加新的位置信息提取方法
+const extractLocationInfo = (data) => {
+  if (!data) return null
+  
+  // 如果是数组，处理第一个元素
+  if (Array.isArray(data)) {
+    if (data.length === 0) return null
+    return extractLocationInfo(data[0])
+  }
+  
+  // 处理 locationInfo 字段（已格式化的字符串）
+  if (data.locationInfo && typeof data.locationInfo === 'string') {
+    try {
+      const matches = data.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
+      if (matches && matches.length > 3) {
+        const [_, entity, row, col] = matches
+        return `实体: ${entity}, 行: ${row}, 列: ${col}`
+      }
+    } catch (e) {
+      console.error('解析locationInfo字符串失败:', e)
+    }
+  }
+  
+  // 处理 locationInfoJson 字段（JSON字符串）
+  if (data.locationInfoJson) {
+    try {
+      const locationObj = JSON.parse(data.locationInfoJson)
+      if (locationObj && locationObj.locations && locationObj.locations.length > 0) {
+        const location = locationObj.locations[0]
+        return `工作表: ${location.sheet || '-'}, 行范围: ${location.startRow || '-'}-${location.endRow || '-'}, 列范围: ${location.startColumn || '-'}-${location.endColumn || '-'}`
+      }
+    } catch (e) {
+      console.error('解析locationInfoJson失败:', e)
+    }
+  }
+  
+  return null
+}
+
+// 导航到主页
+const navigateToHome = () => {
+  console.log('导航回主页')
+  // 重置当前状态
+  currentStatus.value = ''
+  searchKeyword.value = ''
+  currentPage.value = 1
+  
+  // 如果使用的是选项卡，可以切换到主选项卡
+  activeTab.value = 'objectList'
+  
+  // 刷新数据
+  refreshData()
+  
+  // 显示成功消息
+  ElMessage.success('已成功保存编辑并返回主页')
 }
 </script>
 
@@ -848,5 +1124,97 @@ const handleSizeChange = (val) => {
 .data-locked-placeholder p {
   color: #606266;
   font-size: 16px;
+}
+
+/* 纯文本样式 */
+.plain-text-container {
+  color: #333;
+  text-align: center;
+  line-height: 1.5;
+  padding: 2px 0;
+}
+
+/* 刷新按钮容器 */
+.refresh-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+/* API错误提示样式 */
+.api-error-alert {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 10px;
+  z-index: 1000;
+}
+
+.api-error-content {
+  background-color: #fff;
+  padding: 10px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.api-error-content p {
+  margin-bottom: 10px;
+}
+
+.api-error-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* 调试工具样式 */
+.debug-data-container {
+  background-color: #f8f8f8;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.debug-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-weight: bold;
+  color: #606266;
+}
+
+.debug-header span {
+  font-size: 14px;
+}
+
+.debug-location-info {
+  background-color: #e6f7ff;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  border-left: 3px solid #1890ff;
+}
+
+.debug-location-info h4 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  color: #1890ff;
+  font-size: 14px;
+}
+
+.debug-location-info pre {
+  background-color: #f0f9ff;
+  color: #1890ff;
+  border: 1px solid #b3e0ff;
+}
+
+pre {
+  background-color: #2d2d2d;
+  color: #e6e6e6;
+  padding: 10px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style> 

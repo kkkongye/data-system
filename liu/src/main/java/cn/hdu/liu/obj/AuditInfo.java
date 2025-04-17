@@ -226,4 +226,12 @@ public class AuditInfo {
         sb.append("]}");
         return sb.toString();
     }
+    public List<AuditRecord> getAuditRecords() {
+        return auditRecords;
+    }
+
+    public void setAuditRecords(List<AuditRecord> auditRecords) {
+        this.auditRecords = auditRecords;
+    }
+
 }

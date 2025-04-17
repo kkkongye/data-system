@@ -47,7 +47,7 @@
         style="width: 100%"
         @selection-change="handleSelectionChange"
         @sort-change="handleSortChange"
-        :cell-style="{ padding: '8px 0', textAlign: 'center' }"
+        :cell-style="{ padding: '8px 4px', textAlign: 'center' }"
         :header-cell-style="{ padding: '10px 0', background: '#f5f7fa', color: '#606266', fontWeight: 'bold', textAlign: 'center' }"
         border
         height="100%"
@@ -62,17 +62,21 @@
         <el-table-column 
           prop="id" 
           label="ID" 
-          width="70" 
+          width="300" 
           align="center"
           sortable
-        />
-        <el-table-column prop="entity" label="实体" width="100" align="center">
+        >
+          <template #default="scope">
+            <div class="id-cell">{{ scope.row.id }}</div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="entity" label="实体" width="120" align="center">
           <template #default="scope">
             <el-link type="primary" @click="handlePreview(scope.row)">{{ scope.row.entity }}</el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="locationInfo" label="定位信息" min-width="150" align="center" />
-        <el-table-column prop="constraint" label="约束条件" min-width="250" align="center">
+        <el-table-column prop="locationInfo" label="定位信息" min-width="120" align="center" />
+        <el-table-column prop="constraint" label="约束条件" min-width="300" align="center">
           <template #default="scope">
             <div class="constraint-container">
               <template v-if="scope.row.constraint && scope.row.constraint.length">
@@ -98,9 +102,10 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="transferControl" label="传输控制操作" min-width="180" align="center">
+        <el-table-column prop="transferControl" label="传输控制操作" min-width="250" align="center">
           <template #default="scope">
             <div class="control-container">
+              <!-- 优先使用transferControl数组 -->
               <template v-if="scope.row.transferControl && scope.row.transferControl.length">
                 <el-tag
                   v-for="(item, index) in (Array.isArray(scope.row.transferControl) ? scope.row.transferControl : [scope.row.transferControl])"
@@ -113,11 +118,59 @@
                   {{ item }}
                 </el-tag>
               </template>
+              <!-- 如果没有transferControl，尝试使用propagationControl对象 -->
+              <template v-else-if="scope.row.propagationControl">
+                <el-tag
+                  v-if="scope.row.propagationControl.canRead"
+                  size="small"
+                  type="primary"
+                  effect="plain"
+                  class="control-tag"
+                >
+                  可读
+                </el-tag>
+                <el-tag
+                  v-if="scope.row.propagationControl.canModify"
+                  size="small"
+                  type="primary"
+                  effect="plain"
+                  class="control-tag"
+                >
+                  可修改
+                </el-tag>
+                <el-tag
+                  v-if="scope.row.propagationControl.canShare"
+                  size="small"
+                  type="primary"
+                  effect="plain"
+                  class="control-tag"
+                >
+                  可共享
+                </el-tag>
+                <el-tag
+                  v-if="scope.row.propagationControl.canDelegate"
+                  size="small"
+                  type="primary"
+                  effect="plain"
+                  class="control-tag"
+                >
+                  可委托
+                </el-tag>
+                <el-tag
+                  v-if="scope.row.propagationControl.canDestroy"
+                  size="small"
+                  type="primary"
+                  effect="plain"
+                  class="control-tag"
+                >
+                  可销毁
+                </el-tag>
+              </template>
               <template v-else>-</template>
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="auditInfo" label="审计控制信息" width="130" align="center">
+        <el-table-column prop="auditInfo" label="审计控制信息" width="140" align="center">
           <template #default="scope">
             <el-link type="primary">{{ scope.row.auditInfo }}</el-link>
           </template>
@@ -129,7 +182,7 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column v-if="!isQualifiedStatus" prop="feedback" label="反馈意见" min-width="160" align="center">
+        <el-table-column v-if="!isQualifiedStatus" prop="feedback" label="反馈意见" min-width="150" align="center">
           <template #default="scope">
             <span>{{ scope.row.feedback }}</span>
           </template>
@@ -460,5 +513,19 @@ const formatConstraintText = (text) => {
 
 .control-tag {
   margin: 2px;
+}
+
+/* ID列样式 */
+.id-cell {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  max-width: 300px;
+  width: 100%;
+  padding: 0 8px;
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: bold;
+  word-break: break-all;
 }
 </style> 

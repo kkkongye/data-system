@@ -57,4 +57,33 @@ public class ConstraintSet {
     }
 
 
+    // Getter for constraints
+    public List<Constraint> getConstraints() {
+        return new ArrayList<>(constraints); // 返回防御性拷贝
+    }
+
+    // Setter for constraints（带数据校验）
+    public void setConstraints(List<Constraint> constraints) {
+        this.constraints = new ArrayList<>(constraints); // 防御性拷贝
+
+        // 自动选择逻辑：当设置新列表且当前无选中项时，选择第一个约束
+        if (this.selectedConstraint == null && !this.constraints.isEmpty()) {
+            this.selectedConstraint = this.constraints.get(0);
+        }
+    }
+
+    // Getter for selectedConstraint
+    public Constraint getSelectedConstraint() {
+        return selectedConstraint; // 直接返回引用（根据业务需求决定是否拷贝）
+    }
+
+    // Setter for selectedConstraint（带数据校验）
+    public void setSelectedConstraint(Constraint selectedConstraint) {
+        // 校验约束是否存在于列表中
+        if (selectedConstraint != null && !this.constraints.contains(selectedConstraint)) {
+            throw new IllegalArgumentException("Selected constraint must exist in the constraints list");
+        }
+        this.selectedConstraint = selectedConstraint;
+    }
+
 }

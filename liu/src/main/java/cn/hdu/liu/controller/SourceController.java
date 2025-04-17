@@ -25,10 +25,11 @@ public class SourceController {
 
     private static final Logger log = LoggerFactory.getLogger(SourceController.class);
 
-    @Autowired
 
-    private SourceService SourceService;
+    @Autowired
     private DataObjectService dataObjectService;
+    @Autowired
+    private SourceService SourceService;
     private String encryptedData;
     private String token;
 
@@ -59,10 +60,10 @@ public class SourceController {
         dataObjectService.update(id, dataObject);
         return Result.success();
     }
-    @GetMapping("/objects/list")
-    public Result list() {
+    @GetMapping(value = "/objects/list", produces = MediaType.APPLICATION_JSON_VALUE)
+    public Result<List<DataObject>> list() {
         log.info("查询全部数据对象信息");
-        List<DataObject> dataObjectList =dataObjectService.findAll();
+        List<DataObject> dataObjectList = dataObjectService.findAll();
         return Result.success(dataObjectList);
     }
 
