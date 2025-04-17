@@ -268,73 +268,104 @@ const handleSelectionChange = (rows) => {
 }
 
 // 编辑对象
-const handleEdit = (row) => {
-  editingIndex.value = tableData.value.findIndex(item => item.id === row.id)
+const handleEdit = async (row) => {
+  console.log('开始编辑对象:', row)
   
-  // 处理定位信息格式
-  let locationParts = ['', '']
-  if (row.locationInfo) {
-    if (typeof row.locationInfo === 'string') {
-      // 从格式如"(表1, 0-4, 0-4)"中提取行列信息
-      const matches = row.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
-      if (matches && matches.length > 3) {
-        locationParts = [matches[2].trim(), matches[3].trim()]
-      }
-    } else if (typeof row.locationInfo === 'object' && row.locationInfo.row && row.locationInfo.col) {
-      locationParts = [row.locationInfo.row, row.locationInfo.col]
-    }
-  }
-  
-  // 设置编辑表单数据
-  editForm.id = row.id
-  editForm.entity = row.entity
-  editForm.locationInfo = {
-    row: locationParts[0],
-    col: locationParts[1]
-  }
-  
-  // 设置约束条件
-  // 使用辅助函数确保约束条件和传输控制是数组
-  editForm.constraint = ensureArray(row.constraint)
-  
-  // 设置各约束字段
-  editForm.formatConstraint = row.formatConstraint || ''
-  editForm.accessConstraint = row.accessConstraint || ''
-  editForm.pathConstraint = row.pathConstraint || ''
-  editForm.regionConstraint = row.regionConstraint || ''
-  editForm.shareConstraint = row.shareConstraint || ''
-  
-  // 如果没有明确的各约束字段值，尝试从约束数组中解析
-  if ((!editForm.formatConstraint || !editForm.accessConstraint || !editForm.pathConstraint || 
-      !editForm.regionConstraint || !editForm.shareConstraint) && editForm.constraint.length > 0) {
+  try {
+    // 先从API获取最新的对象信息
+    const objectId = row.id
+    let objectToEdit = null
     
-    editForm.constraint.forEach(item => {
-      if (typeof item === 'string') {
-        const parts = item.split(':')
-        if (parts.length === 2) {
-          const type = parts[0].trim()
-          const value = parts[1].trim()
-          
-          if (type === '格式约束') editForm.formatConstraint = value
-          else if (type === '访问权限') editForm.accessConstraint = value
-          else if (type === '传输路径约束') editForm.pathConstraint = value
-          else if (type === '地域性约束') editForm.regionConstraint = value
-          else if (type === '共享约束') editForm.shareConstraint = value
-        }
+    if (objectId) {
+      // 尝试从后端获取最新数据
+      objectToEdit = await dataObjectService.fetchDataObjectById(objectId)
+      
+      if (objectToEdit) {
+        console.log('从API获取到对象数据:', objectToEdit)
+      } else {
+        console.warn('未能从API获取对象数据，将使用表格提供的数据')
+        objectToEdit = row
       }
-    })
+    } else {
+      objectToEdit = row
+    }
+    
+    // 记录编辑的索引位置
+    editingIndex.value = tableData.value.findIndex(item => item.id === objectId)
+    
+    // 处理定位信息格式
+    let locationParts = ['', '']
+    if (objectToEdit.locationInfo) {
+      if (typeof objectToEdit.locationInfo === 'string') {
+        // 从格式如"(表1, 0-4, 0-4)"中提取行列信息
+        const matches = objectToEdit.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
+        if (matches && matches.length > 3) {
+          locationParts = [matches[2].trim(), matches[3].trim()]
+        }
+      } else if (typeof objectToEdit.locationInfo === 'object' && objectToEdit.locationInfo.row && objectToEdit.locationInfo.col) {
+        locationParts = [objectToEdit.locationInfo.row, objectToEdit.locationInfo.col]
+      }
+    }
+    
+    // 设置编辑表单数据
+    editForm.id = objectToEdit.id
+    editForm.entity = objectToEdit.entity
+    editForm.locationInfo = {
+      row: locationParts[0],
+      col: locationParts[1]
+    }
+    
+    // 设置约束条件
+    // 使用辅助函数确保约束条件和传输控制是数组
+    editForm.constraint = ensureArray(objectToEdit.constraint)
+    
+    // 设置各约束字段
+    editForm.formatConstraint = objectToEdit.formatConstraint || ''
+    editForm.accessConstraint = objectToEdit.accessConstraint || ''
+    editForm.pathConstraint = objectToEdit.pathConstraint || ''
+    editForm.regionConstraint = objectToEdit.regionConstraint || ''
+    editForm.shareConstraint = objectToEdit.shareConstraint || ''
+    
+    // 如果没有明确的各约束字段值，尝试从约束数组中解析
+    if ((!editForm.formatConstraint || !editForm.accessConstraint || !editForm.pathConstraint || 
+        !editForm.regionConstraint || !editForm.shareConstraint) && editForm.constraint.length > 0) {
+      // 这里可以添加解析约束数组的逻辑
+      editForm.constraint.forEach(item => {
+        if (typeof item === 'string') {
+          const parts = item.split(':')
+          if (parts.length === 2) {
+            const type = parts[0].trim()
+            const value = parts[1].trim()
+            
+            if (type === '格式约束') editForm.formatConstraint = value
+            else if (type === '访问权限') editForm.accessConstraint = value
+            else if (type === '传输路径约束') editForm.pathConstraint = value
+            else if (type === '地域性约束') editForm.regionConstraint = value
+            else if (type === '共享约束') editForm.shareConstraint = value
+          }
+        }
+      })
+    }
+  
+    // 传输控制
+    editForm.transferControl = ensureArray(objectToEdit.transferControl)
+    
+    // 其他字段
+    editForm.auditInfo = objectToEdit.auditInfo || ''
+    editForm.status = objectToEdit.status || ''
+    editForm.feedback = objectToEdit.feedback || ''
+    
+    // 保存Excel数据
+    editForm.excelData = objectToEdit.excelData // 保留原有的Excel文件数据
+    
+    console.log('打开编辑对话框，设置表单数据:', editForm)
+    // 显示编辑弹窗
+    editDialogVisible.value = true
+    console.log('editDialogVisible已设置为:', editDialogVisible.value)
+  } catch (error) {
+    console.error('编辑对象时出错:', error)
+    ElMessage.error('获取对象详情失败，请稍后再试')
   }
-  
-  editForm.transferControl = ensureArray(row.transferControl)
-  editForm.auditInfo = row.auditInfo || ''
-  editForm.status = row.status || ''
-  editForm.feedback = row.feedback || ''
-  
-  editForm.excelData = row.excelData // 保留原有的Excel文件数据
-  
-  console.log('打开编辑对话框，设置表单数据:', editForm)
-  editDialogVisible.value = true
-  console.log('editDialogVisible已设置为:', editDialogVisible.value)
 }
 
 // 取消编辑
@@ -357,8 +388,8 @@ const cancelEdit = () => {
   editingIndex.value = -1
 }
 
-// 保存编辑
-const saveEditObject = (updatedObject) => {
+// 保存编辑的对象
+const saveEditObject = async (updatedObject) => {
   // 检查是否为离线模式上传（如果有excelData但没有通过API上传）
   const isOfflineMode = updatedObject.offlineMode === true
 
@@ -385,27 +416,40 @@ const saveEditObject = (updatedObject) => {
     locationInfo: `(${entityName}, ${updatedObject.locationInfo.row}, ${updatedObject.locationInfo.col})`,
   }
   
-  // 使用服务更新数据对象
-  const updated = dataObjectService.updateDataObject(displayObject)
-  
-  if (updated) {
-    console.log('保存编辑后的对象:', displayObject)
+  try {
+    // 使用API更新数据对象
+    let updated = false
     
-    // 根据是否为离线模式显示不同的提示
-    if (isOfflineMode) {
-      ElMessage({
-        message: `已离线保存对 ${entityName} 的编辑，但Excel文件未上传到服务器`,
-        type: 'warning',
-        duration: 5000
-      })
+    if (!isOfflineMode) {
+      // 尝试通过API更新
+      updated = await dataObjectService.updateDataObjectViaApi(updatedObject.id, displayObject)
     } else {
-      ElMessage.success(`已保存对 ${entityName} 的编辑`)
+      // 离线模式仅更新本地数据
+      updated = dataObjectService.updateDataObject(displayObject)
     }
     
-    // 刷新数据列表
-    refreshData()
-  } else {
-    ElMessage.error(`编辑失败：未找到ID为 ${updatedObject.id} 的对象`)
+    if (updated) {
+      console.log('保存编辑后的对象:', displayObject)
+      
+      // 根据是否为离线模式显示不同的提示
+      if (isOfflineMode) {
+        ElMessage({
+          message: `已离线保存对 ${entityName} 的编辑，但数据未同步到服务器`,
+          type: 'warning',
+          duration: 5000
+        })
+      } else {
+        ElMessage.success(`已保存对 ${entityName} 的编辑`)
+      }
+      
+      // 刷新数据列表
+      refreshData()
+    } else {
+      ElMessage.error(`编辑失败：未找到ID为 ${updatedObject.id} 的对象或API请求失败`)
+    }
+  } catch (error) {
+    console.error('保存编辑时出错:', error)
+    ElMessage.error('保存编辑失败，请稍后再试')
   }
 }
 
@@ -415,14 +459,33 @@ const handleDelete = (row) => {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning',
-  }).then(() => {
-    // 使用服务删除数据对象
-    const deleted = dataObjectService.deleteDataObject(row.id)
-    
-    if (deleted) {
-      ElMessage.success(`已删除: ${row.entity}`)
-    } else {
-      ElMessage.error(`删除失败：未找到ID为 ${row.id} 的对象`)
+  }).then(async () => {
+    try {
+      // 尝试通过API删除
+      const result = await dataObjectService.deleteDataObjectViaApi(row.id)
+      
+      if (result) {
+        ElMessage.success(`已删除: ${row.entity}`)
+      } else {
+        // API删除失败，尝试本地删除
+        const localDeleted = dataObjectService.deleteDataObject(row.id)
+        
+        if (localDeleted) {
+          ElMessage({
+            message: `API删除失败，已在本地删除: ${row.entity}`,
+            type: 'warning',
+            duration: 5000
+          })
+        } else {
+          ElMessage.error(`删除失败: ${row.entity}`)
+        }
+      }
+      
+      // 刷新数据
+      refreshData()
+    } catch (error) {
+      console.error('删除对象时出错:', error)
+      ElMessage.error('删除对象失败，请稍后再试')
     }
   }).catch(() => {
     ElMessage.info('已取消删除')
@@ -526,8 +589,8 @@ const handleFileChange = (file) => {
   reader.readAsBinaryString(file.raw);
 }
 
-// 保存新建
-const saveCreateObject = (newObject) => {
+// 保存创建的对象
+const saveCreateObject = async (newObject) => {
   // 检查是否为离线模式上传（如果有excelData但没有通过API上传）
   const isOfflineMode = newObject.offlineMode === true
   
@@ -564,20 +627,52 @@ const saveCreateObject = (newObject) => {
     excelData: newObject.excelData
   }
   
-  // 使用服务添加数据对象
-  const addedObject = dataObjectService.addDataObject(displayObject)
-  
-  console.log('成功创建数字对象:', addedObject)
-  
-  // 根据是否为离线模式显示不同的提示
-  if (isOfflineMode) {
-    ElMessage({
-      message: `已在本地创建数字对象，可点击实体名称预览Excel内容，但Excel文件未上传到服务器`,
-      type: 'warning',
-      duration: 5000
-    })
-  } else {
-    ElMessage.success(`成功新建数字对象，可点击实体名称预览Excel内容`)
+  try {
+    let result = null
+    
+    if (!isOfflineMode) {
+      // 使用API创建数字对象
+      result = await dataObjectService.addDataObjectViaApi(displayObject)
+      
+      if (result.success) {
+        console.log('成功通过API创建数字对象:', result.object)
+        ElMessage.success(`已创建数字对象: ${entityName}`)
+      } else {
+        console.error('API创建数字对象失败:', result.message)
+        
+        // API失败时尝试本地创建
+        const addedObject = dataObjectService.addDataObject(displayObject)
+        console.log('改为本地创建数字对象:', addedObject)
+        
+        ElMessage({
+          message: `API创建失败，已在本地创建数字对象: ${entityName}`,
+          type: 'warning',
+          duration: 5000
+        })
+      }
+    } else {
+      // 离线模式只在本地添加
+      const addedObject = dataObjectService.addDataObject(displayObject)
+      console.log('本地创建数字对象:', addedObject)
+      
+      ElMessage({
+        message: `已在本地创建数字对象: ${entityName}，但未同步到服务器`,
+        type: 'warning',
+        duration: 5000
+      })
+    }
+    
+    // 刷新数据列表
+    refreshData()
+    
+    // 重置创建表单
+    resetCreateForm()
+    
+    // 关闭创建对话框
+    createDialogVisible.value = false
+  } catch (error) {
+    console.error('创建对象时发生错误:', error)
+    ElMessage.error('创建对象失败，请稍后再试')
   }
 }
 

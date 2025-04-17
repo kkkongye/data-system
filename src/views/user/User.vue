@@ -50,7 +50,11 @@
                 :header-row-style="{ height: '45px' }"
               >
                 <el-table-column type="selection" width="55" align="center" fixed />
-                <el-table-column prop="id" label="ID" width="70" align="center" fixed />
+                <el-table-column prop="id" label="ID" width="400" align="center" fixed>
+                  <template #default="scope">
+                    <div class="id-cell">{{ scope.row.id }}</div>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="entity" label="实体" width="120" align="center">
                   <template #default="scope">
                     <el-link type="primary" @click="previewEntity(scope.row)">{{ scope.row.entity }}</el-link>
@@ -605,6 +609,14 @@ const downloadExcelFile = (row) => {
   display: inline-block;
 }
 
+/* 确保ID单元格不被全局样式覆盖 */
+:deep(.el-table .el-table__cell .id-cell) {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-all;
+}
+
 :deep(.el-table .el-table__cell:last-child .cell) {
   padding-right: 5px;
 }
@@ -786,6 +798,17 @@ const downloadExcelFile = (row) => {
 .preview-info > div {
   flex: 1;
   min-width: 200px;
+}
+
+/* ID单元格样式 */
+.id-cell {
+  width: 100%;
+  overflow: visible;
+  white-space: normal;
+  word-break: break-all;
+  padding: 2px 5px;
+  text-align: left;
+  text-align: center;
 }
 
 /* 约束条件相关样式 */

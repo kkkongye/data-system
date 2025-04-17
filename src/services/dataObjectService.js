@@ -47,6 +47,39 @@ const API_URL = 'http://localhost:8080/api'
 // 保存最后接收的API原始数据
 let lastReceivedApiData = null
 
+// 根据ID获取数字对象详情
+const fetchDataObjectById = async (id) => {
+  try {
+    console.log('正在从后端获取数字对象详情，ID:', id)
+    const response = await axios.get(`${API_URL}/objects/${id}`)
+    console.log('获取到的数字对象详情响应:', response)
+    
+    // 检查响应状态
+    if (response && response.data) {
+      // 判断返回格式
+      let dataObject = null
+      
+      // 情况1: 标准格式 {code: 200, message: '', data: {...}}
+      if (response.data.code === 200 && response.data.data) {
+        dataObject = response.data.data
+        console.log('使用标准格式响应中的data对象')
+      }
+      // 情况2: 直接返回对象 {...}
+      else if (response.data && !Array.isArray(response.data)) {
+        dataObject = response.data
+        console.log('API直接返回了数据对象')
+      }
+      
+      return dataObject
+    }
+    
+    return null
+  } catch (error) {
+    console.error('获取数字对象详情失败:', error)
+    return null
+  }
+}
+
 // 从后端获取数据对象列表
 const fetchDataObjectsFromBackend = async () => {
   try {
@@ -537,6 +570,48 @@ const createDefaultDataObject = () => {
   }
 }
 
+// 通过API添加数字对象
+const addDataObjectViaApi = async (dataObject) => {
+  try {
+    console.log('正在通过API添加数字对象，数据:', dataObject)
+    const response = await axios.post(`${API_URL}/objects`, dataObject)
+    console.log('添加数字对象API响应:', response)
+    
+    // 检查响应状态
+    if (response && response.data) {
+      // 判断返回格式
+      if (response.data.code === 200) {
+        console.log('数字对象添加成功')
+        
+        // 如果响应中包含了对象ID，使用响应返回的ID
+        let createdObject = dataObject
+        if (response.data.data && response.data.data.id) {
+          createdObject.id = response.data.data.id
+        }
+        
+        // 同时更新本地数据
+        addDataObject(createdObject)
+        
+        return {
+          success: true,
+          object: createdObject
+        }
+      }
+    }
+    
+    return {
+      success: false,
+      message: '添加失败'
+    }
+  } catch (error) {
+    console.error('通过API添加数字对象失败:', error)
+    return {
+      success: false,
+      message: error.message || '添加失败'
+    }
+  }
+}
+
 // 添加新的数字对象
 const addDataObject = (newObject) => {
   // 确保对象有唯一ID
@@ -561,6 +636,33 @@ const addDataObject = (newObject) => {
   return objectToAdd
 }
 
+// 通过API更新数字对象
+const updateDataObjectViaApi = async (id, dataObject) => {
+  try {
+    console.log('正在通过API更新数字对象，ID:', id, '数据:', dataObject)
+    const response = await axios.put(`${API_URL}/objects/${id}`, dataObject)
+    console.log('更新数字对象API响应:', response)
+    
+    // 检查响应状态
+    if (response && response.data) {
+      // 判断返回格式
+      if (response.data.code === 200) {
+        console.log('数字对象更新成功')
+        
+        // 同时更新本地数据
+        updateDataObject(dataObject)
+        
+        return true
+      }
+    }
+    
+    return false
+  } catch (error) {
+    console.error('通过API更新数字对象失败:', error)
+    return false
+  }
+}
+
 // 更新数字对象
 const updateDataObject = (updatedObject) => {
   const index = sharedTableData.findIndex(item => item.id === updatedObject.id)
@@ -580,6 +682,33 @@ const updateDataObject = (updatedObject) => {
   }
   
   return false
+}
+
+// 通过API删除数字对象
+const deleteDataObjectViaApi = async (id) => {
+  try {
+    console.log('正在通过API删除数字对象，ID:', id)
+    const response = await axios.delete(`${API_URL}/${id}`)
+    console.log('删除数字对象API响应:', response)
+    
+    // 检查响应状态
+    if (response && response.data) {
+      // 判断返回格式
+      if (response.data.code === 200) {
+        console.log('数字对象删除成功')
+        
+        // 同时更新本地数据
+        deleteDataObject(id)
+        
+        return true
+      }
+    }
+    
+    return false
+  } catch (error) {
+    console.error('通过API删除数字对象失败:', error)
+    return false
+  }
 }
 
 // 删除数字对象
@@ -635,5 +764,9 @@ export default {
   addChangeListener,
   removeChangeListener,
   fetchDataObjectsFromBackend,
-  getLastReceivedApiData
+  getLastReceivedApiData,
+  fetchDataObjectById,
+  updateDataObjectViaApi,
+  addDataObjectViaApi,
+  deleteDataObjectViaApi
 } 

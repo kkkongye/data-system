@@ -65,7 +65,11 @@
                 height="100%"
                 fit
               >
-                <el-table-column prop="id" label="ID" width="70" align="center" />
+                <el-table-column prop="id" label="ID" width="400" align="center">
+                  <template #default="scope">
+                    <div class="id-cell">{{ scope.row.id }}</div>
+                  </template>
+                </el-table-column>
                 <el-table-column prop="entity" label="实体" width="100" align="center">
                   <template #default="scope">
                     <el-link type="primary" @click="previewEntity(scope.row)">{{ scope.row.entity }}</el-link>
@@ -880,6 +884,15 @@ const formatConstraintText = (text) => {
 }
 
 .control-tag {
-  margin: 2px;
+  margin: 2px 5px;
+}
+
+/* ID单元格样式 */
+.id-cell {
+  width: 100%;
+  overflow: visible;
+  white-space: normal;
+  word-break: break-all;
+  padding: 2px 5px;
 }
 </style> 

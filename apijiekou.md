@@ -1,5 +1,3 @@
-
-
 ### 1. 数源方接口 (SourceController)
 
 基础路径: /api
@@ -8,19 +6,19 @@
 
 |---------|---------|---------|
 
-| DELETE | /{id} | 根据ID删除数字对象 |
+| DELETE | /{id} | 根据ID删除数字对象 |ok
 
-| GET | /objects/{id} | 根据ID查询数字对象 |
+| GET | /objects/{id} | 根据ID查询数字对象 |ok
 
-| POST | /objects | 新增数字对象 |
+| POST | /objects | 新增数字对象 |no
 
-| PUT | /objects/{id} | 根据ID更新数字对象 |
+| PUT | /objects/{id} | 根据ID更新数字对象 |no
 
-| GET | /objects/list | 查询所有数字对象 |
+| GET | /objects/list | 查询所有数字对象 |ok
 
-| POST | /encrypt | 加密数据（模拟实现） |
+| POST | /encrypt | 加密数据（模拟实现） |ok
 
-| POST | /objects/submit | 将加密数据发送到治理方 |
+| POST | /objects/submit | 将加密数据发送到治理方 |no
 
 ### 2. 治理方接口 (GovernanceController)
 
