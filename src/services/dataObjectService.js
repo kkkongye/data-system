@@ -51,29 +51,54 @@ let lastReceivedApiData = null
 const fetchDataObjectById = async (id) => {
   try {
     console.log('正在从后端获取数字对象详情，ID:', id)
-    const response = await axios.get(`${API_URL}/objects/${id}`)
-    console.log('获取到的数字对象详情响应:', response)
     
-    // 检查响应状态
-    if (response && response.data) {
-      // 判断返回格式
-      let dataObject = null
+    // 首先尝试从API获取
+    let dataObject = null
+    try {
+      const response = await axios.get(`${API_URL}/objects/${id}`)
+      console.log('获取到的数字对象详情响应:', response)
       
-      // 情况1: 标准格式 {code: 200, message: '', data: {...}}
-      if (response.data.code === 200 && response.data.data) {
-        dataObject = response.data.data
-        console.log('使用标准格式响应中的data对象')
+      // 检查响应状态
+      if (response && response.data) {
+        // 判断返回格式
+        
+        // 情况1: 标准格式 {code: 200, message: '', data: {...}}
+        if (response.data.code === 200 && response.data.data) {
+          dataObject = response.data.data
+          console.log('使用标准格式响应中的data对象')
+        }
+        // 情况2: 直接返回带code和data结构的对象，但code不是200 {code: 1, data: {...}}
+        else if (response.data.code !== undefined && response.data.data) {
+          dataObject = response.data
+          console.log('返回了带code和data结构的对象:', response.data.code)
+        }
+        // 情况3: 直接返回对象 {...}
+        else if (response.data && !Array.isArray(response.data)) {
+          dataObject = response.data
+          console.log('API直接返回了数据对象')
+        }
       }
-      // 情况2: 直接返回对象 {...}
-      else if (response.data && !Array.isArray(response.data)) {
-        dataObject = response.data
-        console.log('API直接返回了数据对象')
-      }
-      
-      return dataObject
+    } catch (apiError) {
+      console.error('API获取对象详情失败:', apiError)
+      // API失败，继续尝试从本地数据获取
     }
     
-    return null
+    // 如果API获取失败，尝试从本地数据查找
+    if (!dataObject) {
+      console.log('从本地数据中查找对象ID:', id)
+      dataObject = sharedTableData.find(item => compareIds(item.id, id))
+      
+      if (dataObject) {
+        console.log('在本地数据中找到匹配对象')
+        // 本地找到的数据已经是前端格式，直接返回
+        return dataObject
+      } else {
+        console.warn('在本地数据中未找到ID为', id, '的对象')
+        return null
+      }
+    }
+    
+    return dataObject
   } catch (error) {
     console.error('获取数字对象详情失败:', error)
     return null

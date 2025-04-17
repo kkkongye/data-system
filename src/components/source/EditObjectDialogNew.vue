@@ -10,6 +10,9 @@
     @closed="handleDialogClosed"
   >
     <el-form :model="form" label-width="120px" ref="formRef" :rules="formRules">
+      <el-form-item label="ID：" v-if="form.id !== undefined && form.id !== null">
+        <el-input v-model="form.id" disabled placeholder="自动生成" style="width: 300px;"></el-input>
+      </el-form-item>
       <el-form-item label="实体：" prop="entity">
         <div style="display: flex; align-items: center; gap: 10px;">
           <el-upload
@@ -244,8 +247,17 @@ watch(dialogVisible, (newVal) => {
 watch(() => props.modelValue, (newVal) => {
   if (!newVal) return
   
-  // 深拷贝对象，避免直接修改props
-  form.id = newVal.id || ''
+  console.log('EditObjectDialogNew组件接收到的modelValue:', newVal)
+  
+  // 处理ID - 确保即使ID为0也能正确显示
+  if (newVal.id !== undefined && newVal.id !== null) {
+    form.id = String(newVal.id)
+    console.log('设置ID值:', form.id)
+  } else {
+    form.id = ''
+  }
+  
+  // 设置其他字段
   form.entity = newVal.entity || ''
   form.auditInfo = newVal.auditInfo || ''
   form.status = newVal.status || ''

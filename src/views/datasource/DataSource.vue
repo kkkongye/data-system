@@ -278,24 +278,79 @@ const handleEdit = async (row) => {
     
     if (objectId) {
       // 尝试从后端获取最新数据
-      objectToEdit = await dataObjectService.fetchDataObjectById(objectId)
+      const apiResponse = await dataObjectService.fetchDataObjectById(objectId)
       
-      if (objectToEdit) {
-        console.log('从API获取到对象数据:', objectToEdit)
+      if (apiResponse) {
+        console.log('从API获取到对象数据:', apiResponse)
+        
+        // 正确提取数据对象
+        // 如果返回的是带有code和data结构的API响应
+        if (apiResponse.code !== undefined && apiResponse.data) {
+          objectToEdit = apiResponse.data
+          console.log('从API响应中提取的数据对象:', objectToEdit)
+        } else {
+          // 如果直接返回了数据对象
+          objectToEdit = apiResponse
+        }
       } else {
         console.warn('未能从API获取对象数据，将使用表格提供的数据')
-        objectToEdit = row
+        objectToEdit = { ...row } // 使用深拷贝避免引用问题
       }
     } else {
-      objectToEdit = row
+      objectToEdit = { ...row }
     }
     
     // 记录编辑的索引位置
     editingIndex.value = tableData.value.findIndex(item => item.id === objectId)
     
+    // 确保对象存在
+    if (!objectToEdit) {
+      console.error('无法获取要编辑的对象数据')
+      ElMessage.error('获取对象详情失败，请稍后再试')
+      return
+    }
+    
+    // 从对象中提取实体数据（如果存在）
+    let entityData = objectToEdit
+    
+    // 处理可能嵌套在dataContent中的实体数据
+    if (objectToEdit.dataContent) {
+      try {
+        const parsedContent = JSON.parse(objectToEdit.dataContent)
+        if (parsedContent && typeof parsedContent === 'object') {
+          console.log('从dataContent解析的实体数据:', parsedContent)
+          
+          // 合并dataContent中的关键字段到主对象
+          if (parsedContent.entity) entityData.entity = parsedContent.entity
+          if (parsedContent.status) entityData.status = parsedContent.status
+          if (parsedContent.feedback) entityData.feedback = parsedContent.feedback
+        }
+      } catch (e) {
+        console.warn('解析dataContent失败:', e)
+      }
+    }
+    
     // 处理定位信息格式
     let locationParts = ['', '']
-    if (objectToEdit.locationInfo) {
+    
+    // 尝试从locationInfoJson解析位置信息
+    if (objectToEdit.locationInfoJson) {
+      try {
+        const locationInfo = JSON.parse(objectToEdit.locationInfoJson)
+        console.log('解析的位置信息:', locationInfo)
+        
+        if (locationInfo && locationInfo.locations && locationInfo.locations.length > 0) {
+          const location = locationInfo.locations[0]
+          locationParts = [
+            `${location.startRow || ''}-${location.endRow || ''}`,
+            `${location.startColumn || ''}-${location.endColumn || ''}`
+          ]
+        }
+      } catch (e) {
+        console.warn('解析locationInfoJson失败:', e)
+      }
+    } else if (objectToEdit.locationInfo) {
+      // 处理已经格式化的位置信息
       if (typeof objectToEdit.locationInfo === 'string') {
         // 从格式如"(表1, 0-4, 0-4)"中提取行列信息
         const matches = objectToEdit.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
@@ -308,52 +363,123 @@ const handleEdit = async (row) => {
     }
     
     // 设置编辑表单数据
-    editForm.id = objectToEdit.id
-    editForm.entity = objectToEdit.entity
+    editForm.id = objectToEdit.id || objectToEdit.numericId || ''
+    editForm.entity = entityData.entity || objectToEdit.name || ''
     editForm.locationInfo = {
       row: locationParts[0],
       col: locationParts[1]
     }
     
-    // 设置约束条件
-    // 使用辅助函数确保约束条件和传输控制是数组
-    editForm.constraint = ensureArray(objectToEdit.constraint)
-    
-    // 设置各约束字段
-    editForm.formatConstraint = objectToEdit.formatConstraint || ''
-    editForm.accessConstraint = objectToEdit.accessConstraint || ''
-    editForm.pathConstraint = objectToEdit.pathConstraint || ''
-    editForm.regionConstraint = objectToEdit.regionConstraint || ''
-    editForm.shareConstraint = objectToEdit.shareConstraint || ''
-    
-    // 如果没有明确的各约束字段值，尝试从约束数组中解析
-    if ((!editForm.formatConstraint || !editForm.accessConstraint || !editForm.pathConstraint || 
-        !editForm.regionConstraint || !editForm.shareConstraint) && editForm.constraint.length > 0) {
-      // 这里可以添加解析约束数组的逻辑
-      editForm.constraint.forEach(item => {
-        if (typeof item === 'string') {
-          const parts = item.split(':')
-          if (parts.length === 2) {
-            const type = parts[0].trim()
-            const value = parts[1].trim()
-            
-            if (type === '格式约束') editForm.formatConstraint = value
-            else if (type === '访问权限') editForm.accessConstraint = value
-            else if (type === '传输路径约束') editForm.pathConstraint = value
-            else if (type === '地域性约束') editForm.regionConstraint = value
-            else if (type === '共享约束') editForm.shareConstraint = value
-          }
+    // 处理约束条件
+    // 尝试从constraintSetJson解析约束条件
+    let constraints = []
+    if (objectToEdit.constraintSetJson) {
+      try {
+        const constraintData = JSON.parse(objectToEdit.constraintSetJson)
+        console.log('解析的约束条件:', constraintData)
+        
+        if (constraintData && constraintData.constraints && constraintData.constraints.length > 0) {
+          const constraint = constraintData.constraints[0]
+          
+          // 设置各约束字段
+          editForm.formatConstraint = constraint.formatConstraint || ''
+          editForm.accessConstraint = constraint.accessConstraint || ''
+          editForm.pathConstraint = constraint.pathConstraint || ''
+          editForm.regionConstraint = constraint.regionConstraint || ''
+          editForm.shareConstraint = constraint.shareConstraint || ''
+          
+          // 构建约束条件数组
+          constraints = [
+            constraint.formatConstraint ? `格式约束:${constraint.formatConstraint}` : null,
+            constraint.accessConstraint ? `访问权限:${constraint.accessConstraint}` : null,
+            constraint.pathConstraint ? `传输路径约束:${constraint.pathConstraint}` : null,
+            constraint.regionConstraint ? `地域性约束:${constraint.regionConstraint}` : null,
+            constraint.shareConstraint ? `共享约束:${constraint.shareConstraint}` : null
+          ].filter(Boolean) // 过滤掉null值
         }
-      })
+      } catch (e) {
+        console.warn('解析constraintSetJson失败:', e)
+      }
     }
-  
-    // 传输控制
-    editForm.transferControl = ensureArray(objectToEdit.transferControl)
     
-    // 其他字段
-    editForm.auditInfo = objectToEdit.auditInfo || ''
-    editForm.status = objectToEdit.status || ''
-    editForm.feedback = objectToEdit.feedback || ''
+    // 如果从JSON解析出约束条件，则使用它们；否则尝试使用原有约束条件
+    if (constraints.length > 0) {
+      editForm.constraint = constraints
+    } else {
+      // 使用辅助函数确保约束条件是数组
+      editForm.constraint = ensureArray(objectToEdit.constraint)
+      
+      // 如果没有明确的各约束字段值，尝试从约束数组中解析
+      if ((!editForm.formatConstraint || !editForm.accessConstraint || !editForm.pathConstraint || 
+          !editForm.regionConstraint || !editForm.shareConstraint) && editForm.constraint.length > 0) {
+        // 这里可以添加解析约束数组的逻辑
+        editForm.constraint.forEach(item => {
+          if (typeof item === 'string') {
+            const parts = item.split(':')
+            if (parts.length === 2) {
+              const type = parts[0].trim()
+              const value = parts[1].trim()
+              
+              if (type === '格式约束') editForm.formatConstraint = value
+              else if (type === '访问权限') editForm.accessConstraint = value
+              else if (type === '传输路径约束') editForm.pathConstraint = value
+              else if (type === '地域性约束') editForm.regionConstraint = value
+              else if (type === '共享约束') editForm.shareConstraint = value
+            }
+          }
+        })
+      }
+    }
+    
+    // 处理传输控制操作
+    let transferControls = []
+    if (objectToEdit.propagationControlJson) {
+      try {
+        const propagationData = JSON.parse(objectToEdit.propagationControlJson)
+        console.log('解析的传播控制数据:', propagationData)
+        
+        if (propagationData && propagationData.operations) {
+          const ops = propagationData.operations
+          
+          // 根据operations构建传输控制数组
+          if (ops.read) transferControls.push('可读')
+          if (ops.modify) transferControls.push('可修改')
+          if (ops.destroy) transferControls.push('可销毁')
+          if (ops.share) transferControls.push('可共享')
+          if (ops.delegate) transferControls.push('可委托')
+        }
+      } catch (e) {
+        console.warn('解析propagationControlJson失败:', e)
+      }
+    } else if (objectToEdit.propagationControl) {
+      // 直接使用propagationControl对象
+      const pc = objectToEdit.propagationControl
+      if (pc.canRead) transferControls.push('可读')
+      if (pc.canModify) transferControls.push('可修改')
+      if (pc.canDestroy) transferControls.push('可销毁')
+      if (pc.canShare) transferControls.push('可共享')
+      if (pc.canDelegate) transferControls.push('可委托')
+    }
+    
+    // 如果从JSON解析出传输控制，则使用它们；否则尝试使用原有传输控制
+    if (transferControls.length > 0) {
+      editForm.transferControl = transferControls
+    } else {
+      // 传输控制
+      editForm.transferControl = ensureArray(objectToEdit.transferControl)
+    }
+    
+    // 处理审计信息和状态
+    if (objectToEdit.auditInfo && typeof objectToEdit.auditInfo === 'object') {
+      // 直接使用对象中的信息
+      editForm.auditInfo = '已有审计记录'
+    } else {
+      editForm.auditInfo = objectToEdit.auditInfo || ''
+    }
+    
+    // 设置状态和反馈
+    editForm.status = entityData.status || objectToEdit.status || ''
+    editForm.feedback = entityData.feedback || objectToEdit.feedback || ''
     
     // 保存Excel数据
     editForm.excelData = objectToEdit.excelData // 保留原有的Excel文件数据
@@ -364,7 +490,7 @@ const handleEdit = async (row) => {
     console.log('editDialogVisible已设置为:', editDialogVisible.value)
   } catch (error) {
     console.error('编辑对象时出错:', error)
-    ElMessage.error('获取对象详情失败，请稍后再试')
+    ElMessage.error('获取对象详情失败: ' + error.message)
   }
 }
 
