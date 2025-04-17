@@ -690,7 +690,7 @@ const updateDataObjectViaApi = async (id, dataObject) => {
 
 // 更新数字对象
 const updateDataObject = (updatedObject) => {
-  const index = sharedTableData.findIndex(item => item.id === updatedObject.id)
+  const index = sharedTableData.findIndex(item => compareIds(item.id, updatedObject.id))
   
   if (index !== -1) {
     // 保留原始对象中没被更新的字段
@@ -738,7 +738,7 @@ const deleteDataObjectViaApi = async (id) => {
 
 // 删除数字对象
 const deleteDataObject = (id) => {
-  const index = sharedTableData.findIndex(item => item.id === id)
+  const index = sharedTableData.findIndex(item => compareIds(item.id, id))
   
   if (index !== -1) {
     sharedTableData.splice(index, 1)
@@ -754,7 +754,7 @@ const deleteDataObject = (id) => {
 
 // 更新对象状态
 const updateObjectStatus = (id, status, feedback = '') => {
-  const index = sharedTableData.findIndex(item => item.id === id)
+  const index = sharedTableData.findIndex(item => compareIds(item.id, id))
   
   if (index !== -1) {
     sharedTableData[index].status = status
@@ -775,6 +775,41 @@ const updateObjectStatus = (id, status, feedback = '') => {
   return false
 }
 
+// 辅助函数，用于比较ID，处理字符串和数字类型ID
+const compareIds = (id1, id2) => {
+  console.log('比较ID:', id1, id2);
+  
+  // 如果有任一ID为null或undefined，无法比较
+  if (id1 === null || id1 === undefined || id2 === null || id2 === undefined) {
+    return false;
+  }
+  
+  // 转换为字符串进行比较
+  const str1 = String(id1).trim();
+  const str2 = String(id2).trim();
+  
+  // 完全匹配
+  if (str1 === str2) {
+    console.log('ID完全匹配');
+    return true;
+  }
+  
+  // 处理UUID格式 (忽略大小写和连字符)
+  if (str1.includes('-') || str2.includes('-')) {
+    // 去除所有连字符并转为小写比较
+    const clean1 = str1.replace(/-/g, '').toLowerCase();
+    const clean2 = str2.replace(/-/g, '').toLowerCase();
+    
+    const result = clean1 === clean2;
+    if (result) {
+      console.log('UUID格式ID匹配成功');
+    }
+    return result;
+  }
+  
+  return false;
+}
+
 // 获取所有数字对象
 const getAllDataObjects = () => {
   return sharedTableData
@@ -793,5 +828,6 @@ export default {
   fetchDataObjectById,
   updateDataObjectViaApi,
   addDataObjectViaApi,
-  deleteDataObjectViaApi
+  deleteDataObjectViaApi,
+  compareIds
 } 

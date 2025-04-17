@@ -301,7 +301,7 @@ const handleEdit = async (row) => {
     }
     
     // 记录编辑的索引位置
-    editingIndex.value = tableData.value.findIndex(item => item.id === objectId)
+    editingIndex.value = tableData.value.findIndex(item => dataObjectService.compareIds(item.id, objectId))
     
     // 确保对象存在
     if (!objectToEdit) {
@@ -518,6 +518,8 @@ const cancelEdit = () => {
 const saveEditObject = async (updatedObject) => {
   // 检查是否为离线模式上传（如果有excelData但没有通过API上传）
   const isOfflineMode = updatedObject.offlineMode === true
+  const objectId = updatedObject.id
+  console.log('保存编辑对象，ID:', objectId)
 
   // 如果没有传输控制操作，设置默认值
   if (!updatedObject.transferControl || updatedObject.transferControl.length === 0) {
@@ -548,7 +550,7 @@ const saveEditObject = async (updatedObject) => {
     
     if (!isOfflineMode) {
       // 尝试通过API更新
-      updated = await dataObjectService.updateDataObjectViaApi(updatedObject.id, displayObject)
+      updated = await dataObjectService.updateDataObjectViaApi(objectId, displayObject)
     } else {
       // 离线模式仅更新本地数据
       updated = dataObjectService.updateDataObject(displayObject)
@@ -571,7 +573,7 @@ const saveEditObject = async (updatedObject) => {
       // 刷新数据列表
       refreshData()
     } else {
-      ElMessage.error(`编辑失败：未找到ID为 ${updatedObject.id} 的对象或API请求失败`)
+      ElMessage.error(`编辑失败：未找到ID为 ${objectId} 的对象或API请求失败`)
     }
   } catch (error) {
     console.error('保存编辑时出错:', error)
@@ -581,6 +583,9 @@ const saveEditObject = async (updatedObject) => {
 
 // 删除对象
 const handleDelete = (row) => {
+  const objectId = row.id;
+  console.log('删除对象，ID:', objectId);
+  
   ElMessageBox.confirm(`确定要删除"${row.entity}"吗?`, '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
@@ -588,13 +593,13 @@ const handleDelete = (row) => {
   }).then(async () => {
     try {
       // 尝试通过API删除
-      const result = await dataObjectService.deleteDataObjectViaApi(row.id)
+      const result = await dataObjectService.deleteDataObjectViaApi(objectId)
       
       if (result) {
         ElMessage.success(`已删除: ${row.entity}`)
       } else {
         // API删除失败，尝试本地删除
-        const localDeleted = dataObjectService.deleteDataObject(row.id)
+        const localDeleted = dataObjectService.deleteDataObject(objectId)
         
         if (localDeleted) {
           ElMessage({
