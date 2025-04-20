@@ -8,42 +8,40 @@
     class="custom-dialog"
     @closed="handleDialogClosed"
   >
-    <el-form :model="form" label-width="120px" ref="formRef" :rules="formRules">
-      <el-form-item label="实体：" prop="entity">
+    <el-form :model="form" label-width="150px" ref="formRef" :rules="formRules">
+      <el-form-item label="实体：" prop="entity" style="margin-bottom: 22px;">
         <div style="display: flex; align-items: center; gap: 10px;">
+          <el-input v-model="form.entity" placeholder="请输入实体名称" style="width: 300px;"></el-input>
           <el-upload
             action="#"
             :auto-upload="false"
             :show-file-list="false"
             :on-change="handleFileChange"
             accept=".xlsx,.xls"
+            style="margin-left: 10px;"
           >
-            <el-button type="primary" plain>
-              <el-icon style="margin-right: 4px;"><Document /></el-icon>上传Excel表格
-            </el-button>
+            <el-button type="primary">上传Excel</el-button>
           </el-upload>
-          <span v-if="form.entity">已选择"{{ form.entity }}"</span>
-          <span v-else class="upload-tip">请上传Excel表格文件</span>
         </div>
       </el-form-item>
       
       <!-- 元数据区域 -->
-      <el-form-item label="数据名称：" prop="metadata.dataName" class="metadata-form-item">
+      <el-form-item label="数据名称：" prop="metadata.dataName" style="margin-bottom: 22px;">
         <el-input v-model="form.metadata.dataName" placeholder="请输入数据名称" style="width: 300px;"></el-input>
       </el-form-item>
-      <el-form-item label="来源单位：" prop="metadata.sourceUnit" class="metadata-form-item">
+      <el-form-item label="来源单位：" prop="metadata.sourceUnit" style="margin-bottom: 22px;">
         <el-input v-model="form.metadata.sourceUnit" placeholder="请输入来源单位" style="width: 300px;"></el-input>
       </el-form-item>
-      <el-form-item label="联系人：" prop="metadata.contactPerson" class="metadata-form-item">
+      <el-form-item label="联系人：" prop="metadata.contactPerson" style="margin-bottom: 22px;">
         <el-input v-model="form.metadata.contactPerson" placeholder="请输入联系人" style="width: 300px;"></el-input>
       </el-form-item>
-      <el-form-item label="联系电话：" prop="metadata.contactPhone" class="metadata-form-item">
+      <el-form-item label="联系电话：" prop="metadata.contactPhone" style="margin-bottom: 22px;">
         <el-input v-model="form.metadata.contactPhone" placeholder="请输入联系电话" style="width: 300px;"></el-input>
       </el-form-item>
-      <el-form-item label="资源摘要：" prop="metadata.resourceSummary" class="metadata-form-item">
+      <el-form-item label="资源摘要：" prop="metadata.resourceSummary" style="margin-bottom: 22px;">
         <el-input v-model="form.metadata.resourceSummary" placeholder="请输入资源摘要" style="width: 300px;"></el-input>
       </el-form-item>
-      <el-form-item label="领域分类：" prop="metadata.fieldClassification" class="metadata-form-item">
+      <el-form-item label="领域分类：" prop="metadata.fieldClassification" style="margin-bottom: 22px;">
         <el-input v-model="form.metadata.fieldClassification" placeholder="请输入领域分类" style="width: 300px;"></el-input>
       </el-form-item>
       
@@ -51,7 +49,7 @@
         <div style="display: flex; align-items: center; gap: 10px;">
           <el-input v-model="form.locationInfo.row" placeholder="例：0-4" style="width: 150px;"></el-input>
           <span>行</span>
-          <el-input v-model="form.locationInfo.col" placeholder="例：0-4" style="width: 150px;"></el-input>
+          <el-input v-model="form.locationInfo.col" placeholder="例：A-D" style="width: 150px;"></el-input>
           <span>列</span>
         </div>
       </el-form-item>
@@ -416,7 +414,8 @@ const processExcelData = (binaryString) => {
 }
 
 // 处理文件变更
-const handleFileChange = async (file) => {
+const handleFileChange = (file) => {
+  console.log('文件变更:', file)
   // 验证文件类型
   const isExcel = file.raw.type === 'application/vnd.ms-excel' || 
                  file.raw.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -425,72 +424,32 @@ const handleFileChange = async (file) => {
     return false
   }
   
-  // 设置实体名称为文件名（不带扩展名）
+  // 如果没有手动输入实体名称，则使用文件名作为实体名称
   const fileName = file.name
   const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName
-  form.entity = fileNameWithoutExt
   
-  // 如果数据名称为空，也用文件名填充
-  if (!form.metadata.dataName) {
-    form.metadata.dataName = fileNameWithoutExt
+  if (!form.entity) {
+    form.entity = fileNameWithoutExt
   }
   
-  // 显示上传中提示
-  ElMessage.info('正在上传Excel文件，请稍候...')
-  
-  try {
-    // 1. 上传文件到后端
-    const uploadResult = await excelUploadService.uploadExcelFile(file.raw)
-    
-    if (uploadResult.success) {
-      ElMessage.success(`已成功上传Excel表格"${fileName}"`)
-      
-      // 2. 同时保存本地副本用于前端预览
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        try {
-          // 保存文件的二进制数据用于前端预览
-          form.excelData = e.target.result
-          
-          // 处理Excel数据并提取表头和数据项
-          const { headers, dataItems } = processExcelData(e.target.result)
-          
-          // 保存提取的数据项到表单中
-          form.dataItems = dataItems
-        } catch (error) {
-          console.error('读取Excel文件失败:', error)
-        }
-      }
-      reader.onerror = () => {
-        console.error('读取文件失败')
-      }
-      reader.readAsBinaryString(file.raw)
-      
-      // 3. 如果后端返回了文件URL或base64数据，也可以保存
-      if (uploadResult.data && uploadResult.data.excelData) {
-        // 如果后端返回的是URL或base64，可以在这里处理
-        console.log('后端返回的Excel数据:', uploadResult.data.excelData)
-      }
-    } else {
-      ElMessage.error(`上传失败: ${uploadResult.message}`)
-    }
-  } catch (error) {
-    console.error('Excel文件上传过程出错:', error)
-    ElMessage.error('上传Excel文件过程中出错')
-    
-    // 上传失败时，仍然尝试本地读取用于预览
-    const reader = new FileReader()
-    reader.onload = (e) => {
+  // 读取并保存Excel文件内容
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
       form.excelData = e.target.result
+      ElMessage.success(`已选择Excel表格"${fileName}"`)
       
-      // 处理Excel数据并提取表头和数据项
-      const { headers, dataItems } = processExcelData(e.target.result)
-      
-      // 保存提取的数据项到表单中
-      form.dataItems = dataItems
+      // 处理Excel数据获取基本信息
+      processExcelData(e.target.result)
+    } catch (error) {
+      console.error('读取Excel文件失败:', error)
+      ElMessage.error('读取Excel文件失败')
     }
-    reader.readAsBinaryString(file.raw)
   }
+  reader.onerror = () => {
+    ElMessage.error('读取文件失败')
+  }
+  reader.readAsBinaryString(file.raw)
 }
 
 // 保存按钮处理

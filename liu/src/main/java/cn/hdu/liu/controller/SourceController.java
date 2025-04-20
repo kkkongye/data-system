@@ -21,10 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 
 @RestController
@@ -125,6 +122,77 @@ public class SourceController {
         return Result.success(dataObjectList);
     }
 
+    @GetMapping("/baogao1")
+    public Result baogao1(){
+        runPythonScript("empty_check.py");
+        log.info("成功生成审查报告1");
+        return Result.success();
+    }
+
+    @GetMapping("/baogao2")
+    public Result baogao2(){
+        runPythonScript("cuo.py");
+        log.info("成功生成审查报告2");
+        return Result.success();
+    }
+
+    public static void runPythonScript(String scriptName) {
+        try {
+
+            String pythonCommand = "python";
+
+
+            String workspacePath = "J:/pycharm/projects/project1";
+            String scriptPath = workspacePath + File.separator + scriptName;
+
+
+            ProcessBuilder pb = new ProcessBuilder(
+                    pythonCommand,
+                    scriptPath
+            );
+
+
+            pb.directory(new File(workspacePath));
+
+
+            pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+            pb.redirectError(ProcessBuilder.Redirect.INHERIT);
+            Process process = pb.start();
+
+
+            int exitCode = process.waitFor();
+            log.info("Python脚本执行完毕，退出码: {}", exitCode);
+        } catch (IOException | InterruptedException e) {
+            log.error("执行Python脚本失败: {}", e.getMessage(), e);
+        }
+    }
+
+
+
+    @GetMapping(value="/selectIds")
+    public Result<List<DataObject>> selectIds(@RequestParam String ids) {
+        log.info("根据ID列表查询数据对象: {}", ids);
+
+        if (ids == null || ids.trim().isEmpty()) {
+            log.info("ID列表不能为空");
+        }
+
+
+        String[] idArray = ids.split("\\s*,\\s*");
+        List<DataObject> resultList = new ArrayList<>();
+
+        for (String id : idArray) {
+            DataObject dataObject = dataObjectService.findById(id);
+            if (dataObject != null) {
+                resultList.add(dataObject);
+            } else {
+                log.warn("ID {} 不存在，已跳过", id);
+            }
+        }
+
+        return Result.success(resultList);
+    }
+
     @PostMapping("/encrypt")
     public Result encryptData() {
         String rawData = "Sensitive data to be encrypted";
@@ -165,5 +233,12 @@ public class SourceController {
         this.token = null;
 
         return ResponseEntity.ok("Data sent to governance system. Response: " + response.getBody());
+    }
+
+    @GetMapping("/getToken")
+    public Result<String> getToken() {
+        String token = "TOKEN_" + UUID.randomUUID().toString();
+        log.info("Generated token: {}", token);
+        return Result.success(token);
     }
 }

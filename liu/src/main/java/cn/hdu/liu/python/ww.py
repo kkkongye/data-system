@@ -88,4 +88,4 @@ with open("J:\excelll\数据缺失与异常报告.txt", "w", encoding='utf-8') a
         for line in issues:
             f.write(line + "\n")
 
-print(f"✅ 检查完毕，共发现 {len(issues)} 项问题，已保存至 数据缺失与异常报告.txt")
+print(f" 检查完毕，共发现 {len(issues)} 项问题，已保存至 数据缺失与异常报告.txt")

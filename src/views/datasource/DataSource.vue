@@ -71,8 +71,20 @@
       <el-form-item label="ID：" v-if="editForm.id !== undefined && editForm.id !== null">
         <el-input v-model="editForm.id" disabled placeholder="自动生成" style="width: 300px;"></el-input>
       </el-form-item>
-      <el-form-item label="实体：" prop="entity">
-        <el-input v-model="editForm.entity" placeholder="请输入实体名称" style="width: 300px;"></el-input>
+      <el-form-item label="实体：">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <el-input v-model="editForm.entity" placeholder="请输入实体名称" style="width: 300px;"></el-input>
+          <el-upload
+            action="#"
+            :auto-upload="false"
+            :show-file-list="false"
+            :limit="1"
+            :on-change="handleEditFileChange"
+            :before-upload="beforeUpload"
+          >
+            <el-button type="primary">上传Excel</el-button>
+          </el-upload>
+        </div>
       </el-form-item>
       
       <!-- 元数据区域 -->
@@ -106,46 +118,55 @@
         </div>
       </el-form-item>
       
-      <el-form-item label="格式约束：" prop="formatConstraint">
-        <el-select v-model="editForm.formatConstraint" placeholder="请选择格式" style="width: 300px;">
-          <el-option label="jpg" value="jpg"></el-option>
-          <el-option label="xlsx" value="xlsx"></el-option>
-          <el-option label="json" value="json"></el-option>
-          <el-option label="csv" value="csv"></el-option>
-          <el-option label="pdf" value="pdf"></el-option>
-          <el-option label="txt" value="txt"></el-option>
-        </el-select>
+      <el-form-item label="约束条件：" prop="constraint">
+        <div class="constraint-section">
+          <div class="constraint-item">
+            <label>格式约束：</label>
+            <el-select v-model="editForm.formatConstraint" placeholder="请选择格式" style="width: 300px;">
+              <el-option label="jpg" value="jpg"></el-option>
+              <el-option label="xlsx" value="xlsx"></el-option>
+              <el-option label="json" value="json"></el-option>
+              <el-option label="csv" value="csv"></el-option>
+              <el-option label="pdf" value="pdf"></el-option>
+              <el-option label="txt" value="txt"></el-option>
+            </el-select>
+          </div>
+          
+          <div class="constraint-item">
+            <label>访问权限：</label>
+            <el-select v-model="editForm.accessConstraint" placeholder="请选择访问权限" style="width: 300px;">
+              <el-option label="只允许管理方获取" value="只允许管理方获取"></el-option>
+              <el-option label="全部允许" value="全部允许"></el-option>
+            </el-select>
+          </div>
+          
+          <div class="constraint-item">
+            <label>传输路径约束：</label>
+            <el-select v-model="editForm.pathConstraint" placeholder="请选择传输路径" style="width: 300px;">
+              <el-option label="点对点" value="点对点"></el-option>
+              <el-option label="广播" value="广播"></el-option>
+            </el-select>
+          </div>
+          
+          <div class="constraint-item">
+            <label>地域性约束：</label>
+            <el-select v-model="editForm.regionConstraint" placeholder="请选择地域性约束" style="width: 300px;">
+              <el-option label="内网" value="内网"></el-option>
+              <el-option label="外网" value="外网"></el-option>
+            </el-select>
+          </div>
+          
+          <div class="constraint-item">
+            <label>共享约束：</label>
+            <el-select v-model="editForm.shareConstraint" placeholder="请选择共享约束" style="width: 300px;">
+              <el-option label="不允许共享" value="不允许共享"></el-option>
+              <el-option label="允许共享" value="允许共享"></el-option>
+            </el-select>
+          </div>
+        </div>
       </el-form-item>
       
-      <el-form-item label="访问权限：" prop="accessConstraint">
-        <el-select v-model="editForm.accessConstraint" placeholder="请选择访问权限" style="width: 300px;">
-          <el-option label="只允许管理方获取" value="只允许管理方获取"></el-option>
-          <el-option label="全部允许" value="全部允许"></el-option>
-        </el-select>
-      </el-form-item>
-      
-      <el-form-item label="传输路径约束：" prop="pathConstraint">
-        <el-select v-model="editForm.pathConstraint" placeholder="请选择传输路径" style="width: 300px;">
-          <el-option label="点对点" value="点对点"></el-option>
-          <el-option label="广播" value="广播"></el-option>
-        </el-select>
-      </el-form-item>
-      
-      <el-form-item label="地域性约束：" prop="regionConstraint">
-        <el-select v-model="editForm.regionConstraint" placeholder="请选择地域性约束" style="width: 300px;">
-          <el-option label="内网" value="内网"></el-option>
-          <el-option label="外网" value="外网"></el-option>
-        </el-select>
-      </el-form-item>
-      
-      <el-form-item label="共享约束：" prop="shareConstraint">
-        <el-select v-model="editForm.shareConstraint" placeholder="请选择共享约束" style="width: 300px;">
-          <el-option label="不允许共享" value="不允许共享"></el-option>
-          <el-option label="允许共享" value="允许共享"></el-option>
-        </el-select>
-      </el-form-item>
-      
-      <el-form-item label="传输控制操作：" prop="transferControl">
+      <el-form-item label="传输控制操作：">
         <el-select v-model="editForm.transferControl" multiple placeholder="请选择传输控制操作" style="width: 300px;">
           <el-option label="可读" value="可读"></el-option>
           <el-option label="可修改" value="可修改"></el-option>
@@ -1202,6 +1223,53 @@ const handleFileChange = (file) => {
   reader.readAsBinaryString(file.raw);
 }
 
+// 处理编辑框中的文件变更
+const handleEditFileChange = (file) => {
+  // 验证文件类型
+  const isExcel = file.raw.type === 'application/vnd.ms-excel' || 
+                 file.raw.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if (!isExcel) {
+    ElMessage.warning('请上传Excel格式的文件（.xls或.xlsx）');
+    return false;
+  }
+  
+  // 如果没有手动输入实体名称，则使用文件名作为实体名称
+  const fileName = file.name;
+  const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+  
+  if (!editForm.entity) {
+    editForm.entity = fileNameWithoutExt;
+  }
+  
+  // 读取并保存Excel文件内容
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      // 保存文件的二进制数据到编辑表单
+      editForm.excelData = e.target.result;
+      ElMessage.success(`已选择Excel表格"${file.name}"`);
+    } catch (error) {
+      console.error('读取Excel文件失败:', error);
+      ElMessage.error('读取Excel文件失败');
+    }
+  };
+  reader.onerror = () => {
+    ElMessage.error('读取文件失败');
+  };
+  reader.readAsBinaryString(file.raw);
+}
+
+// 上传前验证文件类型
+const beforeUpload = (file) => {
+  const isExcel = file.type === 'application/vnd.ms-excel' || 
+                 file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if (!isExcel) {
+    ElMessage.warning('请上传Excel格式的文件（.xls或.xlsx）');
+    return false;
+  }
+  return true;
+}
+
 // 保存创建的对象
 const saveCreateObject = async (newObject) => {
   // 检查是否为离线模式上传（如果有excelData但没有通过API上传）
@@ -1964,5 +2032,68 @@ pre {
 
 .debug-dialog-status p {
   margin-bottom: 10px;
+}
+
+.form-label {
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+/* 约束条件样式 */
+.constraint-section {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.constraint-item {
+  display: flex;
+  align-items: center;
+}
+
+.constraint-item label {
+  min-width: 120px;
+  text-align: right;
+  margin-right: 10px;
+}
+
+.selected-value {
+  margin-left: 10px;
+  padding: 2px 8px;
+  background-color: #ecf5ff;
+  color: #409eff;
+  border-radius: 4px;
+}
+
+.custom-select-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.transfer-control-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.transfer-control-tag {
+  padding: 5px 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background-color: #f5f7fa;
+  color: #606266;
+  cursor: pointer;
+}
+
+/* Excel上传区域样式 */
+.upload-excel {
+  width: 300px;
+}
+
+.upload-tip {
+  color: #909399;
+  font-size: 12px;
+  margin-top: 5px;
 }
 </style> 

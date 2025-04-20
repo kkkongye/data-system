@@ -3,6 +3,8 @@ package cn.hdu.liu.controller;
 import cn.hdu.liu.obj.Result;
 import cn.hdu.liu.obj.DataObject;
 import cn.hdu.liu.service.GovernanceService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -21,10 +23,15 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
-@RequestMapping("/governance")
+@RequestMapping("/api")
 public class GovernanceController {
+
+
+    private static final Logger log = LoggerFactory.getLogger(GovernanceController.class);
+
     //改
     private static final String STORAGE_DIR = "./data/";
     private String currentEncryptedData;
@@ -33,6 +40,9 @@ public class GovernanceController {
     private GovernanceService governanceService;
     private String cleanData;
     private String encryptedData;
+
+
+
 
     @PostMapping("/receive")
     public Result receiveData(@RequestBody Map<String, String> request) {
@@ -108,7 +118,7 @@ public class GovernanceController {
 
         return Result.success(Map.of("checks", checks, "valid", allValid));
     }
-    @PostMapping("/encrypt")
+    @PostMapping("/encrypt11")
     public Result encryptData() {
         String rawData = "Sensitive data to be encrypted";
 //jiami

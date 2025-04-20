@@ -55,7 +55,7 @@
         <div style="display: flex; align-items: center; gap: 10px;">
           <el-input v-model="form.locationInfo.row" placeholder="例：0-4" style="width: 150px;"></el-input>
           <span>行</span>
-          <el-input v-model="form.locationInfo.col" placeholder="例：0-4" style="width: 150px;"></el-input>
+          <el-input v-model="form.locationInfo.col" placeholder="例：A-D" style="width: 150px;"></el-input>
           <span>列</span>
         </div>
       </el-form-item>
