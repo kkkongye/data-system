@@ -1,6 +1,8 @@
 package cn.hdu.liu.controller;
 
+import cn.hdu.liu.obj.DataObjectRequest;
 import cn.hdu.liu.service.DataObjectService;
+import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,10 +16,16 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+
 
 @RestController
 @RequestMapping("/api")
@@ -32,6 +40,34 @@ public class SourceController {
     private SourceService SourceService;
     private String encryptedData;
     private String token;
+
+    @PostMapping("/objects/excel")
+    public Result upload(MultipartFile file, HttpSession session) throws IOException {
+        log.info("文件上传:()",file);
+        String filename = file.getOriginalFilename();
+
+        String origin;
+        int extIndex = filename.lastIndexOf(".");
+        if (extIndex > 0) {  // 确保文件名有后缀
+            origin = filename.substring(0, extIndex);  // 去掉后缀
+        } else {
+            origin = filename;  // 无后缀则直接使用全名
+        }
+
+        int index = filename.lastIndexOf(".");
+        String extname = filename.substring(index + 1);
+
+        String uuid = UUID.randomUUID().toString();
+
+        String newFileName = uuid + '.' + extname;
+        log.info("新的文件名:()",newFileName);
+        file.transferTo(new File("J:\\za\\cun\\"+newFileName));
+
+        DataObject tmpObject= dataObjectService.importFromExcel("J:\\za\\cun\\"+newFileName,origin,uuid);
+        session.setAttribute("tmpDataObject", tmpObject);
+
+        return Result.success();
+    }
 
 
     @DeleteMapping("/{id}")
@@ -48,10 +84,32 @@ public class SourceController {
     }
 
     @PostMapping("/objects")
-    public Result add(@RequestBody DataObject dataObject) {
-        log.info("新增数字对象: {}" , dataObject);
-        dataObjectService.saveDataObject(dataObject);
-        return Result.success();
+    public Result add(
+            @RequestBody DataObjectRequest request,  // 接收三个 JSON 数据
+            HttpSession session                       // 从 Session 获取临时对象
+    ) {
+
+        DataObject tmpObject = (DataObject) session.getAttribute("tmpDataObject");
+        if (tmpObject == null) {
+            return Result.error("请先上传 Excel 文件");
+        }
+
+        try {
+
+            tmpObject.setConstraintSet(request.getConstraintSet());
+            tmpObject.setPropagationControl(request.getPropagationControl());
+            tmpObject.setLocationInfo(request.getLocationInfo());
+
+
+            dataObjectService.saveDataObject(tmpObject);
+
+
+            session.removeAttribute("tmpDataObject");
+            return Result.success("数字对象创建成功");
+        } catch (Exception e) {
+            log.error("保存失败: ", e);
+            return Result.error("服务器内部错误: " + e.getMessage());
+        }
     }
 
     @PutMapping("/objects/{id}")

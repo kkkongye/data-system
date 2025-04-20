@@ -59,15 +59,97 @@
     </div>
   </div>
   
-  <!-- 编辑对象弹窗 -->
-  <EditObjectDialogNew
-    v-model:visible="editDialogVisible"
-    :title="'编辑数字对象'"
-    v-model:modelValue="editForm"
-    @save="saveEditObject"
-    @cancel="cancelEdit"
-    @navigate-home="navigateToHome"
-  />
+  <!-- 使用Element Plus直接实现的编辑对话框 -->
+  <el-dialog
+    v-model="editDialogVisible"
+    title="编辑数字对象"
+    width="40%"
+    :close-on-click-modal="false"
+    draggable
+  >
+    <el-form :model="editForm" label-width="120px" ref="editFormRef" :rules="formRules">
+      <el-form-item label="ID：" v-if="editForm.id !== undefined && editForm.id !== null">
+        <el-input v-model="editForm.id" disabled placeholder="自动生成" style="width: 300px;"></el-input>
+      </el-form-item>
+      <el-form-item label="实体：" prop="entity">
+        <el-input v-model="editForm.entity" placeholder="请输入实体名称" style="width: 300px;"></el-input>
+      </el-form-item>
+      
+      <!-- 元数据区域 -->
+      <el-form-item label="数据名称：" prop="metadata.dataName">
+        <el-input v-model="editForm.metadata.dataName" placeholder="请输入数据名称" style="width: 300px;"></el-input>
+      </el-form-item>
+      <el-form-item label="来源单位：" prop="metadata.sourceUnit">
+        <el-input v-model="editForm.metadata.sourceUnit" placeholder="请输入来源单位" style="width: 300px;"></el-input>
+      </el-form-item>
+      <el-form-item label="联系人：" prop="metadata.contactPerson">
+        <el-input v-model="editForm.metadata.contactPerson" placeholder="请输入联系人" style="width: 300px;"></el-input>
+      </el-form-item>
+      <el-form-item label="联系电话：" prop="metadata.contactPhone">
+        <el-input v-model="editForm.metadata.contactPhone" placeholder="请输入联系电话" style="width: 300px;"></el-input>
+      </el-form-item>
+      
+      <el-form-item label="定位信息：" prop="locationInfo">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <el-input v-model="editForm.locationInfo.row" placeholder="例：0-4" style="width: 150px;"></el-input>
+          <span>行</span>
+          <el-input v-model="editForm.locationInfo.col" placeholder="例：0-4" style="width: 150px;"></el-input>
+          <span>列</span>
+        </div>
+      </el-form-item>
+      
+      <el-form-item label="格式约束：" prop="formatConstraint">
+        <el-select v-model="editForm.formatConstraint" placeholder="请选择格式" style="width: 300px;">
+          <el-option label="jpg" value="jpg"></el-option>
+          <el-option label="xlsx" value="xlsx"></el-option>
+        </el-select>
+      </el-form-item>
+      
+      <el-form-item label="访问权限：" prop="accessConstraint">
+        <el-select v-model="editForm.accessConstraint" placeholder="请选择访问权限" style="width: 300px;">
+          <el-option label="只允许管理方获取" value="只允许管理方获取"></el-option>
+          <el-option label="全部允许" value="全部允许"></el-option>
+        </el-select>
+      </el-form-item>
+      
+      <el-form-item label="传输路径约束：" prop="pathConstraint">
+        <el-select v-model="editForm.pathConstraint" placeholder="请选择传输路径" style="width: 300px;">
+          <el-option label="点对点" value="点对点"></el-option>
+          <el-option label="广播" value="广播"></el-option>
+        </el-select>
+      </el-form-item>
+      
+      <el-form-item label="地域性约束：" prop="regionConstraint">
+        <el-select v-model="editForm.regionConstraint" placeholder="请选择地域性约束" style="width: 300px;">
+          <el-option label="内网" value="内网"></el-option>
+          <el-option label="外网" value="外网"></el-option>
+        </el-select>
+      </el-form-item>
+      
+      <el-form-item label="共享约束：" prop="shareConstraint">
+        <el-select v-model="editForm.shareConstraint" placeholder="请选择共享约束" style="width: 300px;">
+          <el-option label="不允许共享" value="不允许共享"></el-option>
+          <el-option label="允许共享" value="允许共享"></el-option>
+        </el-select>
+      </el-form-item>
+      
+      <el-form-item label="传输控制操作：" prop="transferControl">
+        <el-select v-model="editForm.transferControl" multiple placeholder="请选择传输控制操作" style="width: 300px;">
+          <el-option label="可读" value="可读"></el-option>
+          <el-option label="可修改" value="可修改"></el-option>
+          <el-option label="可销毁" value="可销毁"></el-option>
+          <el-option label="可共享" value="可共享"></el-option>
+          <el-option label="可委托" value="可委托"></el-option>
+        </el-select>
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="cancelEdit">取消</el-button>
+        <el-button type="primary" @click="handleSaveEditManually">保存</el-button>
+      </span>
+    </template>
+  </el-dialog>
 
   <!-- 新建对象弹窗 -->
   <CreateObjectDialog
@@ -102,10 +184,12 @@
         <div v-if="previewForm.metadata" class="metadata-section">
           <div class="metadata-items">
             <!-- 所有元数据项在一行显示 -->
-            <div class="metadata-item">数据名称: <strong>{{ getMetadataValue('dataName') || previewForm.entity }}</strong></div>
-            <div class="metadata-item">来源单位: <strong>{{ getMetadataValue('sourceUnit') || '数据部' }}</strong></div>
-            <div class="metadata-item">联系人: <strong>{{ getMetadataValue('contactPerson') || '未指定' }}</strong></div>
-            <div class="metadata-item">联系电话: <strong>{{ getMetadataValue('contactPhone') || '未提供' }}</strong></div>
+            <div class="metadata-item">数据名称: <strong>{{ previewForm.metadata.dataName || previewForm.entity }}</strong></div>
+            <div class="metadata-item">来源单位: <strong>{{ previewForm.metadata.sourceUnit || '数据部' }}</strong></div>
+            <div class="metadata-item">联系人: <strong>{{ previewForm.metadata.contactPerson || '未指定' }}</strong></div>
+            <div class="metadata-item">联系电话: <strong>{{ previewForm.metadata.contactPhone || '未提供' }}</strong></div>
+            <div class="metadata-item">资源摘要: <strong>{{ previewForm.metadata.resourceSummary|| '无' }}</strong></div>
+            <div class="metadata-item">领域分类: <strong>{{ previewForm.metadata.fieldClassification || '未分类' }}</strong></div>
             <div class="metadata-item">更新时间: <strong>{{ getCurrentDateTime() }}</strong></div>
           </div>
         </div>
@@ -128,17 +212,22 @@
     </template>
   </el-dialog>
 
+  <!-- 添加调试指示器 -->
+  <div v-if="showDebugTools" class="debug-dialog-status">
+    <p>编辑对话框状态: {{ editDialogVisible ? '可见' : '隐藏' }}</p>
+    <p>编辑ID: {{ currentEditId || '无' }}</p>
+    <el-button @click="testEditDialog">测试打开编辑对话框</el-button>
+  </div>
 
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Document, RefreshRight } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
 import ExcelPreview from '@/components/ExcelPreview.vue'
-import EditObjectDialogNew from '@/components/source/EditObjectDialogNew.vue'
 import CreateObjectDialog from '@/components/source/CreateObjectDialog.vue'
 import ObjectList from '@/components/source/ObjectList.vue'
 import AppHeader from '@/components/AppHeader.vue'
@@ -157,10 +246,13 @@ const selectedRows = ref([])
 // 添加计算属性判断是否为已合格状态
 const isQualifiedStatus = computed(() => currentStatus.value === '已合格')
 
+// 编辑对话框可见性
 const editDialogVisible = ref(false)
-const createDialogVisible = ref(false) // 新建对话框可见性
-const editFormRef = ref(null)
-const createFormRef = ref(null) // 新建表单引用
+// 新建对话框可见性
+const createDialogVisible = ref(false)
+// 当前编辑的对象ID
+const currentEditId = ref('') 
+// 编辑表单数据 - 使用reactive直接创建响应式对象
 const editForm = reactive({
   id: '',
   entity: '',
@@ -172,16 +264,30 @@ const editForm = reactive({
     dataName: '',
     sourceUnit: '',
     contactPerson: '',
-    contactPhone: ''
+    contactPhone: '',
+    resourceSummary: '',
+    fieldClassification: '',
+    headers: []
   },
   constraint: [],
+  formatConstraint: '',
+  accessConstraint: '',
+  pathConstraint: '',
+  regionConstraint: '',
+  shareConstraint: '',
   transferControl: [],
   auditInfo: '',
   status: '',
   feedback: '',
-  excelData: null // 新增保存Excel文件数据
+  excelData: null,
+  dataItems: []
 })
+
+// 记录编辑索引
 const editingIndex = ref(-1)
+// 表单引用
+const editFormRef = ref(null)
+const createFormRef = ref(null)
 
 // 表格数据 - 从共享服务获取
 const tableData = ref(dataObjectService.getAllDataObjects())
@@ -257,283 +363,126 @@ const handleSelectionChange = (rows) => {
 }
 
 // 编辑对象
-const handleEdit = async (row) => {
-  console.log('开始编辑对象:', row)
+const handleEdit = (row) => {
+  console.log('编辑行数据：', row)
   
-  try {
-    // 先从API获取最新的对象信息
-    const objectId = row.id
-    let objectToEdit = null
-    
-    if (objectId) {
-      // 尝试从后端获取最新数据
-      const apiResponse = await dataObjectService.fetchDataObjectById(objectId)
-      
-      if (apiResponse) {
-        console.log('从API获取到对象数据:', apiResponse)
-        
-        // 正确提取数据对象
-        // 如果返回的是带有code和data结构的API响应
-        if (apiResponse.code !== undefined && apiResponse.data) {
-          objectToEdit = apiResponse.data
-          console.log('从API响应中提取的数据对象:', objectToEdit)
-        } else {
-          // 如果直接返回了数据对象
-          objectToEdit = apiResponse
-        }
-      } else {
-        console.warn('未能从API获取对象数据，将使用表格提供的数据')
-        objectToEdit = { ...row } // 使用深拷贝避免引用问题
-      }
+  // 确保row存在，防止传入undefined或null
+  if (!row) {
+    console.error('编辑失败：传入的行数据为空')
+    ElMessage.error('编辑失败：数据无效')
+    return
+  }
+  
+  // 直接设置编辑表单数据
+  editForm.id = row.id || ''
+  editForm.entity = row.entity || ''
+  
+  // 确保locationInfo对象存在
+  if (!editForm.locationInfo) {
+    editForm.locationInfo = { row: '', col: '' }
+  }
+  
+  // 处理定位信息
+  if (typeof row.locationInfo === 'string') {
+    // 尝试从字符串解析定位信息
+    const matches = row.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
+    if (matches && matches.length > 3) {
+      editForm.locationInfo.row = matches[2].trim()
+      editForm.locationInfo.col = matches[3].trim()
     } else {
-      objectToEdit = { ...row }
+      editForm.locationInfo.row = ''
+      editForm.locationInfo.col = ''
     }
-    
-    // 记录编辑的索引位置
-    editingIndex.value = tableData.value.findIndex(item => dataObjectService.compareIds(item.id, objectId))
-    
-    // 确保对象存在
-    if (!objectToEdit) {
-      console.error('无法获取要编辑的对象数据')
-      ElMessage.error('获取对象详情失败，请稍后再试')
-      return
-    }
-    
-    // 从对象中提取实体数据（如果存在）
-    let entityData = objectToEdit
-    
-    // 处理可能嵌套在dataContent中的实体数据
-    if (objectToEdit.dataContent) {
-      try {
-        const parsedContent = JSON.parse(objectToEdit.dataContent)
-        if (parsedContent && typeof parsedContent === 'object') {
-          console.log('从dataContent解析的实体数据:', parsedContent)
-          
-          // 合并dataContent中的关键字段到主对象
-          if (parsedContent.entity) entityData.entity = parsedContent.entity
-          if (parsedContent.status) entityData.status = parsedContent.status
-          if (parsedContent.feedback) entityData.feedback = parsedContent.feedback
-        }
-      } catch (e) {
-        console.warn('解析dataContent失败:', e)
-      }
-    }
-    
-    // 处理定位信息格式
-    let locationParts = ['', '']
-    
-    // 尝试从locationInfoJson解析位置信息
-    if (objectToEdit.locationInfoJson) {
-      try {
-        const locationInfo = JSON.parse(objectToEdit.locationInfoJson)
-        console.log('解析的位置信息:', locationInfo)
-        
-        if (locationInfo && locationInfo.locations && locationInfo.locations.length > 0) {
-          const location = locationInfo.locations[0]
-          locationParts = [
-            `${location.startRow || ''}-${location.endRow || ''}`,
-            `${location.startColumn || ''}-${location.endColumn || ''}`
-          ]
-        }
-      } catch (e) {
-        console.warn('解析locationInfoJson失败:', e)
-      }
-    } else if (objectToEdit.locationInfo) {
-      // 处理已经格式化的位置信息
-      if (typeof objectToEdit.locationInfo === 'string') {
-        // 从格式如"(表1, 0-4, 0-4)"中提取行列信息
-        const matches = objectToEdit.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
-        if (matches && matches.length > 3) {
-          locationParts = [matches[2].trim(), matches[3].trim()]
-        }
-      } else if (typeof objectToEdit.locationInfo === 'object' && objectToEdit.locationInfo.row && objectToEdit.locationInfo.col) {
-        locationParts = [objectToEdit.locationInfo.row, objectToEdit.locationInfo.col]
-      }
-    }
-    
-    // 设置编辑表单数据
-    editForm.id = objectToEdit.id || objectToEdit.numericId || ''
-    editForm.entity = entityData.entity || objectToEdit.name || ''
-    editForm.locationInfo = {
-      row: locationParts[0],
-      col: locationParts[1]
-    }
-    
-    // 提取元数据
+  } else if (row.locationInfo && typeof row.locationInfo === 'object') {
+    // 直接使用对象格式
+    editForm.locationInfo.row = row.locationInfo.row || ''
+    editForm.locationInfo.col = row.locationInfo.col || ''
+  } else {
+    editForm.locationInfo.row = ''
+    editForm.locationInfo.col = ''
+  }
+  
+  // 确保metadata对象存在
+  if (!editForm.metadata) {
     editForm.metadata = {
       dataName: '',
       sourceUnit: '',
       contactPerson: '',
-      contactPhone: ''
+      contactPhone: '',
+      resourceSummary: '',
+      fieldClassification: '',
+      headers: []
     }
-    
-    // 如果对象有元数据，使用它
-    if (objectToEdit.metadata && typeof objectToEdit.metadata === 'object') {
-      editForm.metadata = { ...editForm.metadata, ...objectToEdit.metadata }
-    } else if (objectToEdit.metadataJson) {
-      // 尝试从metadataJson解析元数据
-      try {
-        const metadataObj = JSON.parse(objectToEdit.metadataJson)
-        if (metadataObj) {
-          editForm.metadata = { ...editForm.metadata, ...metadataObj }
-        }
-      } catch (e) {
-        console.warn('解析metadataJson失败:', e)
-      }
-    }
-    
-    // 如果没有设置数据名称，使用实体名称
-    if (!editForm.metadata.dataName) {
-      editForm.metadata.dataName = editForm.entity
-    }
-    
-    // 处理约束条件
-    // 尝试从constraintSetJson解析约束条件
-    let constraints = []
-    if (objectToEdit.constraintSetJson) {
-      try {
-        const constraintData = JSON.parse(objectToEdit.constraintSetJson)
-        console.log('解析的约束条件:', constraintData)
-        
-        if (constraintData && constraintData.constraints && constraintData.constraints.length > 0) {
-          const constraint = constraintData.constraints[0]
-          
-          // 设置各约束字段
-          editForm.formatConstraint = constraint.formatConstraint || ''
-          editForm.accessConstraint = constraint.accessConstraint || ''
-          editForm.pathConstraint = constraint.pathConstraint || ''
-          editForm.regionConstraint = constraint.regionConstraint || ''
-          editForm.shareConstraint = constraint.shareConstraint || ''
-          
-          // 构建约束条件数组
-          constraints = [
-            constraint.formatConstraint ? `格式约束:${constraint.formatConstraint}` : null,
-            constraint.accessConstraint ? `访问权限:${constraint.accessConstraint}` : null,
-            constraint.pathConstraint ? `传输路径约束:${constraint.pathConstraint}` : null,
-            constraint.regionConstraint ? `地域性约束:${constraint.regionConstraint}` : null,
-            constraint.shareConstraint ? `共享约束:${constraint.shareConstraint}` : null
-          ].filter(Boolean) // 过滤掉null值
-        }
-      } catch (e) {
-        console.warn('解析constraintSetJson失败:', e)
-      }
-    }
-    
-    // 如果从JSON解析出约束条件，则使用它们；否则尝试使用原有约束条件
-    if (constraints.length > 0) {
-      editForm.constraint = constraints
-    } else {
-      // 使用辅助函数确保约束条件是数组
-      editForm.constraint = ensureArray(objectToEdit.constraint)
-      
-      // 如果没有明确的各约束字段值，尝试从约束数组中解析
-      if ((!editForm.formatConstraint || !editForm.accessConstraint || !editForm.pathConstraint || 
-          !editForm.regionConstraint || !editForm.shareConstraint) && editForm.constraint.length > 0) {
-        // 这里可以添加解析约束数组的逻辑
-        editForm.constraint.forEach(item => {
-          if (typeof item === 'string') {
-            const parts = item.split(':')
-            if (parts.length === 2) {
-              const type = parts[0].trim()
-              const value = parts[1].trim()
-              
-              if (type === '格式约束') editForm.formatConstraint = value
-              else if (type === '访问权限') editForm.accessConstraint = value
-              else if (type === '传输路径约束') editForm.pathConstraint = value
-              else if (type === '地域性约束') editForm.regionConstraint = value
-              else if (type === '共享约束') editForm.shareConstraint = value
-            }
-          }
-        })
-      }
-    }
-    
-    // 处理传输控制操作
-    let transferControls = []
-    if (objectToEdit.propagationControlJson) {
-      try {
-        const propagationData = JSON.parse(objectToEdit.propagationControlJson)
-        console.log('解析的传播控制数据:', propagationData)
-        
-        if (propagationData && propagationData.operations) {
-          const ops = propagationData.operations
-          
-          // 根据operations构建传输控制数组
-          if (ops.read) transferControls.push('可读')
-          if (ops.modify) transferControls.push('可修改')
-          if (ops.destroy) transferControls.push('可销毁')
-          if (ops.share) transferControls.push('可共享')
-          if (ops.delegate) transferControls.push('可委托')
-        }
-      } catch (e) {
-        console.warn('解析propagationControlJson失败:', e)
-      }
-    } else if (objectToEdit.propagationControl) {
-      // 直接使用propagationControl对象
-      const pc = objectToEdit.propagationControl
-      if (pc.canRead) transferControls.push('可读')
-      if (pc.canModify) transferControls.push('可修改')
-      if (pc.canDestroy) transferControls.push('可销毁')
-      if (pc.canShare) transferControls.push('可共享')
-      if (pc.canDelegate) transferControls.push('可委托')
-    }
-    
-    // 如果从JSON解析出传输控制，则使用它们；否则尝试使用原有传输控制
-    if (transferControls.length > 0) {
-      editForm.transferControl = transferControls
-    } else {
-      // 传输控制
-      editForm.transferControl = ensureArray(objectToEdit.transferControl)
-    }
-    
-    // 处理审计信息和状态
-    if (objectToEdit.auditInfo && typeof objectToEdit.auditInfo === 'object') {
-      // 直接使用对象中的信息
-      editForm.auditInfo = '已有审计记录'
-    } else {
-      editForm.auditInfo = objectToEdit.auditInfo || ''
-    }
-    
-    // 设置状态和反馈
-    editForm.status = entityData.status || objectToEdit.status || ''
-    editForm.feedback = entityData.feedback || objectToEdit.feedback || ''
-    
-    // 保存Excel数据
-    editForm.excelData = objectToEdit.excelData // 保留原有的Excel文件数据
-    
-    console.log('打开编辑对话框，设置表单数据:', editForm)
-    // 显示编辑弹窗
-    editDialogVisible.value = true
-    console.log('editDialogVisible已设置为:', editDialogVisible.value)
-  } catch (error) {
-    console.error('编辑对象时出错:', error)
-    ElMessage.error('获取对象详情失败: ' + error.message)
   }
+  
+  // 处理元数据
+  if (row.metadata && typeof row.metadata === 'object') {
+    // 逐个设置属性，避免直接赋值造成响应式丢失
+    editForm.metadata.dataName = row.metadata.dataName || row.entity || ''
+    editForm.metadata.sourceUnit = row.metadata.sourceUnit || ''
+    editForm.metadata.contactPerson = row.metadata.contactPerson || ''
+    editForm.metadata.contactPhone = row.metadata.contactPhone || ''
+    editForm.metadata.resourceSummary = row.metadata.resourceSummary || ''
+    editForm.metadata.fieldClassification = row.metadata.fieldClassification || ''
+    editForm.metadata.headers = Array.isArray(row.metadata.headers) ? [...row.metadata.headers] : []
+  } else {
+    // 没有元数据时设置默认值
+    editForm.metadata.dataName = row.entity || ''
+    editForm.metadata.sourceUnit = ''
+    editForm.metadata.contactPerson = ''
+    editForm.metadata.contactPhone = ''
+    editForm.metadata.resourceSummary = ''
+    editForm.metadata.fieldClassification = ''
+    editForm.metadata.headers = []
+  }
+  
+  // 设置约束条件和其他字段
+  if (Array.isArray(row.constraint)) {
+    editForm.constraint = [...row.constraint]
+  } else if (row.constraint) {
+    editForm.constraint = [row.constraint]
+  } else {
+    editForm.constraint = []
+  }
+  
+  // 设置各种约束字段
+  editForm.formatConstraint = row.formatConstraint || ''
+  editForm.accessConstraint = row.accessConstraint || ''
+  editForm.pathConstraint = row.pathConstraint || ''
+  editForm.regionConstraint = row.regionConstraint || ''
+  editForm.shareConstraint = row.shareConstraint || ''
+  
+  // 设置传输控制
+  if (Array.isArray(row.transferControl)) {
+    editForm.transferControl = [...row.transferControl]
+  } else if (row.transferControl) {
+    editForm.transferControl = [row.transferControl]
+  } else {
+    editForm.transferControl = []
+  }
+  
+  // 设置其他字段
+  editForm.auditInfo = row.auditInfo || ''
+  editForm.status = row.status || ''
+  editForm.feedback = row.feedback || ''
+  editForm.excelData = row.excelData || null
+  editForm.dataItems = row.dataItems || []
+  
+  // 记录当前编辑的ID
+  currentEditId.value = row.id
+  
+  // 添加更多调试信息
+  console.log('编辑表单数据已设置:', JSON.stringify(editForm))
+  console.log('当前编辑ID:', currentEditId.value)
+  
+  // 直接打开编辑对话框
+  editDialogVisible.value = true
 }
 
 // 取消编辑
 const cancelEdit = () => {
   editDialogVisible.value = false
-  // 重置表单
-  editForm.id = ''
-  editForm.entity = ''
-  editForm.locationInfo = {
-    row: '',
-    col: ''
-  }
-  editForm.metadata = {
-    dataName: '',
-    sourceUnit: '',
-    contactPerson: '',
-    contactPhone: ''
-  }
-  editForm.constraint = []
-  editForm.transferControl = []
-  editForm.auditInfo = ''
-  editForm.status = ''
-  editForm.feedback = ''
-  editForm.excelData = null
-  
+  currentEditId.value = ''
   editingIndex.value = -1
 }
 
@@ -704,6 +653,9 @@ const createForm = reactive({
 
 // 表单校验规则
 const formRules = {
+  entity: [
+    { required: true, message: '请输入实体名称', trigger: 'blur' }
+  ],
   locationInfo: [
     { 
       validator: (rule, value, callback) => {
@@ -715,140 +667,124 @@ const formRules = {
       },
       trigger: 'blur'
     }
+  ],
+  formatConstraint: [
+    { required: true, message: '请选择格式约束', trigger: 'change' }
+  ],
+  accessConstraint: [
+    { required: true, message: '请选择访问权限', trigger: 'change' }
+  ],
+  pathConstraint: [
+    { required: true, message: '请选择传输路径约束', trigger: 'change' }
+  ],
+  regionConstraint: [
+    { required: true, message: '请选择地域性约束', trigger: 'change' }
+  ],
+  shareConstraint: [
+    { required: true, message: '请选择共享约束', trigger: 'change' }
+  ],
+  transferControl: [
+    { type: 'array', required: true, message: '请选择传输控制操作', trigger: 'change' }
   ]
 }
 
-// 处理文件变更
-const handleFileChange = (file) => {
-  // 验证文件类型
-  const isExcel = file.raw.type === 'application/vnd.ms-excel' || 
-                 file.raw.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-  if (!isExcel) {
-    ElMessage.warning('请上传Excel格式的文件（.xls或.xlsx）');
-    return false;
-  }
-  
-  // 设置实体名称为文件名（不带扩展名）
-  const fileName = file.name;
-  const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
-  createForm.entity = fileNameWithoutExt;
-  
-  // 读取并保存Excel文件内容
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      // 保存文件的二进制数据
-      createForm.excelData = e.target.result;
-      ElMessage.success(`已选择Excel表格"${fileName}"`);
-    } catch (error) {
-      console.error('读取Excel文件失败:', error);
-      ElMessage.error('读取Excel文件失败');
-    }
-  };
-  reader.onerror = () => {
-    ElMessage.error('读取文件失败');
-  };
-  reader.readAsBinaryString(file.raw);
-}
-
-// 保存创建的对象
-const saveCreateObject = async (newObject) => {
-  // 检查是否为离线模式上传（如果有excelData但没有通过API上传）
-  const isOfflineMode = newObject.offlineMode === true
-  
-  const entityName = newObject.entity || '未上传'
-  
-  // 如果没有传输控制操作，设置默认值
-  if (!newObject.transferControl || newObject.transferControl.length === 0) {
-    newObject.transferControl = ['可读', '可修改', '可销毁', '可共享', '可委托']
-  }
-  
-  // 如果没有propagationControl对象，根据transferControl创建
-  if (!newObject.propagationControl) {
-    newObject.propagationControl = {
-      canRead: newObject.transferControl.includes('可读'),
-      canModify: newObject.transferControl.includes('可修改'),
-      canDestroy: newObject.transferControl.includes('可销毁'),
-      canShare: newObject.transferControl.includes('可共享'),
-      canDelegate: newObject.transferControl.includes('可委托')
-    }
-  }
-  
-  // 准备元数据JSON
-  let metadataJson = null
-  if (newObject.metadata) {
-    metadataJson = JSON.stringify(newObject.metadata)
-  }
-  
-  // 准备新对象
-  const displayObject = {
-    entity: entityName,
-    locationInfo: `(${entityName}, ${newObject.locationInfo.row}, ${newObject.locationInfo.col})`,
-    constraint: newObject.constraint,
-    formatConstraint: newObject.formatConstraint,
-    accessConstraint: newObject.accessConstraint,
-    pathConstraint: newObject.pathConstraint,
-    regionConstraint: newObject.regionConstraint,
-    shareConstraint: newObject.shareConstraint,
-    transferControl: newObject.transferControl,
-    propagationControl: newObject.propagationControl,
-    excelData: newObject.excelData,
-    metadata: newObject.metadata,
-    metadataJson: metadataJson // 添加元数据JSON字符串
-  }
-  
-  try {
-    let result = null
-    
-    if (!isOfflineMode) {
-      // 使用API创建数字对象
-      result = await dataObjectService.addDataObjectViaApi(displayObject)
-      
-      if (result.success) {
-        console.log('成功通过API创建数字对象:', result.object)
-        ElMessage.success(`已创建数字对象: ${entityName}`)
+// 添加手动保存编辑表单的方法
+const handleSaveEditManually = () => {
+  // 验证表单
+  if (editFormRef.value) {
+    editFormRef.value.validate((valid) => {
+      if (valid) {
+        // 构建约束条件数组
+        const constraintArray = []
+        if (editForm.formatConstraint) constraintArray.push(`格式约束:${editForm.formatConstraint}`)
+        if (editForm.accessConstraint) constraintArray.push(`访问权限:${editForm.accessConstraint}`)
+        if (editForm.pathConstraint) constraintArray.push(`传输路径约束:${editForm.pathConstraint}`)
+        if (editForm.regionConstraint) constraintArray.push(`地域性约束:${editForm.regionConstraint}`)
+        if (editForm.shareConstraint) constraintArray.push(`共享约束:${editForm.shareConstraint}`)
+        
+        // 构建传播控制对象，与transferControl数组对应
+        const propagationControl = {
+          canRead: editForm.transferControl.includes('可读'),
+          canModify: editForm.transferControl.includes('可修改'),
+          canDestroy: editForm.transferControl.includes('可销毁'),
+          canShare: editForm.transferControl.includes('可共享'),
+          canDelegate: editForm.transferControl.includes('可委托')
+        }
+        
+        // 构建更新后的对象
+        const updatedObject = {
+          id: editForm.id,
+          entity: editForm.entity,
+          locationInfo: {
+            row: editForm.locationInfo.row,
+            col: editForm.locationInfo.col
+          },
+          metadata: {
+            dataName: editForm.metadata.dataName,
+            sourceUnit: editForm.metadata.sourceUnit,
+            contactPerson: editForm.metadata.contactPerson,
+            contactPhone: editForm.metadata.contactPhone,
+            resourceSummary: editForm.metadata.resourceSummary,
+            fieldClassification: editForm.metadata.fieldClassification,
+            headers: editForm.metadata.headers || []
+          },
+          constraint: constraintArray,
+          formatConstraint: editForm.formatConstraint,
+          accessConstraint: editForm.accessConstraint,
+          pathConstraint: editForm.pathConstraint,
+          regionConstraint: editForm.regionConstraint,
+          shareConstraint: editForm.shareConstraint,
+          transferControl: editForm.transferControl,
+          propagationControl: propagationControl,
+          auditInfo: editForm.auditInfo,
+          status: editForm.status,
+          feedback: editForm.feedback,
+          excelData: editForm.excelData,
+          dataItems: editForm.dataItems || []
+        }
+        
+        // 调用保存方法
+        saveEditObject(updatedObject)
+        
+        // 关闭对话框
+        editDialogVisible.value = false
       } else {
-        console.error('API创建数字对象失败:', result.message)
-        
-        // API失败时尝试本地创建
-        const addedObject = dataObjectService.addDataObject(displayObject)
-        console.log('改为本地创建数字对象:', addedObject)
-        
-        ElMessage({
-          message: `API创建失败，已在本地创建数字对象: ${entityName}`,
-          type: 'warning',
-          duration: 5000
-        })
+        ElMessage.warning('请填写必填项')
+        return false
       }
-    } else {
-      // 离线模式只在本地添加
-      const addedObject = dataObjectService.addDataObject(displayObject)
-      console.log('本地创建数字对象:', addedObject)
-      
-      ElMessage({
-        message: `已在本地创建数字对象: ${entityName}，但未同步到服务器`,
-        type: 'warning',
-        duration: 5000
-      })
+    })
+  } else {
+    console.error('表单引用不存在')
+    
+    // 尝试直接保存
+    const constraintArray = []
+    if (editForm.formatConstraint) constraintArray.push(`格式约束:${editForm.formatConstraint}`)
+    if (editForm.accessConstraint) constraintArray.push(`访问权限:${editForm.accessConstraint}`)
+    if (editForm.pathConstraint) constraintArray.push(`传输路径约束:${editForm.pathConstraint}`)
+    if (editForm.regionConstraint) constraintArray.push(`地域性约束:${editForm.regionConstraint}`)
+    if (editForm.shareConstraint) constraintArray.push(`共享约束:${editForm.shareConstraint}`)
+    
+    const updatedObject = {
+      id: editForm.id,
+      entity: editForm.entity,
+      locationInfo: editForm.locationInfo,
+      metadata: editForm.metadata,
+      constraint: constraintArray,
+      formatConstraint: editForm.formatConstraint,
+      accessConstraint: editForm.accessConstraint,
+      pathConstraint: editForm.pathConstraint,
+      regionConstraint: editForm.regionConstraint,
+      shareConstraint: editForm.shareConstraint,
+      transferControl: editForm.transferControl,
+      auditInfo: editForm.auditInfo,
+      status: editForm.status,
+      feedback: editForm.feedback,
+      excelData: editForm.excelData
     }
     
-    // 刷新数据列表
-    refreshData()
-    
-    // 重置创建表单
-    resetCreateForm()
-    
-    // 关闭创建对话框
-    createDialogVisible.value = false
-  } catch (error) {
-    console.error('创建对象时发生错误:', error)
-    ElMessage.error('创建对象失败，请稍后再试')
+    saveEditObject(updatedObject)
+    editDialogVisible.value = false
   }
-}
-
-// 取消新建
-const cancelCreate = () => {
-  // 对话框会自动关闭，不需要额外处理
 }
 
 // 处理排序变化
@@ -1144,7 +1080,7 @@ onMounted(() => {
 const apiErrorVisible = ref(false)
 
 // 添加调试相关功能
-const showDebugTools = ref(true) // 设置为true显示调试工具
+const showDebugTools = ref(false) // 设置为false隐藏调试工具
 const lastReceivedApiData = ref(null)
 
 // 复制调试数据到剪贴板
@@ -1318,39 +1254,6 @@ const navigateToHome = () => {
   ElMessage.success('已成功保存编辑并返回主页')
 }
 
-// 获取元数据字段值的辅助函数
-const getMetadataValue = (fieldName) => {
-  // 防止未定义
-  if (!previewForm.metadata) return null
-  
-  // 直接检查顶级对象
-  if (previewForm.metadata[fieldName]) {
-    return previewForm.metadata[fieldName]
-  }
-  
-  // 检查嵌套对象
-  const checkNestedObject = (obj, field) => {
-    // 不是对象，返回null
-    if (typeof obj !== 'object' || obj === null) return null
-    
-    // 直接检查当前对象是否有该字段
-    if (obj[field] !== undefined) return obj[field]
-    
-    // 递归检查所有属性
-    for (const key in obj) {
-      if (typeof obj[key] === 'object' && obj[key] !== null) {
-        const result = checkNestedObject(obj[key], field)
-        if (result !== null) return result
-      }
-    }
-    
-    return null
-  }
-  
-  // 尝试在嵌套对象中查找
-  return checkNestedObject(previewForm.metadata, fieldName)
-}
-
 // 获取当前格式化的日期时间
 const getCurrentDateTime = () => {
   const now = new Date()
@@ -1363,6 +1266,176 @@ const getCurrentDateTime = () => {
     second: '2-digit',
     hour12: false
   })
+}
+
+// 添加缺失的resetCreateForm函数
+const resetCreateForm = () => {
+  createForm.entity = ''
+  createForm.locationInfo = {
+    row: '',
+    col: ''
+  }
+  createForm.constraint = []
+  createForm.formatConstraint = ''
+  createForm.accessConstraint = ''
+  createForm.pathConstraint = ''
+  createForm.regionConstraint = ''
+  createForm.shareConstraint = ''
+  createForm.transferControl = []
+  createForm.classificationValue = ''
+  createForm.excelData = null
+  
+  if (createFormRef.value) {
+    createFormRef.value.resetFields()
+  }
+}
+
+// 添加测试方法
+const testEditDialog = () => {
+  console.log('测试打开编辑对话框')
+  
+  // 使用第一行数据作为测试数据
+  if (tableData.value && tableData.value.length > 0) {
+    const testRow = tableData.value[0]
+    console.log('使用测试数据:', testRow)
+    handleEdit(testRow)
+  } else {
+    console.error('没有可用数据用于测试')
+    ElMessage.error('没有可用数据用于测试')
+  }
+}
+
+// 处理文件变更
+const handleFileChange = (file) => {
+  // 验证文件类型
+  const isExcel = file.raw.type === 'application/vnd.ms-excel' || 
+                 file.raw.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if (!isExcel) {
+    ElMessage.warning('请上传Excel格式的文件（.xls或.xlsx）');
+    return false;
+  }
+  
+  // 设置实体名称为文件名（不带扩展名）
+  const fileName = file.name;
+  const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
+  createForm.entity = fileNameWithoutExt;
+  
+  // 读取并保存Excel文件内容
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      // 保存文件的二进制数据
+      createForm.excelData = e.target.result;
+      ElMessage.success(`已选择Excel表格"${fileName}"`);
+    } catch (error) {
+      console.error('读取Excel文件失败:', error);
+      ElMessage.error('读取Excel文件失败');
+    }
+  };
+  reader.onerror = () => {
+    ElMessage.error('读取文件失败');
+  };
+  reader.readAsBinaryString(file.raw);
+}
+
+// 保存创建的对象
+const saveCreateObject = async (newObject) => {
+  // 检查是否为离线模式上传（如果有excelData但没有通过API上传）
+  const isOfflineMode = newObject.offlineMode === true
+  
+  const entityName = newObject.entity || '未上传'
+  
+  // 如果没有传输控制操作，设置默认值
+  if (!newObject.transferControl || newObject.transferControl.length === 0) {
+    newObject.transferControl = ['可读', '可修改', '可销毁', '可共享', '可委托']
+  }
+  
+  // 如果没有propagationControl对象，根据transferControl创建
+  if (!newObject.propagationControl) {
+    newObject.propagationControl = {
+      canRead: newObject.transferControl.includes('可读'),
+      canModify: newObject.transferControl.includes('可修改'),
+      canDestroy: newObject.transferControl.includes('可销毁'),
+      canShare: newObject.transferControl.includes('可共享'),
+      canDelegate: newObject.transferControl.includes('可委托')
+    }
+  }
+  
+  // 准备元数据JSON
+  let metadataJson = null
+  if (newObject.metadata) {
+    metadataJson = JSON.stringify(newObject.metadata)
+  }
+  
+  // 准备新对象
+  const displayObject = {
+    entity: entityName,
+    locationInfo: `(${entityName}, ${newObject.locationInfo.row}, ${newObject.locationInfo.col})`,
+    constraint: newObject.constraint,
+    formatConstraint: newObject.formatConstraint,
+    accessConstraint: newObject.accessConstraint,
+    pathConstraint: newObject.pathConstraint,
+    regionConstraint: newObject.regionConstraint,
+    shareConstraint: newObject.shareConstraint,
+    transferControl: newObject.transferControl,
+    propagationControl: newObject.propagationControl,
+    excelData: newObject.excelData,
+    metadata: newObject.metadata,
+    metadataJson: metadataJson // 添加元数据JSON字符串
+  }
+  
+  try {
+    let result = null
+    
+    if (!isOfflineMode) {
+      // 使用API创建数字对象
+      result = await dataObjectService.addDataObjectViaApi(displayObject)
+      
+      if (result.success) {
+        console.log('成功通过API创建数字对象:', result.object)
+        ElMessage.success(`已创建数字对象: ${entityName}`)
+      } else {
+        console.error('API创建数字对象失败:', result.message)
+        
+        // API失败时尝试本地创建
+        const addedObject = dataObjectService.addDataObject(displayObject)
+        console.log('改为本地创建数字对象:', addedObject)
+        
+        ElMessage({
+          message: `API创建失败，已在本地创建数字对象: ${entityName}`,
+          type: 'warning',
+          duration: 5000
+        })
+      }
+    } else {
+      // 离线模式只在本地添加
+      const addedObject = dataObjectService.addDataObject(displayObject)
+      console.log('本地创建数字对象:', addedObject)
+      
+      ElMessage({
+        message: `已在本地创建数字对象: ${entityName}，但未同步到服务器`,
+        type: 'warning',
+        duration: 5000
+      })
+    }
+    
+    // 刷新数据列表
+    refreshData()
+    
+    // 重置创建表单
+    resetCreateForm()
+    
+    // 关闭创建对话框
+    createDialogVisible.value = false
+  } catch (error) {
+    console.error('创建对象时发生错误:', error)
+    ElMessage.error('创建对象失败，请稍后再试')
+  }
+}
+
+// 取消新建
+const cancelCreate = () => {
+  // 对话框会自动关闭，不需要额外处理
 }
 </script>
 
@@ -1762,5 +1835,21 @@ pre {
   box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
   z-index: 10;
   transition: all 0.3s;
+}
+
+/* 添加调试指示器 */
+.debug-dialog-status {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 10px;
+  z-index: 1000;
+  background-color: #ffffff;
+  border-top: 1px solid #e6e6e6;
+}
+
+.debug-dialog-status p {
+  margin-bottom: 10px;
 }
 </style> 

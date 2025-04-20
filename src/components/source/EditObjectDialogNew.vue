@@ -44,6 +44,12 @@
       <el-form-item label="联系电话：" prop="metadata.contactPhone" class="metadata-form-item">
         <el-input v-model="form.metadata.contactPhone" placeholder="请输入联系电话" style="width: 300px;"></el-input>
       </el-form-item>
+      <el-form-item label="资源摘要：" prop="metadata.resourceSummary" class="metadata-form-item">
+        <el-input v-model="form.metadata.resourceSummary" placeholder="请输入资源摘要" style="width: 300px;"></el-input>
+      </el-form-item>
+      <el-form-item label="领域分类：" prop="metadata.fieldClassification" class="metadata-form-item">
+        <el-input v-model="form.metadata.fieldClassification" placeholder="请输入领域分类" style="width: 300px;"></el-input>
+      </el-form-item>
       
       <el-form-item label="定位信息：" prop="locationInfo" style="margin-bottom: 22px;">
         <div style="display: flex; align-items: center; gap: 10px;">
@@ -143,6 +149,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Document } from '@element-plus/icons-vue'
 import excelUploadService from '@/services/excelUploadService'
 import { API_URL, MOCK_ENABLED, AUTO_FALLBACK_TO_MOCK } from '@/services/apiConfig'
+import * as XLSX from 'xlsx' // 确保引入XLSX库用于处理Excel数据
 
 const props = defineProps({
   // 是否显示对话框
@@ -199,7 +206,10 @@ const form = reactive({
     dataName: '',
     sourceUnit: '',
     contactPerson: '',
-    contactPhone: ''
+    contactPhone: '',
+    resourceSummary: '',
+    fieldClassification: '',
+    headers: []
   },
   constraint: [],
   formatConstraint: '',
@@ -211,7 +221,8 @@ const form = reactive({
   auditInfo: '',
   status: '',
   feedback: '',
-  excelData: null
+  excelData: null,
+  dataItems: []
 })
 
 // 表单校验规则
@@ -230,6 +241,12 @@ const formRules = {
   ],
   'metadata.contactPhone': [
     { required: false, message: '请输入联系电话', trigger: 'blur' }
+  ],
+  'metadata.resourceSummary': [
+    { required: false, message: '请输入资源摘要', trigger: 'blur' }
+  ],
+  'metadata.fieldClassification': [
+    { required: false, message: '请输入领域分类', trigger: 'blur' }
   ],
   locationInfo: [
     { 
@@ -266,10 +283,19 @@ const formRules = {
   ]
 }
 
-// 监听visible属性变化
+// 监听可见性变化
 watch(() => props.visible, (newVal) => {
+  console.log('EditObjectDialogNew组件可见性变化:', newVal)
+  
+  // 设置本地可见性状态
   dialogVisible.value = newVal
-})
+  
+  if (newVal) {
+    // 对话框打开时立即更新表单数据
+    console.log('对话框打开，应用modelValue:', props.modelValue)
+    updateFormFromModelValue(props.modelValue)
+  }
+}, { immediate: true })
 
 // 监听dialogVisible变化
 watch(dialogVisible, (newVal) => {
@@ -278,78 +304,117 @@ watch(dialogVisible, (newVal) => {
 
 // 监听modelValue变化
 watch(() => props.modelValue, (newVal) => {
-  if (!newVal) return
+  console.log('EditObjectDialogNew组件接收到新的modelValue:', newVal ? newVal.id : 'undefined')
   
-  console.log('EditObjectDialogNew组件接收到的modelValue:', newVal)
+  if (dialogVisible.value && newVal) {
+    console.log('应用新的modelValue到表单')
+    updateFormFromModelValue(newVal)
+  }
+}, { immediate: true })
+
+// 从modelValue更新表单数据的函数
+const updateFormFromModelValue = (modelValue) => {
+  console.log('从modelValue更新表单数据:', modelValue)
   
   // 处理ID - 确保即使ID为0也能正确显示
-  if (newVal.id !== undefined && newVal.id !== null) {
-    form.id = String(newVal.id)
+  if (modelValue.id !== undefined && modelValue.id !== null) {
+    form.id = String(modelValue.id)
     console.log('设置ID值:', form.id)
   } else {
     form.id = ''
   }
   
   // 设置其他字段
-  form.entity = newVal.entity || ''
+  form.entity = modelValue.entity || ''
   
-  // 设置元数据
-  if (newVal.metadata && typeof newVal.metadata === 'object') {
-    form.metadata.dataName = newVal.metadata.dataName || newVal.entity || ''
-    form.metadata.sourceUnit = newVal.metadata.sourceUnit || ''
-    form.metadata.contactPerson = newVal.metadata.contactPerson || ''
-    form.metadata.contactPhone = newVal.metadata.contactPhone || ''
-  } else {
-    // 如果没有元数据，则使用默认值
-    form.metadata.dataName = newVal.entity || ''
-    form.metadata.sourceUnit = ''
-    form.metadata.contactPerson = ''
-    form.metadata.contactPhone = ''
-  }
-  
-  // 处理定位信息
-  if (newVal.locationInfo && typeof newVal.locationInfo === 'object') {
-    form.locationInfo.row = newVal.locationInfo.row || ''
-    form.locationInfo.col = newVal.locationInfo.col || ''
-  } else if (typeof newVal.locationInfo === 'string') {
-    // 尝试从字符串格式的locationInfo中提取行列信息
-    try {
-      const matches = newVal.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
+  // 设置定位信息
+  if (modelValue.locationInfo) {
+    if (typeof modelValue.locationInfo === 'string') {
+      // 尝试从字符串解析
+      const matches = modelValue.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
       if (matches && matches.length > 3) {
-        form.locationInfo.row = matches[2].trim()
-        form.locationInfo.col = matches[3].trim()
+        form.locationInfo = {
+          row: matches[2].trim(),
+          col: matches[3].trim()
+        }
+      } else {
+        form.locationInfo = { row: '', col: '' }
       }
-    } catch (e) {
-      console.warn('解析locationInfo字符串失败:', e)
-      form.locationInfo.row = ''
-      form.locationInfo.col = ''
+    } else if (typeof modelValue.locationInfo === 'object') {
+      // 直接使用对象格式
+      form.locationInfo = {
+        row: modelValue.locationInfo.row || '',
+        col: modelValue.locationInfo.col || ''
+      }
+    } else {
+      form.locationInfo = { row: '', col: '' }
     }
   } else {
-    form.locationInfo.row = ''
-    form.locationInfo.col = ''
+    form.locationInfo = { row: '', col: '' }
   }
   
-  // 设置auditInfo、status和feedback
-  form.auditInfo = newVal.auditInfo || ''
-  form.status = newVal.status || ''
-  form.feedback = newVal.feedback || ''
+  // 设置元数据
+  form.metadata = {
+    dataName: '',
+    sourceUnit: '',
+    contactPerson: '',
+    contactPhone: '',
+    resourceSummary: '',
+    fieldClassification: '',
+    headers: []
+  }
+  
+  if (modelValue.metadata && typeof modelValue.metadata === 'object') {
+    form.metadata = { ...form.metadata, ...modelValue.metadata }
+  }
+  
+  // 如果没有元数据，则使用实体名称和默认值
+  if (!form.metadata.dataName) {
+    form.metadata.dataName = modelValue.entity || ''
+  }
   
   // 设置约束条件数组
-  form.constraint = Array.isArray(newVal.constraint) ? [...newVal.constraint] : (newVal.constraint ? [newVal.constraint] : [])
+  form.constraint = Array.isArray(modelValue.constraint) ? [...modelValue.constraint] : (modelValue.constraint ? [modelValue.constraint] : [])
   
   // 设置各个约束条件字段
-  form.formatConstraint = newVal.formatConstraint || ''
-  form.accessConstraint = newVal.accessConstraint || ''
-  form.pathConstraint = newVal.pathConstraint || ''
-  form.regionConstraint = newVal.regionConstraint || ''
-  form.shareConstraint = newVal.shareConstraint || ''
+  form.formatConstraint = modelValue.formatConstraint || ''
+  form.accessConstraint = modelValue.accessConstraint || ''
+  form.pathConstraint = modelValue.pathConstraint || ''
+  form.regionConstraint = modelValue.regionConstraint || ''
+  form.shareConstraint = modelValue.shareConstraint || ''
   
-  // 设置传输控制操作
-  form.transferControl = Array.isArray(newVal.transferControl) ? [...newVal.transferControl] : (newVal.transferControl ? [newVal.transferControl] : [])
+  // 如果没有明确的各约束字段值，尝试从约束数组中解析
+  if ((!form.formatConstraint || !form.accessConstraint || !form.pathConstraint || 
+      !form.regionConstraint || !form.shareConstraint) && form.constraint.length > 0) {
+    form.constraint.forEach(item => {
+      if (typeof item === 'string') {
+        const parts = item.split(':')
+        if (parts.length === 2) {
+          const type = parts[0].trim()
+          const value = parts[1].trim()
+          
+          if (type === '格式约束') form.formatConstraint = value
+          else if (type === '访问权限') form.accessConstraint = value
+          else if (type === '传输路径约束') form.pathConstraint = value
+          else if (type === '地域性约束') form.regionConstraint = value
+          else if (type === '共享约束') form.shareConstraint = value
+        }
+      }
+    })
+  }
   
-  // 设置Excel数据
-  form.excelData = newVal.excelData
-})
+  // 传输控制
+  form.transferControl = Array.isArray(modelValue.transferControl) ? [...modelValue.transferControl] : (modelValue.transferControl ? [modelValue.transferControl] : [])
+  
+  // 其他字段
+  form.auditInfo = modelValue.auditInfo || ''
+  form.status = modelValue.status || ''
+  form.feedback = modelValue.feedback || ''
+  form.excelData = modelValue.excelData
+  form.dataItems = modelValue.dataItems || []
+  
+  console.log('表单数据更新完成:', JSON.stringify(form))
+}
 
 // 监听form变化，更新v-model
 watch(form, (newVal) => {
@@ -368,6 +433,15 @@ watch(form, (newVal) => {
       row: newVal.locationInfo.row,
       col: newVal.locationInfo.col
     },
+    metadata: {
+      dataName: newVal.metadata.dataName,
+      sourceUnit: newVal.metadata.sourceUnit,
+      contactPerson: newVal.metadata.contactPerson,
+      contactPhone: newVal.metadata.contactPhone,
+      resourceSummary: newVal.metadata.resourceSummary,
+      fieldClassification: newVal.metadata.fieldClassification,
+      headers: newVal.metadata.headers || []
+    },
     constraint: constraintArray,
     formatConstraint: newVal.formatConstraint,
     accessConstraint: newVal.accessConstraint,
@@ -379,9 +453,104 @@ watch(form, (newVal) => {
     status: newVal.status,
     feedback: newVal.feedback,
     excelData: newVal.excelData,
+    dataItems: newVal.dataItems || [],
     offlineMode: offlineMode.value
   })
 }, { deep: true })
+
+// 直接重置表单，不触发任何事件
+const resetFormDirectly = () => {
+  form.id = ''
+  form.entity = ''
+  form.locationInfo = { row: '', col: '' }
+  form.metadata = {
+    dataName: '',
+    sourceUnit: '',
+    contactPerson: '',
+    contactPhone: '',
+    resourceSummary: '',
+    fieldClassification: '',
+    headers: []
+  }
+  form.constraint = []
+  form.formatConstraint = ''
+  form.accessConstraint = ''
+  form.pathConstraint = ''
+  form.regionConstraint = ''
+  form.shareConstraint = ''
+  form.transferControl = []
+  form.auditInfo = ''
+  form.status = ''
+  form.feedback = ''
+  form.excelData = null
+  form.dataItems = []
+}
+
+// 重置表单
+const resetForm = () => {
+  resetFormDirectly()
+  
+  // 重置API错误状态
+  apiError.value = null
+  
+  // 重置离线模式
+  offlineMode.value = false
+  
+  if (formRef.value) {
+    formRef.value.resetFields()
+  }
+}
+
+// 添加Excel数据处理函数
+const processExcelData = (binaryString) => {
+  try {
+    // 将二进制字符串转换为工作簿对象
+    const workbook = XLSX.read(binaryString, { type: 'binary' })
+    
+    // 获取第一个工作表的名称
+    const firstSheetName = workbook.SheetNames[0]
+    
+    // 获取工作表
+    const worksheet = workbook.Sheets[firstSheetName]
+    
+    // 将工作表转换为JSON对象数组
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+    
+    // 提取表头和数据
+    if (jsonData.length > 0) {
+      const headers = jsonData[0]
+      const dataRows = jsonData.slice(1)
+      
+      // 将数据行转换为对象数组
+      const dataItems = dataRows.map(row => {
+        const item = {}
+        headers.forEach((header, index) => {
+          if (header && index < row.length) {
+            item[header] = row[index] !== undefined ? String(row[index]) : ''
+          }
+        })
+        return item
+      })
+      
+      console.log('提取的Excel数据项:', dataItems)
+      console.log('提取的表头:', headers)
+      
+      // 保存表头到元数据
+      form.metadata.headers = headers
+      
+      // 返回处理后的数据
+      return {
+        headers,
+        dataItems
+      }
+    }
+    
+    return { headers: [], dataItems: [] }
+  } catch (error) {
+    console.error('处理Excel数据失败:', error)
+    return { headers: [], dataItems: [] }
+  }
+}
 
 // 处理文件变更
 const handleFileChange = async (file) => {
@@ -396,138 +565,84 @@ const handleFileChange = async (file) => {
   // 设置实体名称为文件名（不带扩展名）
   const fileName = file.name
   const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName
+  form.entity = fileNameWithoutExt
   
-  // 保留原实体名称
-  const originalEntityName = form.entity
-  
-  // 如果是编辑现有对象，询问是否要更改实体名称
-  if (form.id && originalEntityName && originalEntityName !== fileNameWithoutExt) {
-    try {
-      // 使用确认对话框询问用户
-      await ElMessageBox.confirm(
-        `您正在替换实体"${originalEntityName}"的Excel文件，是否同时更新实体名称为"${fileNameWithoutExt}"？`,
-        '更新实体名称',
-        {
-          confirmButtonText: '更新名称',
-          cancelButtonText: '保留原名称',
-          type: 'warning'
-        }
-      )
-      // 用户确认更新名称
-      form.entity = fileNameWithoutExt
-    } catch (error) {
-      // 用户选择保留原名称
-      console.log('用户选择保留原实体名称')
-      // 不更新实体名称，保留原名
-    }
-  } else {
-    // 新建对象或名称为空，直接设置
-    form.entity = fileNameWithoutExt
-  }
-
-  // 如果已经处于离线模式，直接读取本地文件而不尝试上传
-  if (offlineMode.value || MOCK_ENABLED) {
-    // 通知用户当前模式
-    if (MOCK_ENABLED) {
-      ElMessage.info('系统当前处于离线模式，Excel文件将保存在本地而非上传到服务器')
-      // 自动设置为离线模式
-      offlineMode.value = true
-    } else {
-      ElMessage.info('正在离线模式下处理Excel文件，仅进行本地预览...')
-    }
-    
-    // 直接读取本地文件
-    readLocalFile(file.raw)
-    return
+  // 如果数据名称为空，也用文件名填充
+  if (!form.metadata.dataName) {
+    form.metadata.dataName = fileNameWithoutExt
   }
   
   // 显示上传中提示
   ElMessage.info('正在上传Excel文件，请稍候...')
   
   try {
-    // 尝试上传文件
-    if (form.id) {
-      // 如果是编辑模式且有ID，使用关联到特定对象的上传
-      const uploadResult = await excelUploadService.uploadExcelFileWithObjectId(form.id, file.raw)
-      handleUploadResult(uploadResult, fileName, file.raw)
+    // 1. 上传文件到后端
+    const uploadResult = await excelUploadService.uploadExcelFile(file.raw)
+    
+    if (uploadResult.success) {
+      ElMessage.success(`已成功上传Excel表格"${fileName}"`)
+      
+      // 2. 同时保存本地副本用于前端预览
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          // 保存文件的二进制数据用于前端预览
+          form.excelData = e.target.result
+          
+          // 处理Excel数据并提取表头和数据项
+          const { headers, dataItems } = processExcelData(e.target.result)
+          
+          // 保存提取的数据项到表单中
+          form.dataItems = dataItems
+        } catch (error) {
+          console.error('读取Excel文件失败:', error)
+        }
+      }
+      reader.onerror = () => {
+        console.error('读取文件失败')
+      }
+      reader.readAsBinaryString(file.raw)
+      
+      // 3. 如果后端返回了文件URL或base64数据，也可以保存
+      if (uploadResult.data && uploadResult.data.excelData) {
+        // 如果后端返回的是URL或base64，可以在这里处理
+        console.log('后端返回的Excel数据:', uploadResult.data.excelData)
+      }
     } else {
-      // 否则使用普通上传
-      const uploadResult = await excelUploadService.uploadExcelFile(file.raw)
-      handleUploadResult(uploadResult, fileName, file.raw)
+      ElMessage.error(`上传失败: ${uploadResult.message}`)
     }
   } catch (error) {
     console.error('Excel文件上传过程出错:', error)
-    ElMessage.error('上传Excel文件过程中出错: ' + (error.message || '未知错误'))
+    ElMessage.error('上传Excel文件过程中出错')
     
-    // 保存API错误信息
-    apiError.value = error
-    
-    // 切换到离线模式并读取本地文件
-    offlineMode.value = true
-    ElMessage.info('已切换到离线模式，Excel文件仅在本地预览')
-    readLocalFile(file.raw)
-  }
-}
-
-// 处理上传结果
-const handleUploadResult = (result, fileName, fileRaw) => {
-  if (result.success) {
-    // 上传成功
-    if (result.data && result.data.isMock) {
-      // 这是模拟的成功响应
-      ElMessage.warning(`[离线模式] 服务器不可用，但文件 "${fileName}" 已在本地保存`)
-      offlineMode.value = true
-    } else {
-      // 真实的成功响应
-      ElMessage.success(`已成功上传Excel表格"${fileName}"`)
-      offlineMode.value = false
-    }
-  } else {
-    // 上传失败
-    console.error('上传失败详情:', result.details)
-    ElMessage.error(`上传失败: ${result.message}`)
-    
-    // 切换到离线模式
-    offlineMode.value = true
-    ElMessage.warning('已切换到离线模式，Excel文件将只保存在本地')
-  }
-  
-  // 无论成功失败，都读取本地文件用于预览
-  readLocalFile(fileRaw)
-}
-
-// 本地文件读取函数
-const readLocalFile = (file) => {
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    try {
+    // 上传失败时，仍然尝试本地读取用于预览
+    const reader = new FileReader()
+    reader.onload = (e) => {
       form.excelData = e.target.result
-      console.log('本地文件读取成功，数据长度:', e.target.result.length)
-    } catch (error) {
-      console.error('读取Excel文件失败:', error)
-      ElMessage.warning('文件内容读取失败，但您仍可以填写其他表单内容')
+      
+      // 处理Excel数据并提取表头和数据项
+      const { headers, dataItems } = processExcelData(e.target.result)
+      
+      // 保存提取的数据项到表单中
+      form.dataItems = dataItems
     }
+    reader.readAsBinaryString(file.raw)
   }
-  reader.onerror = (e) => {
-    console.error('文件读取失败:', e)
-    ElMessage.warning('文件读取失败')
-  }
-  reader.readAsBinaryString(file)
 }
 
 // 保存按钮处理
 const handleSave = () => {
-  // 基本验证
+  // 简单验证
   if (!form.entity) {
-    ElMessage.warning('请输入实体名称')
+    ElMessage.warning('请输入实体名称或上传Excel表格文件')
     return
   }
   
-  if (!form.locationInfo || !form.locationInfo.row || !form.locationInfo.col) {
+  if (!form.locationInfo.row || !form.locationInfo.col) {
     ElMessage.warning('请输入定位信息（行和列）')
     return
   }
-
+  
   // 验证约束条件
   if (!form.formatConstraint) {
     ElMessage.warning('请选择格式约束')
@@ -553,9 +668,28 @@ const handleSave = () => {
     ElMessage.warning('请选择共享约束')
     return
   }
-
-  formRef.value.validate((valid) => {
+  
+  // 验证表单
+  formRef.value.validate(async (valid) => {
     if (valid) {
+      // 如果处于离线模式，显示警告
+      if (offlineMode.value) {
+        try {
+          await ElMessageBox.confirm(
+            '当前处于离线模式，修改只会保存到本地，不会同步到服务器。确定要继续吗？',
+            '离线保存警告',
+            {
+              confirmButtonText: '继续保存',
+              cancelButtonText: '取消',
+              type: 'warning'
+            }
+          )
+        } catch (e) {
+          // 用户取消了操作
+          return
+        }
+      }
+      
       // 构建约束条件数组
       const constraintArray = []
       if (form.formatConstraint) constraintArray.push(`格式约束:${form.formatConstraint}`)
@@ -573,14 +707,28 @@ const handleSave = () => {
         canDelegate: form.transferControl.includes('可委托')
       }
       
+      // 如果没有处理Excel数据，再次处理
+      if (!form.dataItems && form.excelData) {
+        const { dataItems } = processExcelData(form.excelData)
+        form.dataItems = dataItems
+      }
+      
       // 构建更新后的对象
-      const entityName = form.entity
       const updatedObject = {
         id: form.id,
-        entity: entityName,
+        entity: form.entity,
         locationInfo: {
           row: form.locationInfo.row,
           col: form.locationInfo.col
+        },
+        metadata: {
+          dataName: form.metadata.dataName,
+          sourceUnit: form.metadata.sourceUnit,
+          contactPerson: form.metadata.contactPerson,
+          contactPhone: form.metadata.contactPhone,
+          resourceSummary: form.metadata.resourceSummary,
+          fieldClassification: form.metadata.fieldClassification,
+          headers: form.metadata.headers || []
         },
         constraint: constraintArray,
         formatConstraint: form.formatConstraint,
@@ -594,12 +742,8 @@ const handleSave = () => {
         status: form.status,
         feedback: form.feedback,
         excelData: form.excelData,
-        offlineMode: offlineMode.value
-      }
-      
-      // 如果处于离线模式，添加警告
-      if (offlineMode.value && form.excelData) {
-        ElMessage.warning('您正在离线模式下保存，Excel文件将只保存在本地，未上传到服务器')
+        dataItems: form.dataItems || [], // 添加数据项
+        offlineMode: offlineMode.value // 标记是否为离线模式
       }
       
       // 发送保存事件

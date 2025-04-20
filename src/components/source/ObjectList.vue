@@ -382,6 +382,121 @@ const formatConstraintText = (text) => {
   
   return text
 }
+
+// 解析元数据JSON
+const parseMetadataJson = (jsonString) => {
+  console.log('开始解析metadataJson:', jsonString)
+  try {
+    if (!jsonString) {
+      console.log('metadataJson为空')
+      return {}
+    }
+    
+    let metadata = {}
+    
+    // 处理不同格式的metadataJson
+    if (typeof jsonString === 'string') {
+      console.log('metadataJson是字符串类型')
+      
+      try {
+        // 1. 尝试直接解析标准JSON
+        metadata = JSON.parse(jsonString)
+        console.log('成功解析标准JSON字符串')
+      } catch (parseError) {
+        console.warn('标准JSON解析失败，尝试处理转义字符:', parseError)
+        
+        // 2. 处理各种转义的情况
+        let processedString = jsonString
+        
+        // 处理可能的反斜杠转义
+        if (jsonString.includes('\\')) {
+          try {
+            // 尝试处理双重转义的JSON字符串 
+            processedString = jsonString.replace(/\\"/g, '"')
+            metadata = JSON.parse(processedString)
+            console.log('成功解析处理转义后的JSON字符串 (步骤1)')
+          } catch (error) {
+            console.warn('处理转义后解析失败 (步骤1):', error)
+            
+            try {
+              // 尝试删除开头和结尾的引号，并处理转义
+              if (jsonString.startsWith('"') && jsonString.endsWith('"')) {
+                processedString = jsonString.substring(1, jsonString.length - 1).replace(/\\"/g, '"')
+                metadata = JSON.parse(processedString)
+                console.log('成功解析处理转义后的JSON字符串 (步骤2)')
+              }
+            } catch (error2) {
+              console.warn('处理转义后解析失败 (步骤2):', error2)
+              
+              try {
+                // 尝试将双反斜杠替换为单反斜杠
+                processedString = jsonString.replace(/\\\\/g, '\\')
+                metadata = JSON.parse(processedString)
+                console.log('成功解析处理转义后的JSON字符串 (步骤3)')
+              } catch (error3) {
+                console.warn('处理转义后解析失败 (步骤3):', error3)
+              }
+            }
+          }
+        }
+        
+        // 3. 如果以上都失败，尝试正则表达式提取关键字段
+        if (Object.keys(metadata).length === 0) {
+          console.log('尝试使用正则表达式提取关键字段')
+          
+          // 匹配各种可能的格式，应对各种转义情况
+          const patterns = [
+            /resourceSummary[\\]*"*:[\\]*"*([^"\\,}]+)/,
+            /resourceSummary=([^,}]+)/,
+            /resourceSummary[\\]*":([^",}]+)/
+          ]
+          
+          const fieldPatterns = [
+            /fieldClassification[\\]*"*:[\\]*"*([^"\\,}]+)/,
+            /fieldClassification=([^,}]+)/,
+            /fieldClassification[\\]*":([^",}]+)/
+          ]
+          
+          for (const pattern of patterns) {
+            const match = jsonString.match(pattern)
+            if (match && match[1]) {
+              metadata.resourceSummary = match[1].trim()
+              console.log('通过正则提取到resourceSummary:', metadata.resourceSummary)
+              break
+            }
+          }
+          
+          for (const pattern of fieldPatterns) {
+            const match = jsonString.match(pattern)
+            if (match && match[1]) {
+              metadata.fieldClassification = match[1].trim()
+              console.log('通过正则提取到fieldClassification:', metadata.fieldClassification)
+              break
+            }
+          }
+        }
+      }
+    } else if (typeof jsonString === 'object') {
+      console.log('metadataJson是对象类型')
+      metadata = jsonString
+    }
+    
+    const result = {
+      dataName: metadata.dataName || '',
+      sourceUnit: metadata.sourceUnit || '',
+      contactPerson: metadata.contactPerson || '',
+      contactPhone: metadata.contactPhone || '',
+      resourceSummary: metadata.resourceSummary || '',
+      fieldClassification: metadata.fieldClassification || ''
+    }
+    
+    console.log('最终解析的元数据:', result)
+    return result
+  } catch (error) {
+    console.error('解析元数据JSON失败:', error)
+    return {}
+  }
+}
 </script>
 
 <style scoped>

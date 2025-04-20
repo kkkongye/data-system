@@ -218,10 +218,12 @@
         <div v-if="previewForm.metadata" class="metadata-section">
           <div class="metadata-items">
             <!-- 所有元数据项在一行显示 -->
-            <div class="metadata-item">数据名称: <strong>{{ getMetadataValue('dataName') || previewForm.entity }}</strong></div>
-            <div class="metadata-item">来源单位: <strong>{{ getMetadataValue('sourceUnit') || '数据部' }}</strong></div>
-            <div class="metadata-item">联系人: <strong>{{ getMetadataValue('contactPerson') || '未指定' }}</strong></div>
-            <div class="metadata-item">联系电话: <strong>{{ getMetadataValue('contactPhone') || '未提供' }}</strong></div>
+            <div class="metadata-item">数据名称: <strong>{{ previewForm.metadata.dataName || previewForm.entity }}</strong></div>
+            <div class="metadata-item">来源单位: <strong>{{ previewForm.metadata.sourceUnit || '数据部' }}</strong></div>
+            <div class="metadata-item">联系人: <strong>{{ previewForm.metadata.contactPerson || '未指定' }}</strong></div>
+            <div class="metadata-item">联系电话: <strong>{{ previewForm.metadata.contactPhone || '未提供' }}</strong></div>
+            <div class="metadata-item">资源摘要: <strong>{{ previewForm.metadata.resourceSummary || '无' }}</strong></div>
+            <div class="metadata-item">领域分类: <strong>{{ previewForm.metadata.fieldClassification || '未分类' }}</strong></div>
             <div class="metadata-item">更新时间: <strong>{{ getCurrentDateTime() }}</strong></div>
           </div>
         </div>
@@ -599,39 +601,6 @@ const formatConstraintText = (text) => {
   }
   
   return text
-}
-
-// 获取元数据字段值的辅助函数
-const getMetadataValue = (fieldName) => {
-  // 防止未定义
-  if (!previewForm.metadata) return null
-  
-  // 直接检查顶级对象
-  if (previewForm.metadata[fieldName]) {
-    return previewForm.metadata[fieldName]
-  }
-  
-  // 检查嵌套对象
-  const checkNestedObject = (obj, field) => {
-    // 不是对象，返回null
-    if (typeof obj !== 'object' || obj === null) return null
-    
-    // 直接检查当前对象是否有该字段
-    if (obj[field] !== undefined) return obj[field]
-    
-    // 递归检查所有属性
-    for (const key in obj) {
-      if (typeof obj[key] === 'object' && obj[key] !== null) {
-        const result = checkNestedObject(obj[key], field)
-        if (result !== null) return result
-      }
-    }
-    
-    return null
-  }
-  
-  // 尝试在嵌套对象中查找
-  return checkNestedObject(previewForm.metadata, fieldName)
 }
 
 // 获取当前格式化的日期时间

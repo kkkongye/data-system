@@ -15,7 +15,7 @@ import java.util.UUID;
 public class UploadController {
     private static final Logger log = LoggerFactory.getLogger(SourceController.class);
 
-    @PostMapping("/api/objects/excel")
+    @PostMapping("/a")
     public Result upload(MultipartFile file) throws IOException {
         log.info("文件上传:()",file);
         String filename = file.getOriginalFilename();

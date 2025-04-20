@@ -40,6 +40,12 @@
       <el-form-item label="联系电话：" prop="metadata.contactPhone" class="metadata-form-item">
         <el-input v-model="form.metadata.contactPhone" placeholder="请输入联系电话" style="width: 300px;"></el-input>
       </el-form-item>
+      <el-form-item label="资源摘要：" prop="metadata.resourceSummary" class="metadata-form-item">
+        <el-input v-model="form.metadata.resourceSummary" placeholder="请输入资源摘要" style="width: 300px;"></el-input>
+      </el-form-item>
+      <el-form-item label="领域分类：" prop="metadata.fieldClassification" class="metadata-form-item">
+        <el-input v-model="form.metadata.fieldClassification" placeholder="请输入领域分类" style="width: 300px;"></el-input>
+      </el-form-item>
       
       <el-form-item label="定位信息：" prop="locationInfo" style="margin-bottom: 22px;">
         <div style="display: flex; align-items: center; gap: 10px;">
@@ -138,6 +144,7 @@ import { ref, reactive, watch, defineProps, defineEmits } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Document } from '@element-plus/icons-vue'
 import excelUploadService from '@/services/excelUploadService'
+import * as XLSX from 'xlsx' // 确保引入XLSX库用于处理Excel数据
 
 const props = defineProps({
   // 是否显示对话框
@@ -185,7 +192,10 @@ const form = reactive({
     dataName: '',
     sourceUnit: '',
     contactPerson: '',
-    contactPhone: ''
+    contactPhone: '',
+    resourceSummary: '',
+    fieldClassification: '',
+    headers: []
   },
   constraint: [],
   formatConstraint: '',
@@ -194,7 +204,8 @@ const form = reactive({
   regionConstraint: '',
   shareConstraint: '',
   transferControl: ['可读', '可修改', '可销毁', '可共享', '可委托'],
-  excelData: null
+  excelData: null,
+  dataItems: []
 })
 
 // 表单校验规则
@@ -213,6 +224,12 @@ const formRules = {
   ],
   'metadata.contactPhone': [
     { required: false, message: '请输入联系电话', trigger: 'blur' }
+  ],
+  'metadata.resourceSummary': [
+    { required: false, message: '请输入资源摘要', trigger: 'blur' }
+  ],
+  'metadata.fieldClassification': [
+    { required: false, message: '请输入领域分类', trigger: 'blur' }
   ],
   locationInfo: [
     { 
@@ -280,12 +297,16 @@ watch(() => props.modelValue, (newVal) => {
     form.metadata.sourceUnit = newVal.metadata.sourceUnit || ''
     form.metadata.contactPerson = newVal.metadata.contactPerson || ''
     form.metadata.contactPhone = newVal.metadata.contactPhone || ''
+    form.metadata.resourceSummary = newVal.metadata.resourceSummary || ''
+    form.metadata.fieldClassification = newVal.metadata.fieldClassification || ''
   } else {
     // 如果没有元数据，则使用实体名称和默认值
     form.metadata.dataName = newVal.entity || ''
     form.metadata.sourceUnit = ''
     form.metadata.contactPerson = ''
     form.metadata.contactPhone = ''
+    form.metadata.resourceSummary = ''
+    form.metadata.fieldClassification = ''
   }
   
   // 设置约束条件数组
@@ -320,6 +341,14 @@ watch(form, (newVal) => {
       row: newVal.locationInfo.row,
       col: newVal.locationInfo.col
     },
+    metadata: {
+      dataName: newVal.metadata.dataName,
+      sourceUnit: newVal.metadata.sourceUnit,
+      contactPerson: newVal.metadata.contactPerson,
+      contactPhone: newVal.metadata.contactPhone,
+      resourceSummary: newVal.metadata.resourceSummary,
+      fieldClassification: newVal.metadata.fieldClassification
+    },
     constraint: constraintArray,
     formatConstraint: newVal.formatConstraint,
     accessConstraint: newVal.accessConstraint,
@@ -330,6 +359,57 @@ watch(form, (newVal) => {
     excelData: newVal.excelData
   })
 }, { deep: true })
+
+// 添加Excel数据处理函数
+const processExcelData = (binaryString) => {
+  try {
+    // 将二进制字符串转换为工作簿对象
+    const workbook = XLSX.read(binaryString, { type: 'binary' })
+    
+    // 获取第一个工作表的名称
+    const firstSheetName = workbook.SheetNames[0]
+    
+    // 获取工作表
+    const worksheet = workbook.Sheets[firstSheetName]
+    
+    // 将工作表转换为JSON对象数组
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+    
+    // 提取表头和数据
+    if (jsonData.length > 0) {
+      const headers = jsonData[0]
+      const dataRows = jsonData.slice(1)
+      
+      // 将数据行转换为对象数组
+      const dataItems = dataRows.map(row => {
+        const item = {}
+        headers.forEach((header, index) => {
+          if (header && index < row.length) {
+            item[header] = row[index] !== undefined ? String(row[index]) : ''
+          }
+        })
+        return item
+      })
+      
+      console.log('提取的Excel数据项:', dataItems)
+      console.log('提取的表头:', headers)
+      
+      // 保存表头到元数据
+      form.metadata.headers = headers
+      
+      // 返回处理后的数据
+      return {
+        headers,
+        dataItems
+      }
+    }
+    
+    return { headers: [], dataItems: [] }
+  } catch (error) {
+    console.error('处理Excel数据失败:', error)
+    return { headers: [], dataItems: [] }
+  }
+}
 
 // 处理文件变更
 const handleFileChange = async (file) => {
@@ -345,6 +425,11 @@ const handleFileChange = async (file) => {
   const fileName = file.name
   const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.')) || fileName
   form.entity = fileNameWithoutExt
+  
+  // 如果数据名称为空，也用文件名填充
+  if (!form.metadata.dataName) {
+    form.metadata.dataName = fileNameWithoutExt
+  }
   
   // 显示上传中提示
   ElMessage.info('正在上传Excel文件，请稍候...')
@@ -362,6 +447,12 @@ const handleFileChange = async (file) => {
         try {
           // 保存文件的二进制数据用于前端预览
           form.excelData = e.target.result
+          
+          // 处理Excel数据并提取表头和数据项
+          const { headers, dataItems } = processExcelData(e.target.result)
+          
+          // 保存提取的数据项到表单中
+          form.dataItems = dataItems
         } catch (error) {
           console.error('读取Excel文件失败:', error)
         }
@@ -387,6 +478,12 @@ const handleFileChange = async (file) => {
     const reader = new FileReader()
     reader.onload = (e) => {
       form.excelData = e.target.result
+      
+      // 处理Excel数据并提取表头和数据项
+      const { headers, dataItems } = processExcelData(e.target.result)
+      
+      // 保存提取的数据项到表单中
+      form.dataItems = dataItems
     }
     reader.readAsBinaryString(file.raw)
   }
@@ -455,12 +552,27 @@ const handleSave = () => {
         canDelegate: form.transferControl.includes('可委托')
       }
       
+      // 如果没有处理Excel数据，再次处理
+      if (!form.dataItems && form.excelData) {
+        const { dataItems } = processExcelData(form.excelData)
+        form.dataItems = dataItems
+      }
+      
       // 构建新对象
       const newObject = {
         entity: form.entity,
         locationInfo: {
           row: form.locationInfo.row,
           col: form.locationInfo.col
+        },
+        metadata: {
+          dataName: form.metadata.dataName,
+          sourceUnit: form.metadata.sourceUnit,
+          contactPerson: form.metadata.contactPerson,
+          contactPhone: form.metadata.contactPhone,
+          resourceSummary: form.metadata.resourceSummary,
+          fieldClassification: form.metadata.fieldClassification,
+          headers: form.metadata.headers || []
         },
         constraint: constraintArray,
         formatConstraint: form.formatConstraint,
@@ -470,7 +582,10 @@ const handleSave = () => {
         shareConstraint: form.shareConstraint,
         transferControl: form.transferControl,
         propagationControl: propagationControl,
-        excelData: form.excelData
+        status: '待检验',
+        feedback: '',
+        excelData: form.excelData,
+        dataItems: form.dataItems || [] // 添加数据项
       }
       
       // 发送保存事件
@@ -495,6 +610,8 @@ const resetForm = () => {
   form.metadata.sourceUnit = ''
   form.metadata.contactPerson = ''
   form.metadata.contactPhone = ''
+  form.metadata.resourceSummary = ''
+  form.metadata.fieldClassification = ''
   form.constraint = []
   form.formatConstraint = ''
   form.accessConstraint = ''
@@ -503,6 +620,7 @@ const resetForm = () => {
   form.shareConstraint = ''
   form.transferControl = ['可读', '可修改', '可销毁', '可共享', '可委托']
   form.excelData = null
+  form.dataItems = []
   
   if (formRef.value) {
     formRef.value.resetFields()
@@ -518,7 +636,10 @@ const handleCancel = () => {
 
 // 对话框关闭处理
 const handleDialogClosed = () => {
-  resetForm()
+  // 只有在非编辑模式下才重置表单
+  if (!props.modelValue.id) {
+    resetForm()
+  }
 }
 </script>
 

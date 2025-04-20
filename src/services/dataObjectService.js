@@ -595,11 +595,98 @@ const createDefaultDataObject = () => {
   }
 }
 
+// 将前端数据转换为后端所需的格式
+const transformToBackendFormat = (frontendData) => {
+  console.log('开始转换前端数据到后端格式:', frontendData)
+  
+  // 构建数据实体对象
+  const dataEntity = {
+    entity: frontendData.entity || '',
+    status: frontendData.status || '待检验',
+    feedback: frontendData.feedback || '',
+    metadata: frontendData.metadata || {
+      dataName: frontendData.entity || '',
+      sourceUnit: '',
+      contactPerson: '',
+      contactPhone: '',
+      resourceSummary: '',
+      fieldClassification: ''
+    },
+    dataItems: frontendData.dataItems || []
+  }
+
+  // 构建位置信息对象
+  const locationInfo = {
+    locations: [
+      {
+        sheet: frontendData.sheet || "生产表",
+        startRow: frontendData.locationInfo && frontendData.locationInfo.row ? frontendData.locationInfo.row.split('-')[0] : "2",
+        endRow: frontendData.locationInfo && frontendData.locationInfo.row ? frontendData.locationInfo.row.split('-')[1] || "100" : "100",
+        startColumn: frontendData.locationInfo && frontendData.locationInfo.col ? frontendData.locationInfo.col.split('-')[0] : "B",
+        endColumn: frontendData.locationInfo && frontendData.locationInfo.col ? frontendData.locationInfo.col.split('-')[1] || "E" : "E"
+      }
+    ]
+  }
+
+  // 构建约束集合对象
+  const constraintSet = {
+    constraints: [
+      {
+        formatConstraint: frontendData.formatConstraint || "xlsx",
+        accessConstraint: frontendData.accessConstraint || "全部允许",
+        pathConstraint: frontendData.pathConstraint || "点对点",
+        regionConstraint: frontendData.regionConstraint || "内网",
+        shareConstraint: frontendData.shareConstraint || "允许共享"
+      }
+    ]
+  }
+
+  // 构建传播控制对象
+  const propagationControl = {
+    operations: {
+      read: frontendData.transferControl && frontendData.transferControl.includes("可读") ? 1 : 0,
+      modify: frontendData.transferControl && frontendData.transferControl.includes("可修改") ? 1 : 0,
+      share: frontendData.transferControl && frontendData.transferControl.includes("可共享") ? 1 : 0,
+      delegate: frontendData.transferControl && frontendData.transferControl.includes("可委托") ? 1 : 0,
+      destroy: frontendData.transferControl && frontendData.transferControl.includes("可销毁") ? 1 : 0
+    }
+  }
+
+  // 构建审计信息对象
+  const auditInfo = {
+    auditRecords: [
+      {
+        subject: "system",
+        object: frontendData.entity || "数据对象",
+        operationType: frontendData.id ? "更新" : "创建",
+        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+        blockHash: "0x" + Math.random().toString(16).substring(2, 10),
+        previousHash: "0x" + Math.random().toString(16).substring(2, 10)
+      }
+    ]
+  }
+
+  // 返回后端所需的完整格式
+  return {
+    id: frontendData.id || "",
+    dataEntity: dataEntity,
+    locationInfo: locationInfo,
+    constraintSet: constraintSet,
+    propagationControl: propagationControl,
+    auditInfo: auditInfo
+  }
+}
+
 // 通过API添加数字对象
 const addDataObjectViaApi = async (dataObject) => {
   try {
-    console.log('正在通过API添加数字对象，数据:', dataObject)
-    const response = await axios.post(`${API_URL}/objects`, dataObject)
+    console.log('正在通过API添加数字对象，原始数据:', dataObject)
+    
+    // 转换为后端所需的数据格式
+    const backendData = transformToBackendFormat(dataObject)
+    console.log('转换后的后端数据格式:', backendData)
+    
+    const response = await axios.post(`${API_URL}/objects`, backendData)
     console.log('添加数字对象API响应:', response)
     
     // 检查响应状态
@@ -664,8 +751,13 @@ const addDataObject = (newObject) => {
 // 通过API更新数字对象
 const updateDataObjectViaApi = async (id, dataObject) => {
   try {
-    console.log('正在通过API更新数字对象，ID:', id, '数据:', dataObject)
-    const response = await axios.put(`${API_URL}/objects/${id}`, dataObject)
+    console.log('正在通过API更新数字对象，ID:', id, '原始数据:', dataObject)
+    
+    // 转换为后端所需的数据格式
+    const backendData = transformToBackendFormat(dataObject)
+    console.log('转换后的后端数据格式:', backendData)
+    
+    const response = await axios.put(`${API_URL}/objects/${id}`, backendData)
     console.log('更新数字对象API响应:', response)
     
     // 检查响应状态
