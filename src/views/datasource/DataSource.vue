@@ -67,7 +67,7 @@
     :close-on-click-modal="false"
     draggable
   >
-    <el-form :model="editForm" label-width="120px" ref="editFormRef" :rules="formRules">
+    <el-form :model="editForm" label-width="150px" ref="editFormRef" :rules="formRules">
       <el-form-item label="ID：" v-if="editForm.id !== undefined && editForm.id !== null">
         <el-input v-model="editForm.id" disabled placeholder="自动生成" style="width: 300px;"></el-input>
       </el-form-item>
@@ -99,9 +99,9 @@
       
       <el-form-item label="定位信息：" prop="locationInfo">
         <div style="display: flex; align-items: center; gap: 10px;">
-          <el-input v-model="editForm.locationInfo.row" placeholder="例：0-4" style="width: 150px;"></el-input>
+          <el-input v-model="editForm.locationInfo.row" placeholder="例：0-4" style="width: 120px;"></el-input>
           <span>行</span>
-          <el-input v-model="editForm.locationInfo.col" placeholder="例：0-4" style="width: 150px;"></el-input>
+          <el-input v-model="editForm.locationInfo.col" placeholder="例：0-4" style="width: 120px;"></el-input>
           <span>列</span>
         </div>
       </el-form-item>
@@ -155,6 +155,7 @@
         </el-select>
       </el-form-item>
     </el-form>
+    
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="cancelEdit">取消</el-button>
