@@ -89,6 +89,14 @@
         <el-input v-model="editForm.metadata.contactPhone" placeholder="请输入联系电话" style="width: 300px;"></el-input>
       </el-form-item>
       
+      <el-form-item label="资源摘要：" prop="metadata.resourceSummary">
+        <el-input v-model="editForm.metadata.resourceSummary" placeholder="请输入资源摘要" style="width: 300px;"></el-input>
+      </el-form-item>
+      
+      <el-form-item label="领域分类：" prop="metadata.fieldClassification">
+        <el-input v-model="editForm.metadata.fieldClassification" placeholder="请输入领域分类" style="width: 300px;"></el-input>
+      </el-form-item>
+      
       <el-form-item label="定位信息：" prop="locationInfo">
         <div style="display: flex; align-items: center; gap: 10px;">
           <el-input v-model="editForm.locationInfo.row" placeholder="例：0-4" style="width: 150px;"></el-input>
@@ -102,6 +110,10 @@
         <el-select v-model="editForm.formatConstraint" placeholder="请选择格式" style="width: 300px;">
           <el-option label="jpg" value="jpg"></el-option>
           <el-option label="xlsx" value="xlsx"></el-option>
+          <el-option label="json" value="json"></el-option>
+          <el-option label="csv" value="csv"></el-option>
+          <el-option label="pdf" value="pdf"></el-option>
+          <el-option label="txt" value="txt"></el-option>
         </el-select>
       </el-form-item>
       
@@ -252,6 +264,13 @@ const editDialogVisible = ref(false)
 const createDialogVisible = ref(false)
 // 当前编辑的对象ID
 const currentEditId = ref('') 
+
+// 为元数据字段创建单独的响应式引用
+const metadataDataName = ref('')
+const metadataSourceUnit = ref('')
+const metadataContactPerson = ref('')
+const metadataContactPhone = ref('')
+
 // 编辑表单数据 - 使用reactive直接创建响应式对象
 const editForm = reactive({
   id: '',
@@ -362,120 +381,95 @@ const handleSelectionChange = (rows) => {
   selectedRows.value = rows
 }
 
-// 编辑对象
+// 处理编辑操作
 const handleEdit = (row) => {
-  console.log('编辑行数据：', row)
+  console.log('开始编辑对象:', row)
   
-  // 确保row存在，防止传入undefined或null
-  if (!row) {
-    console.error('编辑失败：传入的行数据为空')
-    ElMessage.error('编辑失败：数据无效')
-    return
-  }
+  // 重置编辑表单
+  resetEditForm()
   
-  // 直接设置编辑表单数据
-  editForm.id = row.id || ''
-  editForm.entity = row.entity || ''
+  // 设置基本信息
+  editForm.id = row.id
+  editForm.entity = row.entity
+  editForm.locationInfo = row.locationInfo || { row: '', col: '' }
   
-  // 确保locationInfo对象存在
-  if (!editForm.locationInfo) {
-    editForm.locationInfo = { row: '', col: '' }
-  }
-  
-  // 处理定位信息
-  if (typeof row.locationInfo === 'string') {
-    // 尝试从字符串解析定位信息
-    const matches = row.locationInfo.match(/\((.*?),\s*(.*?),\s*(.*?)\)/)
-    if (matches && matches.length > 3) {
-      editForm.locationInfo.row = matches[2].trim()
-      editForm.locationInfo.col = matches[3].trim()
-    } else {
-      editForm.locationInfo.row = ''
-      editForm.locationInfo.col = ''
-    }
-  } else if (row.locationInfo && typeof row.locationInfo === 'object') {
-    // 直接使用对象格式
-    editForm.locationInfo.row = row.locationInfo.row || ''
-    editForm.locationInfo.col = row.locationInfo.col || ''
-  } else {
-    editForm.locationInfo.row = ''
-    editForm.locationInfo.col = ''
-  }
-  
-  // 确保metadata对象存在
-  if (!editForm.metadata) {
-    editForm.metadata = {
-      dataName: '',
-      sourceUnit: '',
-      contactPerson: '',
-      contactPhone: '',
-      resourceSummary: '',
-      fieldClassification: '',
-      headers: []
+  // 如果locationInfo是字符串格式，尝试解析
+  if (typeof editForm.locationInfo === 'string') {
+    try {
+      // 避免使用正则表达式匹配，改用字符串分割
+      const locString = editForm.locationInfo.trim()
+      if (locString.startsWith('(') && locString.endsWith(')')) {
+        // 去掉括号并分割
+        const parts = locString.substring(1, locString.length - 1).split(',').map(s => s.trim())
+        if (parts.length >= 3) {
+          // 第一部分是实体名称，第二部分是行，第三部分是列
+          editForm.locationInfo = { 
+            row: parts[1], 
+            col: parts[2] 
+          }
+        } else {
+          editForm.locationInfo = { row: '', col: '' }
+        }
+      } else {
+        editForm.locationInfo = { row: '', col: '' }
+      }
+    } catch (e) {
+      console.error('解析locationInfo失败:', e)
+      editForm.locationInfo = { row: '', col: '' }
     }
   }
   
-  // 处理元数据
-  if (row.metadata && typeof row.metadata === 'object') {
-    // 逐个设置属性，避免直接赋值造成响应式丢失
-    editForm.metadata.dataName = row.metadata.dataName || row.entity || ''
-    editForm.metadata.sourceUnit = row.metadata.sourceUnit || ''
-    editForm.metadata.contactPerson = row.metadata.contactPerson || ''
-    editForm.metadata.contactPhone = row.metadata.contactPhone || ''
-    editForm.metadata.resourceSummary = row.metadata.resourceSummary || ''
-    editForm.metadata.fieldClassification = row.metadata.fieldClassification || ''
-    editForm.metadata.headers = Array.isArray(row.metadata.headers) ? [...row.metadata.headers] : []
-  } else {
-    // 没有元数据时设置默认值
-    editForm.metadata.dataName = row.entity || ''
-    editForm.metadata.sourceUnit = ''
-    editForm.metadata.contactPerson = ''
-    editForm.metadata.contactPhone = ''
-    editForm.metadata.resourceSummary = ''
-    editForm.metadata.fieldClassification = ''
-    editForm.metadata.headers = []
-  }
+  editForm.format = row.format || ''
+  editForm.resourcePath = row.resourcePath || ''
+  editForm.description = row.description || ''
   
-  // 设置约束条件和其他字段
+  // 从约束条件中提取各类约束
   if (Array.isArray(row.constraint)) {
-    editForm.constraint = [...row.constraint]
-  } else if (row.constraint) {
-    editForm.constraint = [row.constraint]
-  } else {
-    editForm.constraint = []
+    row.constraint.forEach(constraint => {
+      if (constraint.includes('格式约束:')) {
+        editForm.formatConstraint = constraint.split(':')[1]
+      } else if (constraint.includes('访问权限:')) {
+        editForm.accessConstraint = constraint.split(':')[1]
+      } else if (constraint.includes('传输路径约束:')) {
+        editForm.pathConstraint = constraint.split(':')[1]
+      } else if (constraint.includes('地域性约束:')) {
+        editForm.regionConstraint = constraint.split(':')[1]
+      } else if (constraint.includes('共享约束:')) {
+        editForm.shareConstraint = constraint.split(':')[1]
+      }
+    })
+  } else if (typeof row.constraint === 'string') {
+    // 处理单个字符串约束
+    if (row.constraint.includes('格式约束:')) {
+      editForm.formatConstraint = row.constraint.split(':')[1]
+    }
   }
   
-  // 设置各种约束字段
-  editForm.formatConstraint = row.formatConstraint || ''
-  editForm.accessConstraint = row.accessConstraint || ''
-  editForm.pathConstraint = row.pathConstraint || ''
-  editForm.regionConstraint = row.regionConstraint || ''
-  editForm.shareConstraint = row.shareConstraint || ''
+  // 处理单独的约束字段
+  editForm.formatConstraint = row.formatConstraint || editForm.formatConstraint
+  editForm.accessConstraint = row.accessConstraint || editForm.accessConstraint
+  editForm.pathConstraint = row.pathConstraint || editForm.pathConstraint
+  editForm.regionConstraint = row.regionConstraint || editForm.regionConstraint
+  editForm.shareConstraint = row.shareConstraint || editForm.shareConstraint
   
   // 设置传输控制
-  if (Array.isArray(row.transferControl)) {
-    editForm.transferControl = [...row.transferControl]
-  } else if (row.transferControl) {
-    editForm.transferControl = [row.transferControl]
+  editForm.transferControl = Array.isArray(row.transferControl) ? [...row.transferControl] : []
+  
+  // 使用extractMetadata获取元数据
+  const metadata = extractMetadata(row)
+  console.log('提取到的元数据:', metadata)
+  
+  // 更新元数据表单
+  if (metadata) {
+    editForm.metadata = metadata
   } else {
-    editForm.transferControl = []
+    console.warn('未找到有效的元数据，使用默认空值')
+    editForm.metadata = createDefaultMetadata(row.entity)
   }
   
-  // 设置其他字段
-  editForm.auditInfo = row.auditInfo || ''
-  editForm.status = row.status || ''
-  editForm.feedback = row.feedback || ''
-  editForm.excelData = row.excelData || null
-  editForm.dataItems = row.dataItems || []
+  console.log('编辑表单已更新:', editForm)
   
-  // 记录当前编辑的ID
-  currentEditId.value = row.id
-  
-  // 添加更多调试信息
-  console.log('编辑表单数据已设置:', JSON.stringify(editForm))
-  console.log('当前编辑ID:', currentEditId.value)
-  
-  // 直接打开编辑对话框
+  // 显示对话框
   editDialogVisible.value = true
 }
 
@@ -833,140 +827,9 @@ const previewEntity = (row) => {
   previewForm.transferControl = ensureArray(row.transferControl)
   previewForm.status = row.status
   
-  // 解析元数据JSON - 增强版
-  previewForm.metadata = null
-  
-  // 检查数据的各种可能位置，提取元数据
-  const extractMetadata = () => {
-    // 直接检查row中的metadataJson字段
-    if (row.metadataJson) {
-      console.log('从row.metadataJson提取元数据')
-      try {
-        processMetadataString(row.metadataJson)
-        if (previewForm.metadata) return true
-      } catch (e) {
-        console.warn('解析row.metadataJson失败:', e)
-      }
-    }
-    
-    // 检查dataContent字段中的metadataJson
-    if (row.dataContent) {
-      console.log('检查row.dataContent中的元数据')
-      try {
-        // 尝试解析dataContent
-        const contentObj = typeof row.dataContent === 'string' ? 
-          JSON.parse(row.dataContent) : row.dataContent
-        
-        if (contentObj && contentObj.metadataJson) {
-          console.log('从row.dataContent.metadataJson提取元数据')
-          processMetadataString(contentObj.metadataJson)
-          if (previewForm.metadata) return true
-        }
-        
-        // 直接从dataContent中提取元数据字段
-        if (contentObj && (contentObj.dataName || contentObj.sourceUnit || 
-            contentObj.contactPerson || contentObj.contactPhone)) {
-          console.log('直接从dataContent中获取元数据字段')
-          previewForm.metadata = {
-            dataName: contentObj.dataName,
-            sourceUnit: contentObj.sourceUnit,
-            contactPerson: contentObj.contactPerson,
-            contactPhone: contentObj.contactPhone
-          }
-          return true
-        }
-      } catch (e) {
-        console.warn('解析dataContent失败:', e)
-      }
-    }
-    
-    // 最后尝试使用数据模拟（当服务器未返回元数据时使用）
-    if (!previewForm.metadata) {
-      // 为所有数据对象生成模拟元数据，不再限制为只有用户表
-      console.log('使用通用模拟元数据')
-      
-      // 根据实体名称生成有针对性的模拟数据
-      let entityName = row.entity || '未知实体'
-      let sourceUnit = '数据部'
-      let contactPerson = '王主任'
-      
-      // 根据实体名称定制一些元数据
-      if (entityName.includes('用户')) {
-        sourceUnit = '用户管理部'
-      } else if (entityName.includes('订单')) {
-        sourceUnit = '订单管理部'
-        contactPerson = '李经理'
-      } else if (entityName.includes('产品')) {
-        sourceUnit = '产品部'
-        contactPerson = '张总监'
-      }
-      
-      previewForm.metadata = {
-        dataName: entityName,
-        sourceUnit: sourceUnit,
-        contactPerson: contactPerson,
-        contactPhone: "123-456789"
-      }
-      return true
-    }
-    
-    return false
-  }
-  
-  // 处理元数据字符串的函数
-  const processMetadataString = (metadataString) => {
-    if (!metadataString) return
-    
-    // 检查是否已经是对象
-    if (typeof metadataString === 'object') {
-      previewForm.metadata = metadataString
-      return
-    }
-    
-    // 修复JSON字符串中可能存在的常见问题
-    let cleanString = metadataString
-    // 修复结尾多余的]}问题
-    if (cleanString.includes('"]}"') && !cleanString.endsWith('"}')) {
-      cleanString = cleanString.replace('"]}"', '"}')
-    }
-    if (cleanString.includes('"]}",')) {
-      cleanString = cleanString.replace('"]}",', '"}')
-    }
-    
-    // 修复开头缺少{的问题
-    if (!cleanString.startsWith('{') && cleanString.includes('":"')) {
-      cleanString = '{' + cleanString
-    }
-    
-    // 修复结尾缺少}的问题
-    if (!cleanString.endsWith('}') && cleanString.includes('":"')) {
-      cleanString = cleanString + '}'
-    }
-    
-    try {
-      // 尝试解析（可能需要多次解析）
-      let parsed = cleanString
-      let attempts = 0
-      const maxAttempts = 3
-      
-      while (typeof parsed === 'string' && attempts < maxAttempts) {
-        parsed = JSON.parse(parsed)
-        console.log(`第${attempts + 1}次解析结果:`, parsed)
-        attempts++
-      }
-      
-      // 设置元数据
-      if (typeof parsed === 'object') {
-        previewForm.metadata = parsed
-      }
-    } catch (e) {
-      console.warn('解析元数据字符串失败:', e, '原始字符串:', metadataString, '清理后:', cleanString)
-    }
-  }
-  
-  // 执行元数据提取
-  const metadataExtracted = extractMetadata()
-  console.log('元数据提取结果:', metadataExtracted, previewForm.metadata)
+  // 解析元数据 - 使用改进的extractMetadata函数
+  previewForm.metadata = extractMetadata(row)
+  console.log('已设置预览元数据:', previewForm.metadata)
   
   // 清空当前Excel数据
   currentExcelFile.value = null
@@ -1436,6 +1299,255 @@ const saveCreateObject = async (newObject) => {
 // 取消新建
 const cancelCreate = () => {
   // 对话框会自动关闭，不需要额外处理
+}
+
+// 重置编辑表单
+const resetEditForm = () => {
+  editForm.value = {
+    id: '',
+    entity: '',
+    locationInfo: { row: '', col: '' },
+    format: '',
+    resourcePath: '',
+    description: '',
+    metadata: {
+      dataName: '',
+      sourceUnit: '',
+      contactPerson: '',
+      contactPhone: '',
+      resourceSummary: '',
+      fieldClassification: '',
+      headers: []
+    }
+  }
+}
+
+// 处理元数据字符串的函数
+const processMetadataString = (metadataString) => {
+  console.log('处理元数据字符串，原始输入:', metadataString)
+  
+  if (!metadataString) {
+    console.warn('元数据字符串为空')
+    return {  // 返回一个默认的元数据对象，而不是空对象
+      dataName: '未知数据',
+      sourceUnit: '未知来源',
+      contactPerson: '未指定',
+      contactPhone: '未提供',
+      resourceSummary: '无描述',
+      fieldClassification: '未分类'
+    }
+  }
+  
+  // 检查是否已经是对象
+  if (typeof metadataString === 'object') {
+    console.log('元数据已经是对象，无需解析')
+    return metadataString
+  }
+  
+  // 修复JSON字符串中可能存在的常见问题
+  let cleanString = metadataString.toString()
+  
+  try {
+    // 处理双重转义的情况 (例如: "{\"key\":\"value\"}")
+    
+    // 首先尝试去掉外层引号，处理字符串形式的JSON
+    if (cleanString.startsWith('"') && cleanString.endsWith('"')) {
+      const unquoted = cleanString.slice(1, -1).replace(/\\"/g, '"')
+      console.log('移除外层引号后:', unquoted)
+      cleanString = unquoted
+    }
+    
+    // 处理被转义多次的情况
+    if (cleanString.includes('\\\"') || cleanString.includes('\\\\')) {
+      cleanString = cleanString.replace(/\\\\/g, '\\').replace(/\\"/g, '"')
+      console.log('处理转义字符后:', cleanString)
+    }
+    
+    // 修复结尾多余的]}问题
+    if (cleanString.includes('"]}"') && !cleanString.endsWith('"}')) {
+      cleanString = cleanString.replace('"]}"', '"}')
+    }
+    if (cleanString.includes('"]}",')) {
+      cleanString = cleanString.replace('"]}",', '"}')
+    }
+    
+    // 修复开头缺少{的问题
+    if (!cleanString.startsWith('{') && cleanString.includes('":"')) {
+      cleanString = '{' + cleanString
+    }
+    
+    // 修复结尾缺少}的问题
+    if (!cleanString.endsWith('}') && cleanString.includes('":"')) {
+      cleanString = cleanString + '}'
+    }
+    
+    console.log('清理后的字符串:', cleanString)
+    
+    // 尝试直接解析清理后的字符串
+    try {
+      const parsed = JSON.parse(cleanString)
+      console.log('解析成功:', parsed)
+      
+      // 确保返回对象包含预期的字段
+      return {
+        dataName: parsed.dataName || '未知数据',
+        sourceUnit: parsed.sourceUnit || '未知来源',
+        contactPerson: parsed.contactPerson || '未指定',
+        contactPhone: parsed.contactPhone || '未提供',
+        resourceSummary: parsed.resourceSummary || '无描述',
+        fieldClassification: parsed.fieldClassification || '未分类',
+        headers: parsed.headers || []
+      }
+    } catch (parseError) {
+      console.warn('JSON解析失败，尝试其他方法:', parseError)
+      
+      // 尝试使用正则表达式提取键值对
+      const keyValuePairs = {}
+      const regex = /"([^"]+)"\s*:\s*"([^"]*)"/g
+      let match
+      
+      while ((match = regex.exec(cleanString)) !== null) {
+        keyValuePairs[match[1]] = match[2]
+      }
+      
+      if (Object.keys(keyValuePairs).length > 0) {
+        console.log('使用正则表达式提取的键值对:', keyValuePairs)
+        return {
+          dataName: keyValuePairs.dataName || '未知数据',
+          sourceUnit: keyValuePairs.sourceUnit || '未知来源',
+          contactPerson: keyValuePairs.contactPerson || '未指定',
+          contactPhone: keyValuePairs.contactPhone || '未提供',
+          resourceSummary: keyValuePairs.resourceSummary || '无描述',
+          fieldClassification: keyValuePairs.fieldClassification || '未分类'
+        }
+      }
+      
+      // 如果所有尝试都失败，返回默认元数据
+      console.warn('所有解析方法都失败，返回默认元数据')
+      return {
+        dataName: '解析错误',
+        sourceUnit: '数据部',
+        contactPerson: '未知',
+        contactPhone: '未知',
+        resourceSummary: '元数据解析失败: ' + cleanString.substring(0, 50) + '...',
+        fieldClassification: '未分类'
+      }
+    }
+  } catch (e) {
+    console.error('处理元数据字符串时出错:', e)
+    return {
+      dataName: '解析错误',
+      sourceUnit: '数据部',
+      contactPerson: '未知',
+      contactPhone: '未知',
+      resourceSummary: '元数据解析失败: ' + e.message,
+      fieldClassification: '未分类'
+    }
+  }
+}
+
+// 检查数据的各种可能位置，提取元数据
+const extractMetadata = (row) => {
+  if (!row) {
+    console.warn('提取元数据时收到空对象')
+    return createDefaultMetadata('未知实体')
+  }
+  
+  console.log('开始提取元数据，数据源:', row)
+  
+  // 直接检查row中的metadata对象
+  if (row.metadata && typeof row.metadata === 'object') {
+    console.log('直接使用row.metadata对象:', row.metadata)
+    // 确保所有必要字段都存在
+    return {
+      dataName: row.metadata.dataName || row.entity || '未知数据',
+      sourceUnit: row.metadata.sourceUnit || '数据部',
+      contactPerson: row.metadata.contactPerson || '未指定',
+      contactPhone: row.metadata.contactPhone || '未提供',
+      resourceSummary: row.metadata.resourceSummary || '无',
+      fieldClassification: row.metadata.fieldClassification || '未分类',
+      headers: Array.isArray(row.metadata.headers) ? row.metadata.headers : []
+    }
+  }
+  
+  // 检查row中的metadataJson字段
+  if (row.metadataJson) {
+    console.log('从row.metadataJson提取元数据')
+    try {
+      const parsedMetadata = processMetadataString(row.metadataJson)
+      console.log('成功解析metadataJson:', parsedMetadata)
+      return parsedMetadata
+    } catch (e) {
+      console.warn('解析row.metadataJson失败:', e)
+    }
+  }
+  
+  // 检查dataContent字段中的元数据
+  if (row.dataContent) {
+    console.log('检查row.dataContent中的元数据')
+    try {
+      // 尝试解析dataContent
+      const contentObj = typeof row.dataContent === 'string' ? 
+        JSON.parse(row.dataContent) : row.dataContent
+      
+      if (contentObj && contentObj.metadataJson) {
+        console.log('从row.dataContent.metadataJson提取元数据')
+        const parsedMetadata = processMetadataString(contentObj.metadataJson)
+        console.log('成功从dataContent.metadataJson解析元数据:', parsedMetadata)
+        return parsedMetadata
+      }
+      
+      // 直接从dataContent中提取元数据字段
+      if (contentObj && (contentObj.dataName || contentObj.sourceUnit || 
+          contentObj.contactPerson || contentObj.contactPhone)) {
+        console.log('直接从dataContent中获取元数据字段')
+        return {
+          dataName: contentObj.dataName || row.entity || '未知数据',
+          sourceUnit: contentObj.sourceUnit || '数据部',
+          contactPerson: contentObj.contactPerson || '未指定',
+          contactPhone: contentObj.contactPhone || '未提供',
+          resourceSummary: contentObj.resourceSummary || '无',
+          fieldClassification: contentObj.fieldClassification || '未分类',
+          headers: contentObj.headers || []
+        }
+      }
+    } catch (e) {
+      console.warn('解析dataContent失败:', e)
+    }
+  }
+  
+  // 创建默认元数据
+  return createDefaultMetadata(row.entity)
+}
+
+// 创建默认元数据的辅助函数
+const createDefaultMetadata = (entityName) => {
+  entityName = entityName || '未知实体'
+  let sourceUnit = '数据部'
+  let contactPerson = '王主任'
+  
+  // 根据实体名称定制一些元数据
+  if (entityName.includes('用户')) {
+    sourceUnit = '用户管理部'
+  } else if (entityName.includes('订单')) {
+    sourceUnit = '订单管理部'
+    contactPerson = '李经理'
+  } else if (entityName.includes('产品')) {
+    sourceUnit = '产品部'
+    contactPerson = '张总监'
+  }
+  
+  console.log('创建默认元数据，实体名称:', entityName)
+  return {
+    dataName: entityName,
+    sourceUnit: sourceUnit,
+    contactPerson: contactPerson,
+    contactPhone: "123-456789",
+    resourceSummary: `${entityName}数据资源`,
+    fieldClassification: entityName.includes('用户') ? '用户数据' : 
+                        (entityName.includes('订单') ? '订单数据' : '基础数据'),
+    headers: []
+  }
 }
 </script>
 

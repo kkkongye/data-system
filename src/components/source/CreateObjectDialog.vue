@@ -63,6 +63,10 @@
               <el-select v-model="form.formatConstraint" placeholder="请选择格式" class="custom-select-component">
                 <el-option label="jpg" value="jpg"></el-option>
                 <el-option label="xlsx" value="xlsx"></el-option>
+                <el-option label="json" value="json"></el-option>
+                <el-option label="csv" value="csv"></el-option>
+                <el-option label="pdf" value="pdf"></el-option>
+                <el-option label="txt" value="txt"></el-option>
               </el-select>
               <div v-if="form.formatConstraint" class="selected-value">{{ form.formatConstraint }}</div>
             </div>
