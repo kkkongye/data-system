@@ -19,9 +19,11 @@
             :on-change="handleFileChange"
             accept=".xlsx,.xls"
             style="margin-left: 10px;"
+            :disabled="loading"
           >
-            <el-button type="primary">上传Excel</el-button>
+            <el-button type="primary" :loading="loading">上传Excel</el-button>
           </el-upload>
+          <el-tag v-if="uploadSuccess" type="success" size="small">已上传</el-tag>
         </div>
       </el-form-item>
       
@@ -134,8 +136,8 @@
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="handleCancel">取消</el-button>
-        <el-button type="primary" @click="handleSave">确定</el-button>
+        <el-button @click="handleCancel" :disabled="loading">取消</el-button>
+        <el-button type="primary" @click="handleSave" :disabled="loading">确定</el-button>
       </span>
     </template>
   </el-dialog>
@@ -143,10 +145,12 @@
 
 <script setup>
 import { ref, reactive, watch, defineProps, defineEmits } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElLoading } from 'element-plus'
 import { Document } from '@element-plus/icons-vue'
 import excelUploadService from '@/services/excelUploadService'
 import * as XLSX from 'xlsx' // 确保引入XLSX库用于处理Excel数据
+import axios from 'axios'
+import { API_URL } from '@/services/apiConfig'
 
 const props = defineProps({
   // 是否显示对话框
@@ -183,6 +187,13 @@ const formRef = ref(null)
 // 对话框可见性状态
 const dialogVisible = ref(false)
 
+// 加载状态
+const loading = ref(false)
+const loadingText = ref('')
+
+// 上传成功标志
+const uploadSuccess = ref(false)
+
 // 表单数据
 const form = reactive({
   entity: '',
@@ -205,7 +216,7 @@ const form = reactive({
   pathConstraint: '',
   regionConstraint: '',
   shareConstraint: '',
-  transferControl: ['可读', '可修改', '可销毁', '可共享', '可委托'],
+  transferControl: [],
   excelData: null,
   dataItems: []
 })
@@ -236,10 +247,14 @@ const formRules = {
   locationInfo: [
     { 
       validator: (rule, value, callback) => {
-        if (form.locationInfo.row && form.locationInfo.col) {
+        // 只要有行或列信息就通过验证
+        if (form.locationInfo.row || form.locationInfo.col) {
           callback()
         } else {
-          callback(new Error('请输入行和列'))
+          // 如果都没有提供，设置默认值
+          form.locationInfo.row = '1-100'
+          form.locationInfo.col = 'A-Z'
+          callback()
         }
       },
       trigger: 'blur'
@@ -322,7 +337,7 @@ watch(() => props.modelValue, (newVal) => {
   if (newVal.shareConstraint) form.shareConstraint = newVal.shareConstraint
   
   // 传输控制
-  form.transferControl = Array.isArray(newVal.transferControl) ? [...newVal.transferControl] : (newVal.transferControl ? [newVal.transferControl] : ['可读', '可修改', '可销毁', '可共享', '可委托'])
+  form.transferControl = Array.isArray(newVal.transferControl) ? [...newVal.transferControl] : (newVal.transferControl ? [newVal.transferControl] : [])
   
   form.excelData = newVal.excelData
 }, { deep: true })
@@ -393,9 +408,6 @@ const processExcelData = (binaryString) => {
         return item
       })
       
-      console.log('提取的Excel数据项:', dataItems)
-      console.log('提取的表头:', headers)
-      
       // 保存表头到元数据
       form.metadata.headers = headers
       
@@ -415,7 +427,6 @@ const processExcelData = (binaryString) => {
 
 // 处理文件变更
 const handleFileChange = (file) => {
-  console.log('文件变更:', file)
   // 验证文件类型
   const isExcel = file.raw.type === 'application/vnd.ms-excel' || 
                  file.raw.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -437,10 +448,11 @@ const handleFileChange = (file) => {
   reader.onload = (e) => {
     try {
       form.excelData = e.target.result
-      ElMessage.success(`已选择Excel表格"${fileName}"`)
-      
       // 处理Excel数据获取基本信息
       processExcelData(e.target.result)
+      
+      // 上传Excel文件到后端
+      uploadExcelToBackend(file.raw)
     } catch (error) {
       console.error('读取Excel文件失败:', error)
       ElMessage.error('读取Excel文件失败')
@@ -452,21 +464,123 @@ const handleFileChange = (file) => {
   reader.readAsBinaryString(file.raw)
 }
 
-// 保存按钮处理
+// 上传Excel文件到后端
+const uploadExcelToBackend = async (fileRaw) => {
+  loading.value = true
+  loadingText.value = '正在上传Excel文件...'
+  
+  const loadingInstance = ElLoading.service({
+    text: loadingText.value,
+    background: 'rgba(0, 0, 0, 0.7)'
+  })
+  
+  try {
+    // 先在本地解析Excel，确保文件格式正确
+    const reader = new FileReader()
+    reader.onload = async (e) => {
+      try {
+        // 先保存到本地变量，避免在上传失败时也保存数据
+        const excelData = e.target.result
+        // 处理Excel数据获取基本信息
+        const excelResult = processExcelData(excelData)
+        
+        if (!excelResult || !excelResult.headers || excelResult.headers.length === 0) {
+          ElMessage.error('Excel文件解析失败，请检查文件格式')
+          loading.value = false
+          loadingInstance.close()
+          return
+        }
+        
+        // 调用Excel上传服务
+        const result = await excelUploadService.uploadExcelFile(fileRaw)
+        
+        if (result.success) {
+          ElMessage.success('Excel文件上传成功')
+          uploadSuccess.value = true
+          
+          // 保存本地解析的数据到表单
+          form.excelData = excelData
+          form.metadata.headers = excelResult.headers
+          form.dataItems = excelResult.dataItems
+          
+          // 如果后端返回了解析的数据，可以合并更新表单
+          if (result.data && result.data.data) {
+            // 更新表单数据
+            const responseData = result.data.data
+            if (responseData.headers) {
+              form.metadata.headers = responseData.headers
+            }
+            
+            if (responseData.entity && !form.entity) {
+              form.entity = responseData.entity
+            }
+            
+            if (responseData.metadata) {
+              form.metadata = {
+                ...form.metadata,
+                ...responseData.metadata
+              }
+            }
+          }
+        } else {
+          console.error('Excel上传失败:', result.message)
+          // 即使上传失败，我们也可以使用本地解析的数据
+          ElMessage.warning(`Excel文件上传到服务器失败，将使用本地解析结果: ${result.message}`)
+          form.excelData = excelData
+          form.metadata.headers = excelResult.headers
+          form.dataItems = excelResult.dataItems
+          uploadSuccess.value = true
+        }
+      } catch (error) {
+        console.error('Excel解析或上传错误:', error)
+        ElMessage.error('Excel文件处理失败')
+        uploadSuccess.value = false
+      } finally {
+        loading.value = false
+        loadingInstance.close()
+      }
+    }
+    
+    reader.onerror = () => {
+      ElMessage.error('读取文件失败')
+      loading.value = false
+      loadingInstance.close()
+    }
+    
+    // 开始读取文件
+    reader.readAsBinaryString(fileRaw)
+  } catch (error) {
+    console.error('Excel上传过程发生异常:', error)
+    ElMessage.error('处理Excel文件时出错')
+    uploadSuccess.value = false
+    loading.value = false
+    loadingInstance.close()
+  }
+}
+
+// 修改保存按钮处理逻辑，确保Excel文件已上传
 const handleSave = () => {
   // 简单验证
   if (!form.entity) {
-    ElMessage.warning('请上传Excel表格文件')
+    ElMessage.warning('请输入实体名称或上传Excel表格文件')
     return
   }
   
-  if (!form.locationInfo.row || !form.locationInfo.col) {
-    ElMessage.warning('请输入定位信息（行和列）')
-    return
+  // 确保locationInfo有值，如果没有则设置默认值
+  if (!form.locationInfo.row) {
+    form.locationInfo.row = '1-100'
+  }
+  if (!form.locationInfo.col) {
+    form.locationInfo.col = 'A-Z'
   }
   
   if (!form.excelData) {
     ElMessage.warning('请上传Excel表格文件')
+    return
+  }
+  
+  if (!uploadSuccess.value) {
+    ElMessage.warning('请确保Excel文件已成功上传到服务器')
     return
   }
 
@@ -564,7 +678,7 @@ const handleSave = () => {
   })
 }
 
-// 重置表单
+// 重置表单时也重置上传状态
 const resetForm = () => {
   form.entity = ''
   form.locationInfo.row = ''
@@ -581,9 +695,12 @@ const resetForm = () => {
   form.pathConstraint = ''
   form.regionConstraint = ''
   form.shareConstraint = ''
-  form.transferControl = ['可读', '可修改', '可销毁', '可共享', '可委托']
+  form.transferControl = []
   form.excelData = null
   form.dataItems = []
+  
+  // 重置上传状态
+  uploadSuccess.value = false
   
   if (formRef.value) {
     formRef.value.resetFields()

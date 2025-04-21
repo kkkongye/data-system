@@ -1,5 +1,6 @@
 import { reactive, ref } from 'vue'
 import axios from 'axios'
+import { API_URL, axiosInstance } from './apiConfig'
 
 // 共享的数字对象数据
 const sharedTableData = reactive([
@@ -41,22 +42,16 @@ const notifyListeners = () => {
   changeListeners.forEach(callback => callback(sharedTableData))
 }
 
-// API URL
-const API_URL = 'http://localhost:8080/api'
-
 // 保存最后接收的API原始数据
 let lastReceivedApiData = null
 
 // 根据ID获取数字对象详情
 const fetchDataObjectById = async (id) => {
   try {
-    console.log('正在从后端获取数字对象详情，ID:', id)
-    
     // 首先尝试从API获取
     let dataObject = null
     try {
-      const response = await axios.get(`${API_URL}/objects/${id}`)
-      console.log('获取到的数字对象详情响应:', response)
+      const response = await axiosInstance.get(`/objects/${id}`)
       
       // 检查响应状态
       if (response && response.data) {
@@ -65,17 +60,14 @@ const fetchDataObjectById = async (id) => {
         // 情况1: 标准格式 {code: 200, message: '', data: {...}}
         if (response.data.code === 200 && response.data.data) {
           dataObject = response.data.data
-          console.log('使用标准格式响应中的data对象')
         }
         // 情况2: 直接返回带code和data结构的对象，但code不是200 {code: 1, data: {...}}
         else if (response.data.code !== undefined && response.data.data) {
           dataObject = response.data
-          console.log('返回了带code和data结构的对象:', response.data.code)
         }
         // 情况3: 直接返回对象 {...}
         else if (response.data && !Array.isArray(response.data)) {
           dataObject = response.data
-          console.log('API直接返回了数据对象')
         }
       }
     } catch (apiError) {
@@ -85,15 +77,13 @@ const fetchDataObjectById = async (id) => {
     
     // 如果API获取失败，尝试从本地数据查找
     if (!dataObject) {
-      console.log('从本地数据中查找对象ID:', id)
       dataObject = sharedTableData.find(item => compareIds(item.id, id))
       
       if (dataObject) {
-        console.log('在本地数据中找到匹配对象')
         // 本地找到的数据已经是前端格式，直接返回
         return dataObject
       } else {
-        console.warn('在本地数据中未找到ID为', id, '的对象')
+        console.warn('未找到ID为', id, '的对象')
         return null
       }
     }
@@ -108,9 +98,7 @@ const fetchDataObjectById = async (id) => {
 // 从后端获取数据对象列表
 const fetchDataObjectsFromBackend = async () => {
   try {
-    console.log('正在从后端获取数据对象列表...')
-    const response = await axios.get(`${API_URL}/objects/list`)
-    console.log('获取到的API响应:', response)
+    const response = await axiosInstance.get(`/objects/list`)
     
     // 保存原始响应数据
     lastReceivedApiData = response.data
@@ -123,17 +111,14 @@ const fetchDataObjectsFromBackend = async () => {
       // 情况1: 标准格式 {code: 200, message: '', data: [...]}
       if (response.data.code === 200 && Array.isArray(response.data.data)) {
         dataArray = response.data.data
-        console.log('使用标准格式响应中的data数组')
       } 
       // 情况2: 直接返回数组 [...]
       else if (Array.isArray(response.data)) {
         dataArray = response.data
-        console.log('API直接返回了数据数组')
       }
       // 情况3: 包含在data字段中 {data: [...]}
       else if (response.data.data && Array.isArray(response.data.data)) {
         dataArray = response.data.data
-        console.log('从响应的data字段获取数据数组')
       }
       // 情况4: 其他未知格式，尝试寻找数组
       else {
@@ -141,7 +126,6 @@ const fetchDataObjectsFromBackend = async () => {
         for (const key in response.data) {
           if (Array.isArray(response.data[key])) {
             dataArray = response.data[key]
-            console.log(`从字段 ${key} 获取到数据数组`)
             break
           }
         }
@@ -194,14 +178,11 @@ const adaptBackendData = (backendItem) => {
     return createDefaultDataObject()
   }
   
-  console.log('正在处理后端数据项:', backendItem)
-  
-  // 如果有 locationInfoJson 字段，打印日志以便调试
+  // 如果有 locationInfoJson 字段，尝试解析
+  let parsedLocation = null
   if (backendItem.locationInfoJson) {
-    console.log('发现 locationInfoJson 字段:', backendItem.locationInfoJson)
     try {
-      const parsedLocation = JSON.parse(backendItem.locationInfoJson)
-      console.log('解析后的位置信息对象:', parsedLocation)
+      parsedLocation = JSON.parse(backendItem.locationInfoJson)
     } catch (error) {
       console.error('位置信息JSON解析失败:', error)
     }
@@ -218,7 +199,6 @@ const adaptBackendData = (backendItem) => {
   
   // 处理位置信息
   const locationInfo = extractLocationInfo(backendItem)
-  console.log('处理后的位置信息:', locationInfo)
   
   // 处理元数据
   let metadata = null
@@ -235,7 +215,6 @@ const adaptBackendData = (backendItem) => {
       fieldClassification: backendItem.metadata.fieldClassification || '未分类',
       headers: backendItem.metadata.headers || []
     }
-    console.log('从对象中直接提取元数据:', metadata)
   }
   // 2. 检查是否有metadataJson字段
   else if (backendItem.metadataJson) {
@@ -252,7 +231,6 @@ const adaptBackendData = (backendItem) => {
         fieldClassification: parsedMetadata.fieldClassification || '未分类',
         headers: parsedMetadata.headers || []
       }
-      console.log('从metadataJson解析元数据:', metadata)
     } catch (error) {
       console.error('解析metadataJson失败:', error)
     }
@@ -273,7 +251,6 @@ const adaptBackendData = (backendItem) => {
           fieldClassification: contentObj.metadata.fieldClassification || '未分类',
           headers: contentObj.metadata.headers || []
         }
-        console.log('从dataContent.metadata提取元数据:', metadata)
       }
       else if (contentObj && contentObj.metadataJson) {
         try {
@@ -289,7 +266,6 @@ const adaptBackendData = (backendItem) => {
             fieldClassification: parsedMetadata.fieldClassification || '未分类',
             headers: parsedMetadata.headers || []
           }
-          console.log('从dataContent.metadataJson解析元数据:', metadata)
         } catch (error) {
           console.error('解析dataContent.metadataJson失败:', error)
         }
@@ -311,7 +287,6 @@ const adaptBackendData = (backendItem) => {
       fieldClassification: '未分类',
       headers: []
     }
-    console.log('使用默认元数据:', metadata)
   }
   
   // 如果有元数据，创建JSON字符串
@@ -702,12 +677,10 @@ const createDefaultDataObject = () => {
 
 // 将前端数据转换为后端所需的格式
 const transformToBackendFormat = (frontendData) => {
-  console.log('开始转换前端数据到后端格式:', frontendData)
-  
   // 构建数据实体对象
   const dataEntity = {
     entity: frontendData.entity || '',
-    status: frontendData.status || '待检验',
+    status: frontendData.status || '待审核',
     feedback: frontendData.feedback || '',
     metadata: frontendData.metadata || {
       dataName: frontendData.entity || '',
@@ -717,18 +690,19 @@ const transformToBackendFormat = (frontendData) => {
       resourceSummary: '',
       fieldClassification: ''
     },
-    dataItems: frontendData.dataItems || []
+    dataItems: frontendData.dataItems || [],
+    excelData: frontendData.excelData || null  // 确保包含 Excel 二进制数据
   }
 
   // 构建位置信息对象
   const locationInfo = {
     locations: [
       {
-        sheet: frontendData.sheet || "生产表",
-        startRow: frontendData.locationInfo && frontendData.locationInfo.row ? frontendData.locationInfo.row.split('-')[0] : "2",
+        sheet: frontendData.sheet || "Sheet1",  // 使用更通用的默认值
+        startRow: frontendData.locationInfo && frontendData.locationInfo.row ? frontendData.locationInfo.row.split('-')[0] : "1",
         endRow: frontendData.locationInfo && frontendData.locationInfo.row ? frontendData.locationInfo.row.split('-')[1] || "100" : "100",
-        startColumn: frontendData.locationInfo && frontendData.locationInfo.col ? frontendData.locationInfo.col.split('-')[0] : "B",
-        endColumn: frontendData.locationInfo && frontendData.locationInfo.col ? frontendData.locationInfo.col.split('-')[1] || "E" : "E"
+        startColumn: frontendData.locationInfo && frontendData.locationInfo.col ? frontendData.locationInfo.col.split('-')[0] : "A",
+        endColumn: frontendData.locationInfo && frontendData.locationInfo.col ? frontendData.locationInfo.col.split('-')[1] || "Z" : "Z"
       }
     ]
   }
@@ -785,21 +759,26 @@ const transformToBackendFormat = (frontendData) => {
 // 通过API添加数字对象
 const addDataObjectViaApi = async (dataObject) => {
   try {
-    console.log('正在通过API添加数字对象，原始数据:', dataObject)
-    
-    // 转换为后端所需的数据格式
+    if (!dataObject) {
+      console.error('尝试添加的数据对象为空')
+      return {
+        success: false,
+        message: '数据对象为空'
+      }
+    }
+
+    // 将前端数据转换为后端格式
     const backendData = transformToBackendFormat(dataObject)
-    console.log('转换后的后端数据格式:', backendData)
     
-    const response = await axios.post(`${API_URL}/objects`, backendData)
-    console.log('添加数字对象API响应:', response)
+    // 使用axios发送请求
+    const response = await axiosInstance.post('/objects', backendData)
     
     // 检查响应状态
     if (response && response.data) {
-      // 判断返回格式
+      // 处理各种可能的响应格式
+      
+      // 情况1：标准格式 {code: 200, message: '', data: {...}}
       if (response.data.code === 200) {
-        console.log('数字对象添加成功')
-        
         // 如果响应中包含了对象ID，使用响应返回的ID
         let createdObject = dataObject
         if (response.data.data && response.data.data.id) {
@@ -814,17 +793,67 @@ const addDataObjectViaApi = async (dataObject) => {
           object: createdObject
         }
       }
+      // 情况2：直接返回对象 {...}
+      else if (response.data.id || response.data.entity) {
+        // 合并返回的对象数据与原始数据
+        const createdObject = {
+          ...dataObject,
+          id: response.data.id || dataObject.id || Date.now().toString(),
+          // 可以合并其他从响应中获取的字段
+        }
+        
+        // 同时更新本地数据
+        addDataObject(createdObject)
+        
+        return {
+          success: true,
+          object: createdObject
+        }
+      }
+      // 情况3: 只返回成功状态，没有详细数据
+      else if (response.status >= 200 && response.status < 300) {
+        // 生成一个临时ID
+        const createdObject = {
+          ...dataObject,
+          id: dataObject.id || Date.now().toString()
+        }
+        
+        // 同时更新本地数据
+        addDataObject(createdObject)
+        
+        return {
+          success: true,
+          object: createdObject,
+          message: '对象已添加，但后端未返回详细信息'
+        }
+      }
+    }
+    
+    // 如果到这里还没有return，说明响应格式不符合预期
+    console.warn('API响应格式不符合预期')
+    return {
+      success: false,
+      message: '添加失败：后端响应格式异常'
+    }
+  } catch (error) {
+    console.error('通过API添加数字对象失败:', error)
+    
+    // 格式化错误信息
+    let errorMessage = '添加失败'
+    if (error.response) {
+      const status = error.response.status
+      const responseData = error.response.data || {}
+      errorMessage = `服务器错误 (${status}): ${responseData.message || '未知错误'}`
+    } else if (error.request) {
+      errorMessage = '服务器无响应，请检查后端服务是否正常运行'
+    } else {
+      errorMessage = `请求错误: ${error.message}`
     }
     
     return {
       success: false,
-      message: '添加失败'
-    }
-  } catch (error) {
-    console.error('通过API添加数字对象失败:', error)
-    return {
-      success: false,
-      message: error.message || '添加失败'
+      message: errorMessage,
+      error: error
     }
   }
 }
@@ -856,14 +885,18 @@ const addDataObject = (newObject) => {
 // 通过API更新数字对象
 const updateDataObjectViaApi = async (id, dataObject) => {
   try {
-    console.log('正在通过API更新数字对象，ID:', id, '原始数据:', dataObject)
+    if (!id || !dataObject) {
+      console.error('更新数据对象失败: ID或数据对象为空', id, dataObject)
+      return false
+    }
     
-    // 转换为后端所需的数据格式
+    // 将前端数据转换为后端格式
     const backendData = transformToBackendFormat(dataObject)
-    console.log('转换后的后端数据格式:', backendData)
     
-    const response = await axios.put(`${API_URL}/objects/${id}`, backendData)
-    console.log('更新数字对象API响应:', response)
+    console.log('准备通过API更新数据对象, ID:', id, '数据:', backendData)
+    const response = await axiosInstance.put(`/objects/${id}`, backendData)
+    
+    console.log('更新数据对象API响应:', response)
     
     // 检查响应状态
     if (response && response.data) {
@@ -909,9 +942,15 @@ const updateDataObject = (updatedObject) => {
 // 通过API删除数字对象
 const deleteDataObjectViaApi = async (id) => {
   try {
-    console.log('正在通过API删除数字对象，ID:', id)
-    const response = await axios.delete(`${API_URL}/${id}`)
-    console.log('删除数字对象API响应:', response)
+    if (!id) {
+      console.error('删除数据对象失败: ID为空')
+      return false
+    }
+    
+    console.log('准备通过API删除数据对象, ID:', id)
+    const response = await axiosInstance.delete(`/objects/${id}`)
+    
+    console.log('删除数据对象API响应:', response)
     
     // 检查响应状态
     if (response && response.data) {
@@ -974,8 +1013,6 @@ const updateObjectStatus = (id, status, feedback = '') => {
 
 // 辅助函数，用于比较ID，处理字符串和数字类型ID
 const compareIds = (id1, id2) => {
-  console.log('比较ID:', id1, id2);
-  
   // 如果有任一ID为null或undefined，无法比较
   if (id1 === null || id1 === undefined || id2 === null || id2 === undefined) {
     return false;
@@ -987,7 +1024,6 @@ const compareIds = (id1, id2) => {
   
   // 完全匹配
   if (str1 === str2) {
-    console.log('ID完全匹配');
     return true;
   }
   
@@ -997,11 +1033,7 @@ const compareIds = (id1, id2) => {
     const clean1 = str1.replace(/-/g, '').toLowerCase();
     const clean2 = str2.replace(/-/g, '').toLowerCase();
     
-    const result = clean1 === clean2;
-    if (result) {
-      console.log('UUID格式ID匹配成功');
-    }
-    return result;
+    return clean1 === clean2;
   }
   
   return false;

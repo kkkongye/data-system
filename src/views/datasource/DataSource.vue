@@ -259,7 +259,7 @@
 <script setup>
 import { ref, computed, reactive, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { Search, Document, RefreshRight } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
 import ExcelPreview from '@/components/ExcelPreview.vue'
@@ -268,6 +268,8 @@ import ObjectList from '@/components/source/ObjectList.vue'
 import AppHeader from '@/components/AppHeader.vue'
 import CommonPagination from '@/components/CommonPagination.vue'
 import dataObjectService from '@/services/dataObjectService'
+import axios from 'axios'
+import { API_URL, axiosInstance, testApiConnection } from '@/services/apiConfig'
 
 const router = useRouter()
 const activeTab = ref('objectList')
@@ -677,26 +679,38 @@ const logout = () => {
 
 // 显示创建对象对话框
 const showCreateDialog = () => {
-  // 重置表单数据
-  createForm.entity = ''
-  createForm.locationInfo = {
-    row: '',
-    col: ''
-  }
-  createForm.constraint = []
-  // 重置约束条件字段
-  createForm.formatConstraint = ''
-  createForm.accessConstraint = ''
-  createForm.pathConstraint = ''
-  createForm.regionConstraint = ''
-  createForm.shareConstraint = ''
-  createForm.transferControl = []
-  createForm.classificationValue = ''
-  createForm.excelData = null // 新增保存Excel文件数据
-  
-  console.log('打开新建对话框')
+  // 直接设置对话框可见性为true
+  console.log('触发显示创建对话框')
   createDialogVisible.value = true
-  console.log('createDialogVisible已设置为:', createDialogVisible.value)
+  console.log('createDialogVisible设置为:', createDialogVisible.value)
+  
+  // 重置表单为空值
+  setTimeout(() => {
+    // 重置所有表单项为空
+    createForm.entity = ''
+    createForm.locationInfo = {
+      row: '',
+      col: ''
+    }
+    createForm.metadata = {
+      dataName: '',
+      sourceUnit: '',
+      contactPerson: '',
+      contactPhone: '',
+      resourceSummary: '',
+      fieldClassification: '',
+      headers: []
+    }
+    createForm.constraint = []
+    createForm.formatConstraint = ''
+    createForm.accessConstraint = ''
+    createForm.pathConstraint = ''
+    createForm.regionConstraint = ''
+    createForm.shareConstraint = ''
+    createForm.transferControl = []
+    createForm.classificationValue = ''
+    createForm.excelData = null
+  }, 100)
 }
 
 // 创建表单数据
@@ -1070,22 +1084,32 @@ onMounted(() => {
   clearAllTestData()
   // 添加数据变化监听器
   dataObjectService.addChangeListener((newData) => {
-    console.log('数据源方收到数据变化:', newData)
     // 无需手动更新tableData，因为是响应式引用
   })
   
   // 从后端API加载数据
   loadDataFromBackend().then(() => {
     // 在数据加载完成后执行特殊处理
-    console.log("加载完成，准备处理反馈数据");
     fixCustomerFeedbackData();
   });
   
   // 直接处理特定实体的反馈信息
   setTimeout(() => {
-    console.log('延时检查并强制设置客户反馈实体的反馈信息');
     fixCustomerFeedbackData();
   }, 2000); // 给足够的时间加载数据
+  
+  // 测试API连接
+  testApiConnection().then(isConnected => {
+    if (!isConnected) {
+      apiErrorVisible.value = true;
+      ElMessage.warning('无法连接到后端API，请检查服务器是否正在运行');
+    } else {
+      apiErrorVisible.value = false;
+    }
+  }).catch(error => {
+    console.error('API连接测试失败:', error);
+    apiErrorVisible.value = true;
+  });
 })
 
 // 添加新的变量和方法
@@ -1494,96 +1518,35 @@ const beforeUpload = (file) => {
 
 // 保存创建的对象
 const saveCreateObject = async (newObject) => {
-  // 检查是否为离线模式上传（如果有excelData但没有通过API上传）
-  const isOfflineMode = newObject.offlineMode === true
-  
-  const entityName = newObject.entity || '未上传'
-  
-  // 如果没有传输控制操作，设置默认值
-  if (!newObject.transferControl || newObject.transferControl.length === 0) {
-    newObject.transferControl = ['可读', '可修改', '可销毁', '可共享', '可委托']
-  }
-  
-  // 如果没有propagationControl对象，根据transferControl创建
-  if (!newObject.propagationControl) {
-    newObject.propagationControl = {
-      canRead: newObject.transferControl.includes('可读'),
-      canModify: newObject.transferControl.includes('可修改'),
-      canDestroy: newObject.transferControl.includes('可销毁'),
-      canShare: newObject.transferControl.includes('可共享'),
-      canDelegate: newObject.transferControl.includes('可委托')
-    }
-  }
-  
-  // 准备元数据JSON
-  let metadataJson = null
-  if (newObject.metadata) {
-    metadataJson = JSON.stringify(newObject.metadata)
-  }
-  
-  // 准备新对象
-  const displayObject = {
-    entity: entityName,
-    locationInfo: `(${entityName}, ${newObject.locationInfo.row}, ${newObject.locationInfo.col})`,
-    constraint: newObject.constraint,
-    formatConstraint: newObject.formatConstraint,
-    accessConstraint: newObject.accessConstraint,
-    pathConstraint: newObject.pathConstraint,
-    regionConstraint: newObject.regionConstraint,
-    shareConstraint: newObject.shareConstraint,
-    transferControl: newObject.transferControl,
-    propagationControl: newObject.propagationControl,
-    excelData: newObject.excelData,
-    metadata: newObject.metadata,
-    metadataJson: metadataJson // 添加元数据JSON字符串
-  }
+  const loadingInstance = ElLoading.service({
+    text: '正在创建数字对象...',
+    background: 'rgba(0, 0, 0, 0.7)'
+  })
   
   try {
-    let result = null
+    // 使用 dataObjectService 的 addDataObjectViaApi 函数，确保数据格式与后端一致
+    const result = await dataObjectService.addDataObjectViaApi(newObject)
     
-    if (!isOfflineMode) {
-      // 使用API创建数字对象
-      result = await dataObjectService.addDataObjectViaApi(displayObject)
+    if (result.success) {
+      // 成功创建对象
+      ElMessage.success(`数字对象"${newObject.entity}"创建成功`)
       
-      if (result.success) {
-        console.log('成功通过API创建数字对象:', result.object)
-        ElMessage.success(`已创建数字对象: ${entityName}`)
-      } else {
-        console.error('API创建数字对象失败:', result.message)
-        
-        // API失败时尝试本地创建
-        const addedObject = dataObjectService.addDataObject(displayObject)
-        console.log('改为本地创建数字对象:', addedObject)
-        
-        ElMessage({
-          message: `API创建失败，已在本地创建数字对象: ${entityName}`,
-          type: 'warning',
-          duration: 5000
-        })
-      }
+      // 关闭对话框
+      createDialogVisible.value = false
+      
+      // 刷新数据列表
+      setTimeout(() => {
+        refreshData()
+      }, 500)
     } else {
-      // 离线模式只在本地添加
-      const addedObject = dataObjectService.addDataObject(displayObject)
-      console.log('本地创建数字对象:', addedObject)
-      
-      ElMessage({
-        message: `已在本地创建数字对象: ${entityName}，但未同步到服务器`,
-        type: 'warning',
-        duration: 5000
-      })
+      console.error('创建对象失败:', result.message)
+      ElMessage.error(`创建对象失败: ${result.message}`)
     }
-    
-    // 刷新数据列表
-    refreshData()
-    
-    // 重置创建表单
-    resetCreateForm()
-    
-    // 关闭创建对话框
-    createDialogVisible.value = false
   } catch (error) {
-    console.error('创建对象时发生错误:', error)
-    ElMessage.error('创建对象失败，请稍后再试')
+    console.error('创建对象错误:', error)
+    ElMessage.error('创建数字对象失败，请检查输入数据')
+  } finally {
+    loadingInstance.close()
   }
 }
 
