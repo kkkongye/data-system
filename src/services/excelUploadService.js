@@ -118,9 +118,37 @@ const uploadExcelFile = async (file) => {
     
     console.log('上传响应:', response);
     
+    // 检查响应数据，提取有用信息
+    let extractedData = {};
+    
+    if (response.data) {
+      // 提取文件ID - 检查多种可能的响应结构
+      if (response.data.data && response.data.data.id) {
+        extractedData.id = response.data.data.id;
+      } else if (response.data.id) {
+        extractedData.id = response.data.id;
+      } else if (response.data.fileId) {
+        extractedData.id = response.data.fileId;
+      } else if (response.data.data && response.data.data.fileId) {
+        extractedData.id = response.data.data.fileId;
+      }
+      
+      // 提取其他可能有用的信息
+      if (response.data.data) {
+        if (response.data.data.url) extractedData.url = response.data.data.url;
+        if (response.data.data.headers) extractedData.headers = response.data.data.headers;
+        if (response.data.data.dataItems) extractedData.dataItems = response.data.data.dataItems;
+      }
+    }
+    
+    console.log('从响应中提取的数据:', extractedData);
+    
     return {
       success: true,
-      data: response.data,
+      data: {
+        original: response.data,
+        data: extractedData
+      },
       message: '上传成功'
     };
   } catch (error) {
@@ -143,6 +171,24 @@ const uploadExcelFile = async (file) => {
           message: 'API_URL未正确配置，请检查apiConfig.js文件'
         },
         shouldTryLocalFallback: true
+      };
+    }
+    
+    // 检查并启用MOCK_ENABLED模式进行本地处理
+    if (MOCK_ENABLED && AUTO_FALLBACK_TO_MOCK) {
+      console.log('[Mock模式] 上传失败，使用模拟数据');
+      const mockResponse = createMockSuccessResponse(file);
+      
+      return {
+        success: true,
+        message: '[模拟] 文件上传成功(本地处理)',
+        data: {
+          data: {
+            id: mockResponse.data.id,
+            isMock: true
+          },
+          original: mockResponse
+        }
       };
     }
     

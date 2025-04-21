@@ -27,6 +27,18 @@
         </div>
       </el-form-item>
       
+      <!-- 调试工具：测试获取临时对象 -->
+      <div v-if="showDebugTools" style="margin-bottom: 15px; padding: 10px; background-color: #f8f8f8; border-radius: 4px;">
+        <h4 style="margin-top: 0; margin-bottom: 10px;">调试工具</h4>
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+          <el-button size="small" type="primary" @click="testFetchTempObject">测试获取临时对象</el-button>
+          <el-button size="small" type="success" @click="testUploadExcel">测试单独上传Excel</el-button>
+        </div>
+        <div v-if="tempObjectDebug" style="margin-top: 10px; max-height: 200px; overflow: auto;">
+          <pre style="font-size: 12px;">{{ JSON.stringify(tempObjectDebug, null, 2) }}</pre>
+        </div>
+      </div>
+      
       <!-- 元数据区域 -->
       <el-form-item label="数据名称：" prop="metadata.dataName" style="margin-bottom: 22px;">
         <el-input v-model="form.metadata.dataName" placeholder="请输入数据名称" style="width: 300px;"></el-input>
@@ -194,6 +206,10 @@ const loadingText = ref('')
 // 上传成功标志
 const uploadSuccess = ref(false)
 
+// 调试工具相关变量
+const showDebugTools = ref(false) // 关闭调试工具
+const tempObjectDebug = ref(null)
+
 // 表单数据
 const form = reactive({
   entity: '',
@@ -218,7 +234,8 @@ const form = reactive({
   shareConstraint: '',
   transferControl: [],
   excelData: null,
-  dataItems: []
+  dataItems: [],
+  excelFileId: null
 })
 
 // 表单校验规则
@@ -442,120 +459,121 @@ const handleFileChange = (file) => {
   if (!form.entity) {
     form.entity = fileNameWithoutExt
   }
-  
-  // 读取并保存Excel文件内容
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    try {
-      form.excelData = e.target.result
-      // 处理Excel数据获取基本信息
-      processExcelData(e.target.result)
-      
-      // 上传Excel文件到后端
-      uploadExcelToBackend(file.raw)
-    } catch (error) {
-      console.error('读取Excel文件失败:', error)
-      ElMessage.error('读取Excel文件失败')
-    }
-  }
-  reader.onerror = () => {
-    ElMessage.error('读取文件失败')
-  }
-  reader.readAsBinaryString(file.raw)
-}
 
-// 上传Excel文件到后端
-const uploadExcelToBackend = async (fileRaw) => {
+  // 显示上传中状态
   loading.value = true
-  loadingText.value = '正在上传Excel文件...'
+  loadingText.value = '正在处理Excel文件...'
   
   const loadingInstance = ElLoading.service({
     text: loadingText.value,
     background: 'rgba(0, 0, 0, 0.7)'
   })
   
-  try {
-    // 先在本地解析Excel，确保文件格式正确
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      try {
-        // 先保存到本地变量，避免在上传失败时也保存数据
-        const excelData = e.target.result
-        // 处理Excel数据获取基本信息
-        const excelResult = processExcelData(excelData)
-        
-        if (!excelResult || !excelResult.headers || excelResult.headers.length === 0) {
-          ElMessage.error('Excel文件解析失败，请检查文件格式')
-          loading.value = false
-          loadingInstance.close()
-          return
-        }
-        
-        // 调用Excel上传服务
-        const result = await excelUploadService.uploadExcelFile(fileRaw)
-        
-        if (result.success) {
-          ElMessage.success('Excel文件上传成功')
-          uploadSuccess.value = true
+  // 使用统一服务上传文件
+  import('@/services/dataObjectService').then(async (module) => {
+    const dataObjectService = module.default
+    
+    try {
+      // 先在本地读取解析Excel，获取表头和数据
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        try {
+          // 本地解析Excel数据
+          const excelData = e.target.result
+          const excelResult = processExcelData(excelData)
+          
+          if (!excelResult || !excelResult.headers || excelResult.headers.length === 0) {
+            ElMessage.error('Excel文件解析失败，请检查文件格式')
+            loading.value = false
+            loadingInstance.close()
+            return
+          }
           
           // 保存本地解析的数据到表单
           form.excelData = excelData
           form.metadata.headers = excelResult.headers
           form.dataItems = excelResult.dataItems
           
-          // 如果后端返回了解析的数据，可以合并更新表单
-          if (result.data && result.data.data) {
-            // 更新表单数据
-            const responseData = result.data.data
-            if (responseData.headers) {
-              form.metadata.headers = responseData.headers
-            }
+          // 上传Excel文件到服务器并获取临时对象
+          const uploadResult = await dataObjectService.uploadExcelFile(file.raw)
+          
+          console.log('Excel上传结果:', uploadResult)
+          
+          if (uploadResult.success) {
+            uploadSuccess.value = true
             
-            if (responseData.entity && !form.entity) {
-              form.entity = responseData.entity
-            }
-            
-            if (responseData.metadata) {
-              form.metadata = {
-                ...form.metadata,
-                ...responseData.metadata
+            // 处理临时对象数据
+            if (uploadResult.data) {
+              // 优先提取excelFileId
+              if (uploadResult.data.excelFileId) {
+                form.excelFileId = uploadResult.data.excelFileId
+                console.log('获取到Excel文件ID:', form.excelFileId)
+              } else if (uploadResult.data.id) {
+                form.excelFileId = uploadResult.data.id
+                console.log('从临时对象ID获取文件ID:', form.excelFileId)
+              }
+              
+              // 提取元数据
+              if (uploadResult.data.metadata) {
+                form.metadata = {
+                  ...form.metadata,
+                  ...uploadResult.data.metadata
+                }
+                console.log('从临时对象获取元数据')
+              }
+              
+              // 提取实体名称
+              if (uploadResult.data.entity && !form.entity) {
+                form.entity = uploadResult.data.entity
+                console.log('从临时对象获取实体名称:', form.entity)
               }
             }
+            
+            ElMessage.success('Excel文件上传并处理成功')
+          } else {
+            // 上传可能失败，但我们仍有本地解析的数据
+            console.warn('Excel上传失败，但已解析本地数据:', uploadResult.message)
+            
+            // 设置一个本地ID
+            form.excelFileId = `local-${Date.now()}`
+            
+            // 虽然服务器上传失败，但本地已解析数据，标记为成功
+            uploadSuccess.value = true
+            
+            ElMessage.warning(`Excel文件上传到服务器失败，将使用本地解析结果: ${uploadResult.message}`)
           }
-        } else {
-          console.error('Excel上传失败:', result.message)
-          // 即使上传失败，我们也可以使用本地解析的数据
-          ElMessage.warning(`Excel文件上传到服务器失败，将使用本地解析结果: ${result.message}`)
-          form.excelData = excelData
-          form.metadata.headers = excelResult.headers
-          form.dataItems = excelResult.dataItems
-          uploadSuccess.value = true
+        } catch (error) {
+          console.error('Excel处理错误:', error)
+          ElMessage.error('处理Excel文件时出错')
+          uploadSuccess.value = false
+        } finally {
+          loading.value = false
+          loadingInstance.close()
         }
-      } catch (error) {
-        console.error('Excel解析或上传错误:', error)
-        ElMessage.error('Excel文件处理失败')
-        uploadSuccess.value = false
-      } finally {
+      }
+      
+      reader.onerror = () => {
+        ElMessage.error('读取文件失败')
         loading.value = false
         loadingInstance.close()
       }
-    }
-    
-    reader.onerror = () => {
-      ElMessage.error('读取文件失败')
+      
+      // 开始读取文件
+      reader.readAsBinaryString(file.raw)
+    } catch (error) {
+      console.error('处理文件时出错:', error)
+      ElMessage.error('处理Excel文件时出错')
       loading.value = false
       loadingInstance.close()
     }
-    
-    // 开始读取文件
-    reader.readAsBinaryString(fileRaw)
-  } catch (error) {
-    console.error('Excel上传过程发生异常:', error)
-    ElMessage.error('处理Excel文件时出错')
-    uploadSuccess.value = false
+  }).catch(error => {
+    console.error('加载dataObjectService服务失败:', error)
+    ElMessage.error('加载服务失败')
     loading.value = false
     loadingInstance.close()
-  }
+  })
+  
+  return false // 阻止自动上传
 }
 
 // 修改保存按钮处理逻辑，确保Excel文件已上传
@@ -610,6 +628,12 @@ const handleSave = () => {
     return
   }
   
+  // 确保有excelFileId，如果没有则创建一个
+  if (!form.excelFileId) {
+    form.excelFileId = `autogen-${Date.now()}`
+    console.log('自动生成excelFileId:', form.excelFileId)
+  }
+  
   formRef.value.validate((valid) => {
     if (valid) {
       // 构建约束条件数组
@@ -662,8 +686,32 @@ const handleSave = () => {
         status: '待检验',
         feedback: '',
         excelData: form.excelData,
-        dataItems: form.dataItems || [] // 添加数据项
+        dataItems: form.dataItems || [],
+        excelFileId: form.excelFileId
       }
+      
+      // 创建dataContent字段，确保包含excelFileId
+      try {
+        newObject.dataContent = JSON.stringify({
+          entity: newObject.entity,
+          status: newObject.status,
+          metadata: newObject.metadata,
+          dataItems: newObject.dataItems,
+          excelFileId: newObject.excelFileId
+        })
+      } catch (error) {
+        console.error('创建dataContent失败:', error)
+      }
+      
+      // 添加详细日志
+      console.log('准备保存新数字对象:', {
+        entity: newObject.entity,
+        status: newObject.status,
+        excelFileId: newObject.excelFileId,
+        hasDataItems: !!newObject.dataItems && newObject.dataItems.length > 0,
+        hasExcelData: !!newObject.excelData,
+        hasDataContent: !!newObject.dataContent
+      })
       
       // 发送保存事件
       emit('save', newObject)
@@ -698,6 +746,7 @@ const resetForm = () => {
   form.transferControl = []
   form.excelData = null
   form.dataItems = []
+  form.excelFileId = null
   
   // 重置上传状态
   uploadSuccess.value = false
@@ -719,6 +768,100 @@ const handleDialogClosed = () => {
   // 只有在非编辑模式下才重置表单
   if (!props.modelValue.id) {
     resetForm()
+  }
+}
+
+// 添加测试获取临时对象的逻辑
+const testFetchTempObject = async () => {
+  console.log('测试获取临时对象')
+  
+  try {
+    loading.value = true
+    loadingText.value = '正在获取临时对象...'
+    
+    const loadingInstance = ElLoading.service({
+      text: loadingText.value,
+      background: 'rgba(0, 0, 0, 0.7)'
+    })
+    
+    // 调用API获取临时对象
+    const response = await axios.get(`${API_URL}/objects/temp`)
+    
+    console.log('获取临时对象响应:', response)
+    
+    if (response.status === 200 && response.data) {
+      tempObjectDebug.value = response.data
+      ElMessage.success('成功获取临时对象')
+    } else {
+      tempObjectDebug.value = { error: '获取失败', response }
+      ElMessage.warning('未获取到临时对象')
+    }
+    
+    loadingInstance.close()
+  } catch (error) {
+    console.error('获取临时对象失败:', error)
+    tempObjectDebug.value = { error: error.message }
+    ElMessage.error(`获取临时对象失败: ${error.message}`)
+    
+    if (ElLoading) {
+      ElLoading.service().close()
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+// 添加测试上传Excel的函数
+const testUploadExcel = async () => {
+  console.log('测试单独上传Excel')
+  
+  if (!window.lastExcelFile) {
+    ElMessage.warning('请先上传Excel文件')
+    return
+  }
+  
+  try {
+    loading.value = true
+    loadingText.value = '正在上传Excel文件...'
+    
+    const loadingInstance = ElLoading.service({
+      text: loadingText.value,
+      background: 'rgba(0, 0, 0, 0.7)'
+    })
+    
+    // 创建FormData对象
+    const formData = new FormData()
+    formData.append('file', window.lastExcelFile)
+    
+    // 调用API上传文件
+    const response = await axios.post(`${API_URL}/objects/excel`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    
+    console.log('Excel文件上传响应:', response)
+    
+    if (response.status === 200) {
+      // 上传成功，尝试获取临时对象
+      tempObjectDebug.value = { upload: response.data, message: '上传成功，请点击"测试获取临时对象"按钮获取会话中的临时对象' }
+      ElMessage.success('Excel文件上传成功，请点击"测试获取临时对象"按钮')
+    } else {
+      tempObjectDebug.value = { error: '上传失败', response }
+      ElMessage.warning('Excel文件上传失败')
+    }
+    
+    loadingInstance.close()
+  } catch (error) {
+    console.error('上传Excel文件失败:', error)
+    tempObjectDebug.value = { error: error.message }
+    ElMessage.error(`上传Excel文件失败: ${error.message}`)
+    
+    if (ElLoading) {
+      ElLoading.service().close()
+    }
+  } finally {
+    loading.value = false
   }
 }
 </script>

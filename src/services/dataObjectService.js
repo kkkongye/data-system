@@ -1,6 +1,10 @@
 import { reactive, ref } from 'vue'
 import axios from 'axios'
 import { API_URL, axiosInstance } from './apiConfig'
+import Cookies from 'js-cookie'
+
+// 存储CSRF令牌的变量
+let csrfToken = null;
 
 // 共享的数字对象数据
 const sharedTableData = reactive([
@@ -479,17 +483,21 @@ const extractConstraintData = (backendItem) => {
   
   // 情况2: 从constraintSet中提取
   if (backendItem.constraintSet) {
-    // 优先使用selectedConstraint
-    let constraint = backendItem.constraintSet.selectedConstraint
-    
-    // 如果没有selectedConstraint但有constraints数组，使用第一个
-    if (!constraint && Array.isArray(backendItem.constraintSet.constraints) && 
+    // 检查是否有constraints数组并且有值
+    if (Array.isArray(backendItem.constraintSet.constraints) && 
         backendItem.constraintSet.constraints.length > 0) {
-      constraint = backendItem.constraintSet.constraints[0]
+      const constraint = backendItem.constraintSet.constraints[0]
+      if (constraint) {
+        if (constraint.formatConstraint) result.formatConstraint = constraint.formatConstraint
+        if (constraint.accessConstraint) result.accessConstraint = constraint.accessConstraint
+        if (constraint.pathConstraint) result.pathConstraint = constraint.pathConstraint
+        if (constraint.regionConstraint) result.regionConstraint = constraint.regionConstraint
+        if (constraint.shareConstraint) result.shareConstraint = constraint.shareConstraint
+      }
     }
-    
-    // 从constraint对象中提取各项约束
-    if (constraint) {
+    // 向后兼容：检查selectedConstraint
+    else if (backendItem.constraintSet.selectedConstraint) {
+      const constraint = backendItem.constraintSet.selectedConstraint
       if (constraint.formatConstraint) result.formatConstraint = constraint.formatConstraint
       if (constraint.accessConstraint) result.accessConstraint = constraint.accessConstraint
       if (constraint.pathConstraint) result.pathConstraint = constraint.pathConstraint
@@ -529,13 +537,14 @@ const extractTransferControlArray = (backendItem) => {
     return backendItem.transferControl
   }
   
-  // 处理3: 处理propagationControlJson字段（JSON字符串格式）
+  // 处理2: 处理propagationControlJson字段（JSON字符串格式）
   if (backendItem.propagationControlJson) {
     try {
       console.log('尝试解析propagationControlJson:', backendItem.propagationControlJson)
       // 解析JSON字符串
-      const propagationControl = JSON.parse(backendItem.propagationControlJson)
-      console.log('解析后的propagationControl对象:', propagationControl)
+      const propagationControl = typeof backendItem.propagationControlJson === 'string' 
+        ? JSON.parse(backendItem.propagationControlJson) 
+        : backendItem.propagationControlJson
       
       // 从operations对象提取操作
       if (propagationControl && propagationControl.operations) {
@@ -558,19 +567,29 @@ const extractTransferControlArray = (backendItem) => {
     }
   }
   
-  // 处理2: 从propagationControl对象中提取
+  // 处理3: 如果有propagationControl对象，尝试提取operations
   if (backendItem.propagationControl) {
-    const control = backendItem.propagationControl
-    
-    // 检查各个权限并添加到数组
-    if (control.canRead === true) transferControlArray.push('可读')
-    if (control.canModify === true) transferControlArray.push('可修改')
-    if (control.canShare === true) transferControlArray.push('可共享')
-    if (control.canDelegate === true) transferControlArray.push('可委托')
-    if (control.canDestroy === true) transferControlArray.push('可销毁')
+    // 优先从operations中提取
+    if (backendItem.propagationControl.operations) {
+      const ops = backendItem.propagationControl.operations
+      if (ops.read === 1) transferControlArray.push('可读')
+      if (ops.modify === 1) transferControlArray.push('可修改')
+      if (ops.share === 1) transferControlArray.push('可共享')
+      if (ops.delegate === 1) transferControlArray.push('可委托')
+      if (ops.destroy === 1) transferControlArray.push('可销毁')
+    }
+    // 向后兼容：从布尔字段中提取
+    else {
+      const control = backendItem.propagationControl
+      if (control.canRead === true) transferControlArray.push('可读')
+      if (control.canModify === true) transferControlArray.push('可修改')
+      if (control.canShare === true) transferControlArray.push('可共享')
+      if (control.canDelegate === true) transferControlArray.push('可委托')
+      if (control.canDestroy === true) transferControlArray.push('可销毁')
+    }
     
     // 如果有selectedOperations对象，也检查它
-    if (control.selectedOperations) {
+    if (backendItem.propagationControl.selectedOperations) {
       if (control.selectedOperations.read === true) 
         !transferControlArray.includes('可读') && transferControlArray.push('可读')
       if (control.selectedOperations.modify === true) 
@@ -677,10 +696,10 @@ const createDefaultDataObject = () => {
 
 // 将前端数据转换为后端所需的格式
 const transformToBackendFormat = (frontendData) => {
-  // 构建数据实体对象
+  // 构建数据实体对象 - 确保所有字段都在dataEntity内
   const dataEntity = {
     entity: frontendData.entity || '',
-    status: frontendData.status || '待审核',
+    status: frontendData.status || '待审核', // 注意这里使用"待审核"作为默认值
     feedback: frontendData.feedback || '',
     metadata: frontendData.metadata || {
       dataName: frontendData.entity || '',
@@ -688,17 +707,22 @@ const transformToBackendFormat = (frontendData) => {
       contactPerson: '',
       contactPhone: '',
       resourceSummary: '',
-      fieldClassification: ''
+      fieldClassification: '',
+      headers: []
     },
-    dataItems: frontendData.dataItems || [],
-    excelData: frontendData.excelData || null  // 确保包含 Excel 二进制数据
+    dataItems: frontendData.dataItems || []
+  }
+
+  // 如果有Excel文件ID，也添加到dataEntity中
+  if (frontendData.excelFileId) {
+    dataEntity.excelFileId = frontendData.excelFileId;
   }
 
   // 构建位置信息对象
   const locationInfo = {
     locations: [
       {
-        sheet: frontendData.sheet || "Sheet1",  // 使用更通用的默认值
+        sheet: frontendData.sheet || "Sheet1",
         startRow: frontendData.locationInfo && frontendData.locationInfo.row ? frontendData.locationInfo.row.split('-')[0] : "1",
         endRow: frontendData.locationInfo && frontendData.locationInfo.row ? frontendData.locationInfo.row.split('-')[1] || "100" : "100",
         startColumn: frontendData.locationInfo && frontendData.locationInfo.col ? frontendData.locationInfo.col.split('-')[0] : "A",
@@ -707,7 +731,7 @@ const transformToBackendFormat = (frontendData) => {
     ]
   }
 
-  // 构建约束集合对象
+  // 创建约束条件字符串 - 使用完全符合要求的格式
   const constraintSet = {
     constraints: [
       {
@@ -718,18 +742,39 @@ const transformToBackendFormat = (frontendData) => {
         shareConstraint: frontendData.shareConstraint || "允许共享"
       }
     ]
-  }
+  };
 
-  // 构建传播控制对象
+  // 创建传播控制对象 - 使用完全符合要求的格式
+  const hasRead = frontendData.transferControl && frontendData.transferControl.includes("可读");
+  const hasModify = frontendData.transferControl && frontendData.transferControl.includes("可修改");
+  const hasShare = frontendData.transferControl && frontendData.transferControl.includes("可共享");
+  const hasDelegate = frontendData.transferControl && frontendData.transferControl.includes("可委托");
+  const hasDestroy = frontendData.transferControl && frontendData.transferControl.includes("可销毁");
+
   const propagationControl = {
+    selectedOperations: {
+      read: hasRead,
+      modify: hasModify,
+      share: hasShare,
+      delegate: hasDelegate,
+      destroy: hasDestroy
+    },
+    canRead: hasRead,
+    canModify: hasModify,
+    canShare: hasShare, 
+    canDelegate: hasDelegate,
+    canDestroy: hasDestroy,
     operations: {
-      read: frontendData.transferControl && frontendData.transferControl.includes("可读") ? 1 : 0,
-      modify: frontendData.transferControl && frontendData.transferControl.includes("可修改") ? 1 : 0,
-      share: frontendData.transferControl && frontendData.transferControl.includes("可共享") ? 1 : 0,
-      delegate: frontendData.transferControl && frontendData.transferControl.includes("可委托") ? 1 : 0,
-      destroy: frontendData.transferControl && frontendData.transferControl.includes("可销毁") ? 1 : 0
+      read: hasRead ? 1 : 0,
+      modify: hasModify ? 1 : 0,
+      share: hasShare ? 1 : 0,
+      delegate: hasDelegate ? 1 : 0,
+      destroy: hasDestroy ? 1 : 0
     }
-  }
+  };
+
+  console.log('约束条件格式:', JSON.stringify(constraintSet));
+  console.log('传播控制格式:', JSON.stringify(propagationControl));
 
   // 构建审计信息对象
   const auditInfo = {
@@ -746,7 +791,7 @@ const transformToBackendFormat = (frontendData) => {
   }
 
   // 返回后端所需的完整格式
-  return {
+  const result = {
     id: frontendData.id || "",
     dataEntity: dataEntity,
     locationInfo: locationInfo,
@@ -754,107 +799,209 @@ const transformToBackendFormat = (frontendData) => {
     propagationControl: propagationControl,
     auditInfo: auditInfo
   }
+
+  return result;
 }
 
-// 通过API添加数字对象
-const addDataObjectViaApi = async (dataObject) => {
+// 获取CSRF令牌的函数
+const getCsrfToken = () => {
+  // 首先检查内存中是否已有令牌
+  if (csrfToken) {
+    return csrfToken;
+  }
+  
+  // 尝试从Cookie中获取
+  const tokenFromCookie = Cookies.get('XSRF-TOKEN') || Cookies.get('csrf_token');
+  if (tokenFromCookie) {
+    csrfToken = tokenFromCookie;
+    return tokenFromCookie;
+  }
+  
+  // 如果都没有，返回空值
+  return '';
+};
+
+// 更新prepareCsrfToken函数
+const prepareCsrfToken = async () => {
   try {
-    if (!dataObject) {
-      console.error('尝试添加的数据对象为空')
+    // 首先检查是否已经有令牌
+    const existingToken = getCsrfToken();
+    if (existingToken) {
+      console.log('使用现有的CSRF令牌');
+      return existingToken;
+    }
+    
+    // 从后端获取CSRF token
+    const response = await axiosInstance.get('/csrf-token');
+    
+    if (response.data && response.data.token) {
+      // 设置CSRF token到cookie
+      cookieService.setCookie('XSRF-TOKEN', response.data.token);
+      // 存储令牌到内存中
+      csrfToken = response.data.token;
+      return response.data.token;
+    } else if (response.data && typeof response.data === 'string') {
+      // 某些API可能直接返回令牌字符串
+      cookieService.setCookie('XSRF-TOKEN', response.data);
+      csrfToken = response.data;
+      return response.data;
+    }
+    
+    return '';
+  } catch (error) {
+    console.error('获取CSRF token失败:', error);
+    // 失败时仍尝试从cookie获取
+    const fallbackToken = Cookies.get('XSRF-TOKEN') || Cookies.get('csrf_token') || '';
+    
+    // 如果有回退令牌，使用它
+    if (fallbackToken) {
+      csrfToken = fallbackToken;
+      console.log('使用回退的CSRF令牌');
+    }
+    
+    return fallbackToken;
+  }
+};
+
+// 更新addDataObjectViaApi和updateDataObjectViaApi函数，确保使用正确的字段名和格式
+const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
+  try {
+    // 准备csrfToken
+    const token = await prepareCsrfToken();
+    
+    console.log('开始通过API添加数据对象:', {
+      entity: dataObject.entity,
+      hasExcelData: !!dataObject.excelData,
+      excelFileId: dataObject.excelFileId,
+      extraParams: Object.keys(extraParams),
+      hasToken: !!token
+    });
+    
+    // 创建请求数据对象
+    const requestData = transformToBackendFormat(dataObject);
+    
+    // 添加额外的请求参数
+    if (extraParams && Object.keys(extraParams).length > 0) {
+      Object.assign(requestData, extraParams);
+    }
+    
+    // 确保excelFileId存在于请求中
+    if (dataObject.excelFileId && !requestData.dataEntity.excelFileId) {
+      requestData.dataEntity.excelFileId = dataObject.excelFileId;
+    }
+    
+    // 确保请求路径包含查询参数
+    let url = `${API_URL}/objects`;
+    if (dataObject.excelFileId) {
+      url += `?excelFileId=${encodeURIComponent(dataObject.excelFileId)}`;
+    }
+    
+    // 准备请求头
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    
+    // 如果有令牌，添加到请求头
+    if (token) {
+      headers['X-CSRF-TOKEN'] = token;
+    }
+    
+    console.log('最终发送的数据格式:', JSON.stringify(requestData));
+    
+    // 发送请求
+    const response = await axiosInstance.post(url, requestData, {
+      headers,
+      withCredentials: true // 确保发送cookie
+    });
+    
+    // 检查响应
+    if (response.status === 200 || response.status === 201) {
+      console.log('成功通过API添加数据对象:', response.data);
+      
+      // 更新本地数据
+      const newObject = adaptBackendData(response.data);
+      
+      // 添加到数据列表
+      sharedTableData.push(newObject);
+      
+      // 触发监听器
+      notifyListeners();
+      
+      return {
+        success: true,
+        data: newObject
+      };
+    } else {
+      console.warn('添加数据对象失败:', response);
       return {
         success: false,
-        message: '数据对象为空'
-      }
-    }
-
-    // 将前端数据转换为后端格式
-    const backendData = transformToBackendFormat(dataObject)
-    
-    // 使用axios发送请求
-    const response = await axiosInstance.post('/objects', backendData)
-    
-    // 检查响应状态
-    if (response && response.data) {
-      // 处理各种可能的响应格式
-      
-      // 情况1：标准格式 {code: 200, message: '', data: {...}}
-      if (response.data.code === 200) {
-        // 如果响应中包含了对象ID，使用响应返回的ID
-        let createdObject = dataObject
-        if (response.data.data && response.data.data.id) {
-          createdObject.id = response.data.data.id
-        }
-        
-        // 同时更新本地数据
-        addDataObject(createdObject)
-        
-        return {
-          success: true,
-          object: createdObject
-        }
-      }
-      // 情况2：直接返回对象 {...}
-      else if (response.data.id || response.data.entity) {
-        // 合并返回的对象数据与原始数据
-        const createdObject = {
-          ...dataObject,
-          id: response.data.id || dataObject.id || Date.now().toString(),
-          // 可以合并其他从响应中获取的字段
-        }
-        
-        // 同时更新本地数据
-        addDataObject(createdObject)
-        
-        return {
-          success: true,
-          object: createdObject
-        }
-      }
-      // 情况3: 只返回成功状态，没有详细数据
-      else if (response.status >= 200 && response.status < 300) {
-        // 生成一个临时ID
-        const createdObject = {
-          ...dataObject,
-          id: dataObject.id || Date.now().toString()
-        }
-        
-        // 同时更新本地数据
-        addDataObject(createdObject)
-        
-        return {
-          success: true,
-          object: createdObject,
-          message: '对象已添加，但后端未返回详细信息'
-        }
-      }
-    }
-    
-    // 如果到这里还没有return，说明响应格式不符合预期
-    console.warn('API响应格式不符合预期')
-    return {
-      success: false,
-      message: '添加失败：后端响应格式异常'
+        message: '无法添加数据对象',
+        error: response
+      };
     }
   } catch (error) {
-    console.error('通过API添加数字对象失败:', error)
+    console.error('添加数据对象异常:', error);
     
-    // 格式化错误信息
-    let errorMessage = '添加失败'
+    // 准备错误信息
+    let errorMessage = '添加数据对象失败';
     if (error.response) {
-      const status = error.response.status
-      const responseData = error.response.data || {}
-      errorMessage = `服务器错误 (${status}): ${responseData.message || '未知错误'}`
+      // 服务器返回错误
+      if (error.response.data && error.response.data.message) {
+        errorMessage = error.response.data.message;
+      } else if (typeof error.response.data === 'string') {
+        errorMessage = error.response.data.substring(0, 100);
+      } else {
+        errorMessage = `服务器错误: ${error.response.status}`;
+      }
     } else if (error.request) {
-      errorMessage = '服务器无响应，请检查后端服务是否正常运行'
+      // 请求发送但没有收到响应
+      errorMessage = '服务器未响应';
     } else {
-      errorMessage = `请求错误: ${error.message}`
+      // 请求设置出错
+      errorMessage = error.message;
     }
     
     return {
       success: false,
       message: errorMessage,
       error: error
+    };
+  }
+};
+
+// 更新updateDataObjectViaApi函数，确保使用相同的格式
+const updateDataObjectViaApi = async (id, dataObject) => {
+  try {
+    if (!id || !dataObject) {
+      console.error('更新数据对象失败: ID或数据对象为空', id, dataObject)
+      return false
     }
+    
+    // 将前端数据转换为后端格式
+    const backendData = transformToBackendFormat(dataObject)
+    
+    console.log('准备通过API更新数据对象, ID:', id, '数据:', JSON.stringify(backendData))
+    const response = await axiosInstance.put(`/objects/${id}`, backendData)
+    
+    console.log('更新数据对象API响应:', response)
+    
+    // 检查响应状态
+    if (response && response.data) {
+      // 判断返回格式
+      if (response.data.code === 200) {
+        console.log('数字对象更新成功')
+        
+        // 同时更新本地数据
+        updateDataObject(dataObject)
+        
+        return true
+      }
+    }
+    
+    return false
+  } catch (error) {
+    console.error('通过API更新数字对象失败:', error)
+    return false
   }
 }
 
@@ -880,42 +1027,6 @@ const addDataObject = (newObject) => {
   notifyListeners()
   
   return objectToAdd
-}
-
-// 通过API更新数字对象
-const updateDataObjectViaApi = async (id, dataObject) => {
-  try {
-    if (!id || !dataObject) {
-      console.error('更新数据对象失败: ID或数据对象为空', id, dataObject)
-      return false
-    }
-    
-    // 将前端数据转换为后端格式
-    const backendData = transformToBackendFormat(dataObject)
-    
-    console.log('准备通过API更新数据对象, ID:', id, '数据:', backendData)
-    const response = await axiosInstance.put(`/objects/${id}`, backendData)
-    
-    console.log('更新数据对象API响应:', response)
-    
-    // 检查响应状态
-    if (response && response.data) {
-      // 判断返回格式
-      if (response.data.code === 200) {
-        console.log('数字对象更新成功')
-        
-        // 同时更新本地数据
-        updateDataObject(dataObject)
-        
-        return true
-      }
-    }
-    
-    return false
-  } catch (error) {
-    console.error('通过API更新数字对象失败:', error)
-    return false
-  }
 }
 
 // 更新数字对象
@@ -1044,6 +1155,254 @@ const getAllDataObjects = () => {
   return sharedTableData
 }
 
+// Cookie管理函数
+const cookieService = {
+  // 设置认证Token
+  setAuthToken: (token, days = 7) => {
+    Cookies.set('auth_token', token, { expires: days, path: '/' })
+    console.log('已设置认证Token Cookie:', token)
+    return token
+  },
+  
+  // 获取认证Token
+  getAuthToken: () => {
+    const token = Cookies.get('auth_token')
+    return token
+  },
+  
+  // 清除认证Token
+  clearAuthToken: () => {
+    Cookies.remove('auth_token')
+    console.log('已清除认证Token Cookie')
+    return true
+  },
+  
+  // 设置其他Cookie
+  setCookie: (name, value, options = {}) => {
+    Cookies.set(name, value, { path: '/', ...options })
+    console.log(`已设置Cookie: ${name}=${value}`)
+    return value
+  },
+  
+  // 获取指定Cookie
+  getCookie: (name) => {
+    return Cookies.get(name)
+  },
+  
+  // 清除指定Cookie
+  removeCookie: (name) => {
+    Cookies.remove(name, { path: '/' })
+    console.log(`已删除Cookie: ${name}`)
+    return true
+  }
+}
+
+// 添加新方法：获取会话中的临时数据对象
+const fetchTempDataObject = async (uploadData = null, retryCount = 3, retryDelay = 500) => {
+  try {
+    console.log('正在获取会话中的临时数据对象...');
+    
+    // 用于存储每次尝试的响应，便于调试
+    const attempts = [];
+    
+    // 重试逻辑
+    for (let attempt = 0; attempt < retryCount; attempt++) {
+      try {
+        // 如果不是第一次尝试，添加延迟
+        if (attempt > 0) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          console.log(`尝试第 ${attempt + 1} 次获取临时对象...`);
+        }
+        
+        // 准备请求参数
+        let url = `${API_URL}/objects/temp`;
+        const config = {};
+        
+        // 如果有上传数据，尝试添加到请求参数中
+        if (uploadData) {
+          // 尝试不同方式传递识别信息
+          if (typeof uploadData === 'string') {
+            // 如果是字符串，可能是ID
+            url += `?id=${encodeURIComponent(uploadData)}`;
+          } else if (typeof uploadData === 'object') {
+            // 如果是对象，检查是否有ID字段
+            if (uploadData.id) {
+              url += `?id=${encodeURIComponent(uploadData.id)}`;
+            }
+            
+            // 添加可能需要的额外参数
+            if (uploadData.timestamp) {
+              url += (url.includes('?') ? '&' : '?') + `timestamp=${uploadData.timestamp}`;
+            }
+          }
+          
+          // 添加withCredentials确保发送cookie
+          config.withCredentials = true;
+        }
+        
+        // 发送请求
+        const response = await axiosInstance.get(url, config);
+        
+        // 记录尝试结果
+        attempts.push({
+          attempt: attempt + 1,
+          status: response.status,
+          hasData: !!response.data
+        });
+        
+        // 检查响应
+        if (response.data && response.status === 200) {
+          console.log(`成功获取临时数据对象(尝试 ${attempt + 1}/${retryCount}):`);
+          return {
+            success: true,
+            data: response.data,
+            attempts
+          };
+        }
+      } catch (attemptError) {
+        console.warn(`第 ${attempt + 1} 次获取临时对象失败:`, attemptError.message);
+        attempts.push({
+          attempt: attempt + 1,
+          error: attemptError.message
+        });
+      }
+    }
+    
+    // 所有尝试都失败
+    console.warn('获取临时数据对象失败，已尝试多次:', attempts);
+    return {
+      success: false,
+      message: '无法获取临时数据对象，多次尝试后失败',
+      attempts
+    };
+  } catch (error) {
+    console.error('获取临时数据对象时出错:', error);
+    return {
+      success: false,
+      message: error.message || '获取临时数据对象时发生异常',
+      error: error
+    };
+  }
+};
+
+// 添加上传Excel文件的方法
+const uploadExcelFile = async (file) => {
+  try {
+    console.log('开始上传Excel文件...');
+    
+    // 创建FormData对象
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    // 发送请求
+    const response = await axiosInstance.post(`${API_URL}/objects/excel`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      },
+      withCredentials: true // 确保发送cookie
+    });
+    
+    // 处理响应
+    if (response.status === 200) {
+      console.log('Excel上传成功，正在获取临时对象...');
+      
+      try {
+        // 添加时间戳，用于标识会话和调试
+        const timestamp = Date.now();
+        
+        // 构建用于识别的数据
+        let identifierData = {
+          timestamp,
+          originalResponse: response.data
+        };
+        
+        // 尝试从响应中提取ID
+        if (response.data && typeof response.data === 'object' && response.data.id) {
+          identifierData.id = response.data.id;
+        } else if (response.data && typeof response.data === 'string') {
+          // 尝试从字符串响应中提取ID
+          const idMatch = response.data.match(/id[":=\s]+([^",:}\s]+)/i);
+          if (idMatch && idMatch[1]) {
+            identifierData.id = idMatch[1];
+          }
+        }
+        
+        // 获取会话中的临时对象，传递标识数据
+        const tempResult = await fetchTempDataObject(identifierData);
+        
+        if (tempResult.success) {
+          // 将临时对象与上传响应合并
+          const mergedData = {
+            ...tempResult.data,
+            uploadResponse: response.data,
+            timestamp
+          };
+          
+          // 确保有excelFileId
+          if (!mergedData.excelFileId && tempResult.data.id) {
+            mergedData.excelFileId = tempResult.data.id;
+          }
+          
+          return {
+            success: true,
+            data: mergedData,
+            originalUploadResponse: response.data
+          };
+        } else {
+          // 如果获取临时对象失败，但上传成功，也返回成功状态和上传响应
+          console.warn('Excel上传成功但获取临时对象失败，返回上传响应');
+          
+          // 尝试从上传响应中提取ID
+          let excelFileId = `upload-${timestamp}`;
+          if (response.data && typeof response.data === 'object' && response.data.id) {
+            excelFileId = response.data.id;
+          }
+          
+          return {
+            success: true,
+            message: '上传成功但无法获取临时对象，请检查会话状态',
+            data: {
+              excelFileId,
+              originalResponse: response.data,
+              timestamp,
+              attempts: tempResult.attempts
+            },
+            originalUploadResponse: response.data
+          };
+        }
+      } catch (tempError) {
+        console.error('获取临时对象时出错:', tempError);
+        // 上传成功但获取临时对象异常，也返回成功状态
+        return {
+          success: true,
+          message: '上传成功但获取临时对象时出错',
+          error: tempError,
+          data: {
+            excelFileId: `upload-${Date.now()}`,
+            uploadResponse: response.data
+          },
+          originalUploadResponse: response.data
+        };
+      }
+    } else {
+      console.warn('Excel上传失败:', response);
+      return {
+        success: false,
+        message: '上传Excel文件失败',
+        error: response,
+        originalUploadResponse: response.data
+      };
+    }
+  } catch (error) {
+    console.error('上传Excel文件时出错:', error);
+    return {
+      success: false,
+      message: error.message || '上传Excel文件时发生异常',
+      error: error
+    };
+  }
+};
+
 export default {
   addDataObject,
   updateDataObject,
@@ -1058,5 +1417,10 @@ export default {
   updateDataObjectViaApi,
   addDataObjectViaApi,
   deleteDataObjectViaApi,
-  compareIds
+  compareIds,
+  cookieService,
+  fetchTempDataObject,
+  uploadExcelFile,
+  prepareCsrfToken,
+  getCsrfToken
 } 

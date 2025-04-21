@@ -13,6 +13,7 @@
     "axios": "^1.8.4",
     "element-plus": "^2.9.7",
     "formdata-node": "^6.0.3",
+    "js-cookie": "^3.0.5",
     "node-fetch": "^3.3.2",
     "pinia": "^3.0.1",
     "vue": "^3.5.13",

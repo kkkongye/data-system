@@ -10,8 +10,8 @@ export const API_URL = `${API_BASE_URL}/api`;
 //   : 'http://localhost:8080';
 
 // Mock模式配置
-export const MOCK_ENABLED = false; // 如果后端不可用，是否启用模拟响应
-export const AUTO_FALLBACK_TO_MOCK = false; // 在API请求失败时自动回退到模拟模式
+export const MOCK_ENABLED = true; // 如果后端不可用，是否启用模拟响应
+export const AUTO_FALLBACK_TO_MOCK = true; // 在API请求失败时自动回退到模拟模式
 
 // 创建一个预配置的axios实例
 export const axiosInstance = axios.create({

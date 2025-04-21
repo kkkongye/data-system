@@ -1516,37 +1516,108 @@ const beforeUpload = (file) => {
   return true;
 }
 
-// 保存创建的对象
+// 保存新建对象
 const saveCreateObject = async (newObject) => {
-  const loadingInstance = ElLoading.service({
-    text: '正在创建数字对象...',
-    background: 'rgba(0, 0, 0, 0.7)'
-  })
+  console.log('保存新建对象:', newObject);
+  
+  // 确保状态为"待检验"
+  if (newObject.status !== '待检验') {
+    console.log('修正状态值从', newObject.status, '到"待检验"');
+    newObject.status = '待检验';
+  }
+  
+  // 检查是否有excelFileId（从服务器上传时获取）
+  if (!newObject.excelFileId && newObject.excelData) {
+    console.warn('没有发现Excel文件ID，但有Excel数据，这可能是客户端上传导致的');
+    newObject.excelFileId = `temp-${Date.now()}`;
+    console.log('使用临时文件ID:', newObject.excelFileId);
+  }
+  
+  // 创建dataContent字段
+  if (!newObject.dataContent) {
+    try {
+      newObject.dataContent = JSON.stringify({
+        entity: newObject.entity,
+        status: newObject.status,
+        metadata: newObject.metadata,
+        dataItems: newObject.dataItems || [],
+        excelFileId: newObject.excelFileId
+      });
+      console.log('已生成dataContent字段，包含excelFileId:', newObject.excelFileId);
+    } catch (error) {
+      console.error('生成dataContent失败:', error);
+    }
+  } else if (newObject.dataContent && typeof newObject.dataContent === 'string' && !newObject.dataContent.includes('excelFileId')) {
+    // 如果dataContent已存在但不包含excelFileId，尝试添加
+    try {
+      const dataContentObj = JSON.parse(newObject.dataContent);
+      dataContentObj.excelFileId = newObject.excelFileId;
+      newObject.dataContent = JSON.stringify(dataContentObj);
+      console.log('向现有dataContent添加excelFileId:', newObject.excelFileId);
+    } catch (error) {
+      console.error('修改现有dataContent失败:', error);
+    }
+  }
+  
+  // 确保excelFileId作为对象的顶级属性存在
+  newObject.excelFileId = newObject.excelFileId || `fallback-${Date.now()}`;
+  
+  // 准备特殊请求参数，确保后端能找到上传的文件
+  const requestParams = {
+    excelFileId: newObject.excelFileId
+  };
   
   try {
-    // 使用 dataObjectService 的 addDataObjectViaApi 函数，确保数据格式与后端一致
-    const result = await dataObjectService.addDataObjectViaApi(newObject)
+    console.log('调用API添加数字对象:', {
+      entity: newObject.entity,
+      status: newObject.status,
+      excelFileId: newObject.excelFileId,
+      hasDataContent: !!newObject.dataContent
+    });
+    
+    // 调用API添加数据对象，传递excelFileId参数
+    const result = await dataObjectService.addDataObjectViaApi(newObject, requestParams);
     
     if (result.success) {
-      // 成功创建对象
-      ElMessage.success(`数字对象"${newObject.entity}"创建成功`)
+      ElMessage.success('数字对象添加成功');
+      
+      // 刷新表格数据
+      loadDataFromBackend();
       
       // 关闭对话框
-      createDialogVisible.value = false
-      
-      // 刷新数据列表
-      setTimeout(() => {
-        refreshData()
-      }, 500)
+      createDialogVisible.value = false;
     } else {
-      console.error('创建对象失败:', result.message)
-      ElMessage.error(`创建对象失败: ${result.message}`)
+      console.error('添加数字对象失败:', result.message, result);
+      
+      // 捕获具体错误提示
+      let errorDetail = '';
+      if (result.error && result.error.response) {
+        if (result.error.response.data) {
+          if (typeof result.error.response.data === 'string') {
+            errorDetail = result.error.response.data.substring(0, 100);
+          } else if (result.error.response.data.message) {
+            errorDetail = result.error.response.data.message;
+          }
+        }
+      }
+      
+      // 显示详细错误消息
+      ElMessage.error(`添加失败: ${result.message}${errorDetail ? ` (${errorDetail})` : ''}`);
+      
+      // 如果API调用失败，尝试添加到本地数据
+      console.log('尝试添加到本地数据');
+      dataObjectService.addDataObject(newObject);
+      
+      // 仍然关闭对话框，但不刷新数据
+      createDialogVisible.value = false;
     }
   } catch (error) {
-    console.error('创建对象错误:', error)
-    ElMessage.error('创建数字对象失败，请检查输入数据')
-  } finally {
-    loadingInstance.close()
+    console.error('添加数字对象时发生异常:', error);
+    ElMessage.error(`添加过程中发生错误: ${error.message || '未知错误'}`);
+    
+    // 如果异常，尝试添加到本地数据
+    dataObjectService.addDataObject(newObject);
+    createDialogVisible.value = false;
   }
 }
 
