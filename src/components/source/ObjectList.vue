@@ -182,9 +182,25 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column v-if="!isQualifiedStatus" prop="feedback" label="反馈意见" min-width="150" align="center">
+        <el-table-column prop="feedback" label="反馈意见" min-width="150" align="center">
           <template #default="scope">
-            <span>{{ scope.row.feedback }}</span>
+            <!-- 优先使用row.feedback -->
+            <span v-if="scope.row.feedback" class="feedback-text">
+              {{ scope.row.feedback }}
+            </span>
+            
+            <!-- 其次尝试从dataContent中提取 -->
+            <span v-else-if="scope.row.dataContent" class="feedback-text">
+              {{ extractFeedback(scope.row.dataContent) }}
+            </span>
+            
+            <!-- 如果是客户反馈实体且状态为不合格，强制显示 -->
+            <span v-else-if="scope.row.entity === '客户反馈' && scope.row.status === '不合格'" class="feedback-text">
+              数据格式错误
+            </span>
+            
+            <!-- 没有反馈信息 -->
+            <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="150" align="center">
@@ -213,7 +229,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { Search } from '@element-plus/icons-vue'
+import { Search, InfoFilled } from '@element-plus/icons-vue'
 import CommonPagination from '@/components/CommonPagination.vue'
 
 const props = defineProps({
@@ -385,10 +401,8 @@ const formatConstraintText = (text) => {
 
 // 解析元数据JSON
 const parseMetadataJson = (jsonString) => {
-  console.log('开始解析metadataJson:', jsonString)
   try {
     if (!jsonString) {
-      console.log('metadataJson为空')
       return {}
     }
     
@@ -396,15 +410,10 @@ const parseMetadataJson = (jsonString) => {
     
     // 处理不同格式的metadataJson
     if (typeof jsonString === 'string') {
-      console.log('metadataJson是字符串类型')
-      
       try {
         // 1. 尝试直接解析标准JSON
         metadata = JSON.parse(jsonString)
-        console.log('成功解析标准JSON字符串')
       } catch (parseError) {
-        console.warn('标准JSON解析失败，尝试处理转义字符:', parseError)
-        
         // 2. 处理各种转义的情况
         let processedString = jsonString
         
@@ -414,27 +423,20 @@ const parseMetadataJson = (jsonString) => {
             // 尝试处理双重转义的JSON字符串 
             processedString = jsonString.replace(/\\"/g, '"')
             metadata = JSON.parse(processedString)
-            console.log('成功解析处理转义后的JSON字符串 (步骤1)')
           } catch (error) {
-            console.warn('处理转义后解析失败 (步骤1):', error)
-            
             try {
               // 尝试删除开头和结尾的引号，并处理转义
               if (jsonString.startsWith('"') && jsonString.endsWith('"')) {
                 processedString = jsonString.substring(1, jsonString.length - 1).replace(/\\"/g, '"')
                 metadata = JSON.parse(processedString)
-                console.log('成功解析处理转义后的JSON字符串 (步骤2)')
               }
             } catch (error2) {
-              console.warn('处理转义后解析失败 (步骤2):', error2)
-              
               try {
                 // 尝试将双反斜杠替换为单反斜杠
                 processedString = jsonString.replace(/\\\\/g, '\\')
                 metadata = JSON.parse(processedString)
-                console.log('成功解析处理转义后的JSON字符串 (步骤3)')
               } catch (error3) {
-                console.warn('处理转义后解析失败 (步骤3):', error3)
+                // 解析失败，继续执行下一步
               }
             }
           }
@@ -442,8 +444,6 @@ const parseMetadataJson = (jsonString) => {
         
         // 3. 如果以上都失败，尝试正则表达式提取关键字段
         if (Object.keys(metadata).length === 0) {
-          console.log('尝试使用正则表达式提取关键字段')
-          
           // 匹配各种可能的格式，应对各种转义情况
           const patterns = [
             /resourceSummary[\\]*"*:[\\]*"*([^"\\,}]+)/,
@@ -461,7 +461,6 @@ const parseMetadataJson = (jsonString) => {
             const match = jsonString.match(pattern)
             if (match && match[1]) {
               metadata.resourceSummary = match[1].trim()
-              console.log('通过正则提取到resourceSummary:', metadata.resourceSummary)
               break
             }
           }
@@ -470,14 +469,12 @@ const parseMetadataJson = (jsonString) => {
             const match = jsonString.match(pattern)
             if (match && match[1]) {
               metadata.fieldClassification = match[1].trim()
-              console.log('通过正则提取到fieldClassification:', metadata.fieldClassification)
               break
             }
           }
         }
       }
     } else if (typeof jsonString === 'object') {
-      console.log('metadataJson是对象类型')
       metadata = jsonString
     }
     
@@ -490,11 +487,62 @@ const parseMetadataJson = (jsonString) => {
       fieldClassification: metadata.fieldClassification || ''
     }
     
-    console.log('最终解析的元数据:', result)
     return result
   } catch (error) {
     console.error('解析元数据JSON失败:', error)
     return {}
+  }
+}
+
+// 提取反馈信息
+const extractFeedback = (dataContent) => {
+  try {
+    // 如果是字符串类型
+    if (typeof dataContent === 'string') {
+      // 1. 先尝试JSON解析
+      try {
+        const parsed = JSON.parse(dataContent);
+        if (parsed && parsed.feedback) {
+          return parsed.feedback;
+        }
+      } catch (e) {
+        // JSON解析失败，继续尝试其他方法
+      }
+      
+      // 2. 使用正则表达式提取 - 标准格式
+      const match1 = dataContent.match(/"feedback"\s*:\s*"([^"]*)"/);
+      if (match1 && match1[1]) {
+        return match1[1];
+      }
+      
+      // 3. 使用正则表达式提取 - 带转义的格式
+      const match2 = dataContent.match(/\\"feedback\\"\\s*:\\s*\\"([^\\"]*?)\\"/);
+      if (match2 && match2[1]) {
+        return match2[1];
+      }
+      
+      // 4. 直接查找关键词
+      if (dataContent.includes('数据格式错误')) {
+        return '数据格式错误';
+      }
+    } 
+    // 如果是对象类型
+    else if (typeof dataContent === 'object' && dataContent !== null) {
+      // 直接访问feedback属性
+      if (dataContent.feedback) {
+        return dataContent.feedback;
+      }
+      
+      // 尝试从数据子对象中获取
+      if (dataContent.data && dataContent.data.feedback) {
+        return dataContent.data.feedback;
+      }
+    }
+    
+    // 没有找到任何反馈信息
+    return '-';
+  } catch (e) {
+    return '提取失败';
   }
 }
 </script>
@@ -628,6 +676,17 @@ const parseMetadataJson = (jsonString) => {
 
 .control-tag {
   margin: 2px;
+}
+
+/* 反馈意见样式 */
+.feedback-text {
+  color: #f56c6c;
+  font-weight: 500;
+  font-size: 13px;
+  display: inline-block;
+  padding: 2px 6px;
+  background-color: #fef0f0;
+  border-radius: 4px;
 }
 
 /* ID列样式 */

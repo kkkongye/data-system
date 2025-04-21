@@ -188,6 +188,21 @@
             <div class="metadata-item">领域分类: <strong>{{ previewForm.metadata.fieldClassification || '未分类' }}</strong></div>
             <div class="metadata-item">更新时间: <strong>{{ getCurrentDateTime() }}</strong></div>
           </div>
+          <!-- 添加表头信息显示 -->
+          <div v-if="previewForm.metadata.headers && previewForm.metadata.headers.length" class="headers-section">
+            <div class="headers-title">表头字段:</div>
+            <div class="headers-list">
+              <el-tag 
+                v-for="(header, index) in previewForm.metadata.headers" 
+                :key="index" 
+                type="info" 
+                effect="plain"
+                class="header-tag"
+              >
+                {{ header }}
+              </el-tag>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -443,12 +458,10 @@ const previewEntity = (row) => {
   previewForm.locationInfo = row.locationInfo
   previewForm.constraint = row.constraint
   previewForm.transferControl = row.transferControl
+  previewForm.status = row.status
   
-  // 解析元数据
-  previewForm.metadata = null
-  
-  // 提取元数据
-  extractMetadata(row)
+  // 解析元数据 - 使用改进的extractMetadata函数
+  previewForm.metadata = extractMetadata(row)
   
   // 清空当前Excel数据
   excelBinaryData.value = row.excelData || null
@@ -457,67 +470,242 @@ const previewEntity = (row) => {
   previewDialogVisible.value = true
 }
 
-// 提取元数据
-const extractMetadata = (row) => {
-  // 检查数据的各种可能位置
-  if (row.metadataJson) {
-    try {
-      processMetadataString(row.metadataJson)
-      if (previewForm.metadata) return true
-    } catch (e) {
-      console.warn('解析元数据JSON失败:', e)
-    }
-  }
-  
-  // 最后使用模拟数据
-  if (!previewForm.metadata) {
-    // 生成模拟元数据
-    let entityName = row.entity || '未知实体'
-    let sourceUnit = '数据部'
-    let contactPerson = '王主任'
-    
-    // 根据实体名称定制一些元数据
-    if (entityName.includes('用户')) {
-      sourceUnit = '用户管理部'
-    } else if (entityName.includes('订单')) {
-      sourceUnit = '订单管理部'
-      contactPerson = '李经理'
-    } else if (entityName.includes('产品')) {
-      sourceUnit = '产品部'
-      contactPerson = '张总监'
-    }
-    
-    previewForm.metadata = {
-      dataName: entityName,
-      sourceUnit: sourceUnit,
-      contactPerson: contactPerson,
-      contactPhone: "123-456789"
-    }
-    return true
-  }
-  
-  return false
-}
-
 // 处理元数据字符串的函数
 const processMetadataString = (metadataString) => {
-  if (!metadataString) return
+  if (!metadataString) {
+    return {  // 返回一个默认的元数据对象，而不是空对象
+      dataName: '未知数据',
+      sourceUnit: '未知来源',
+      contactPerson: '未指定',
+      contactPhone: '未提供',
+      resourceSummary: '无描述',
+      fieldClassification: '未分类'
+    }
+  }
   
   // 检查是否已经是对象
   if (typeof metadataString === 'object') {
-    previewForm.metadata = metadataString
-    return
+    return metadataString
   }
   
+  // 修复JSON字符串中可能存在的常见问题
+  let cleanString = metadataString.toString()
+  
   try {
-    // 尝试解析
-    const parsed = JSON.parse(metadataString)
-    // 设置元数据
-    if (typeof parsed === 'object') {
-      previewForm.metadata = parsed
+    // 处理双重转义的情况 (例如: "{\"key\":\"value\"}")
+    
+    // 首先尝试去掉外层引号，处理字符串形式的JSON
+    if (cleanString.startsWith('"') && cleanString.endsWith('"')) {
+      const unquoted = cleanString.slice(1, -1).replace(/\\"/g, '"')
+      cleanString = unquoted
+    }
+    
+    // 处理被转义多次的情况
+    if (cleanString.includes('\\\"') || cleanString.includes('\\\\')) {
+      cleanString = cleanString.replace(/\\\\/g, '\\').replace(/\\"/g, '"')
+    }
+    
+    // 修复结尾多余的]}问题
+    if (cleanString.includes('"]}"') && !cleanString.endsWith('"}')) {
+      cleanString = cleanString.replace('"]}"', '"}')
+    }
+    if (cleanString.includes('"]}",')) {
+      cleanString = cleanString.replace('"]}",', '"}')
+    }
+    
+    // 修复开头缺少{的问题
+    if (!cleanString.startsWith('{') && cleanString.includes('":"')) {
+      cleanString = '{' + cleanString
+    }
+    
+    // 修复结尾缺少}的问题
+    if (!cleanString.endsWith('}') && cleanString.includes('":"')) {
+      cleanString = cleanString + '}'
+    }
+    
+    // 尝试直接解析清理后的字符串
+    try {
+      const parsed = JSON.parse(cleanString)
+      
+      // 确保返回对象包含预期的字段
+      return {
+        dataName: parsed.dataName || '未知数据',
+        sourceUnit: parsed.sourceUnit || '未知来源',
+        contactPerson: parsed.contactPerson || '未指定',
+        contactPhone: parsed.contactPhone || '未提供',
+        resourceSummary: parsed.resourceSummary || '无描述',
+        fieldClassification: parsed.fieldClassification || '未分类',
+        headers: parsed.headers || []
+      }
+    } catch (parseError) {
+      // 尝试使用正则表达式提取键值对
+      const keyValuePairs = {}
+      const regex = /"([^"]+)"\s*:\s*"([^"]*)"/g
+      let match
+      
+      while ((match = regex.exec(cleanString)) !== null) {
+        keyValuePairs[match[1]] = match[2]
+      }
+      
+      if (Object.keys(keyValuePairs).length > 0) {
+        return {
+          dataName: keyValuePairs.dataName || '未知数据',
+          sourceUnit: keyValuePairs.sourceUnit || '未知来源',
+          contactPerson: keyValuePairs.contactPerson || '未指定',
+          contactPhone: keyValuePairs.contactPhone || '未提供',
+          resourceSummary: keyValuePairs.resourceSummary || '无描述',
+          fieldClassification: keyValuePairs.fieldClassification || '未分类'
+        }
+      }
+      
+      // 如果所有尝试都失败，返回默认元数据
+      return {
+        dataName: '解析错误',
+        sourceUnit: '数据部',
+        contactPerson: '未知',
+        contactPhone: '未知',
+        resourceSummary: '元数据解析失败: ' + cleanString.substring(0, 50) + '...',
+        fieldClassification: '未分类'
+      }
     }
   } catch (e) {
-    console.warn('解析元数据字符串失败:', e)
+    return {
+      dataName: '解析错误',
+      sourceUnit: '数据部',
+      contactPerson: '未知',
+      contactPhone: '未知',
+      resourceSummary: '元数据解析失败: ' + e.message,
+      fieldClassification: '未分类'
+    }
+  }
+}
+
+// 检查数据的各种可能位置，提取元数据
+const extractMetadata = (row) => {
+  if (!row) {
+    return createDefaultMetadata('未知实体')
+  }
+  
+  // 直接检查row中的metadata对象
+  if (row.metadata && typeof row.metadata === 'object') {
+    // 确保所有必要字段都存在
+    return {
+      dataName: row.metadata.dataName || row.entity || '未知数据',
+      sourceUnit: row.metadata.sourceUnit || '数据部',
+      contactPerson: row.metadata.contactPerson || '未指定',
+      contactPhone: row.metadata.contactPhone || '未提供',
+      resourceSummary: row.metadata.resourceSummary || '无',
+      fieldClassification: row.metadata.fieldClassification || '未分类',
+      headers: Array.isArray(row.metadata.headers) ? row.metadata.headers : []
+    }
+  }
+  
+  // 检查row中的metadataJson字段
+  if (row.metadataJson) {
+    try {
+      const parsedMetadata = processMetadataString(row.metadataJson)
+      return parsedMetadata
+    } catch (e) {
+      console.warn('解析row.metadataJson失败:', e)
+    }
+  }
+  
+  // 检查dataContent字段中的元数据
+  if (row.dataContent) {
+    try {
+      // 尝试解析dataContent
+      const contentObj = typeof row.dataContent === 'string' ? 
+        JSON.parse(row.dataContent) : row.dataContent
+      
+      if (contentObj && contentObj.metadataJson) {
+        const parsedMetadata = processMetadataString(contentObj.metadataJson)
+        return parsedMetadata
+      }
+      
+      // 直接从dataContent中提取元数据字段
+      if (contentObj && (contentObj.metadata || contentObj.dataName || contentObj.sourceUnit || 
+          contentObj.contactPerson || contentObj.contactPhone)) {
+        
+        // 优先使用metadata对象（如果存在）
+        if (contentObj.metadata && typeof contentObj.metadata === 'object') {
+          return {
+            dataName: contentObj.metadata.dataName || row.entity || '未知数据',
+            sourceUnit: contentObj.metadata.sourceUnit || '数据部',
+            contactPerson: contentObj.metadata.contactPerson || '未指定',
+            contactPhone: contentObj.metadata.contactPhone || '未提供',
+            resourceSummary: contentObj.metadata.resourceSummary || '无',
+            fieldClassification: contentObj.metadata.fieldClassification || '未分类',
+            headers: contentObj.metadata.headers || []
+          };
+        }
+        
+        return {
+          dataName: contentObj.dataName || row.entity || '未知数据',
+          sourceUnit: contentObj.sourceUnit || '数据部',
+          contactPerson: contentObj.contactPerson || '未指定',
+          contactPhone: contentObj.contactPhone || '未提供',
+          resourceSummary: contentObj.resourceSummary || '无',
+          fieldClassification: contentObj.fieldClassification || '未分类',
+          headers: contentObj.headers || []
+        }
+      }
+    } catch (e) {
+      console.warn('解析dataContent失败:', e)
+    }
+  }
+  
+  // 解析位置信息
+  if (row.locationInfoJson) {
+    try {
+      // 处理位置信息JSON字符串
+      const locationInfo = JSON.parse(row.locationInfoJson)
+      if (locationInfo && locationInfo.locations) {
+        // 更新locationInfo显示格式
+        const locations = locationInfo.locations
+        const locationStrings = locations.map(loc => 
+          `${loc.sheet || '默认'}: ${loc.startRow || '1'}-${loc.endRow || '*'} 行, ${loc.startColumn || 'A'}-${loc.endColumn || '*'} 列`
+        )
+        previewForm.locationInfo = locationStrings.join('; ')
+      }
+    } catch (e) {
+      console.warn('解析位置信息JSON失败:', e)
+    }
+  }
+  
+  // 创建默认元数据
+  return createDefaultMetadata(row.entity)
+}
+
+// 创建默认元数据的辅助函数
+const createDefaultMetadata = (entityName) => {
+  entityName = entityName || '未知实体'
+  let sourceUnit = '数据部'
+  let contactPerson = '王主任'
+  
+  // 根据实体名称定制一些元数据
+  if (entityName.includes('用户')) {
+    sourceUnit = '用户管理部'
+  } else if (entityName.includes('订单')) {
+    sourceUnit = '订单管理部'
+    contactPerson = '李经理'
+  } else if (entityName.includes('产品')) {
+    sourceUnit = '产品部'
+    contactPerson = '张总监'
+  } else if (entityName.includes('库存')) {
+    sourceUnit = '仓储部'
+    contactPerson = '张管理员'
+  }
+  
+  return {
+    dataName: entityName,
+    sourceUnit: sourceUnit,
+    contactPerson: contactPerson,
+    contactPhone: "123-456789",
+    resourceSummary: `${entityName}数据资源`,
+    fieldClassification: entityName.includes('用户') ? '用户数据' : 
+                        (entityName.includes('订单') ? '订单数据' : 
+                         (entityName.includes('库存') ? '运营数据' : '基础数据')),
+    headers: []
   }
 }
 
@@ -970,20 +1158,17 @@ const downloadExcelFile = (row) => {
   padding: 8px 10px;
   background-color: #f9f9f9;
   border-radius: 4px;
-  width: 98%;
-  max-width: 1200px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   border: 1px solid #eaeaea;
 }
 
 .metadata-items {
   display: flex;
-  flex-wrap: nowrap; /* 防止换行 */
+  flex-wrap: nowrap;
   justify-content: center;
-  overflow-x: auto; /* 如果内容溢出，允许水平滚动 */
-  padding-bottom: 3px; /* 为滚动条留出空间 */
+  overflow-x: auto;
+  padding-bottom: 3px;
   scrollbar-width: thin;
-  -ms-overflow-style: none; /* IE and Edge */
 }
 
 .metadata-items::-webkit-scrollbar {
@@ -997,14 +1182,38 @@ const downloadExcelFile = (row) => {
 
 .metadata-item {
   padding: 4px 8px;
-  background-color: transparent;
-  border-radius: 0;
-  box-shadow: none;
-  border: none;
   margin: 0 8px;
-  white-space: nowrap; /* 防止内容自动换行 */
-  flex-shrink: 0; /* 防止项目被压缩 */
+  white-space: nowrap;
+  flex-shrink: 0;
   font-size: 13px;
+}
+
+/* 表头信息部分样式 */
+.headers-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #e0e0e0;
+}
+
+.headers-title {
+  font-size: 13px;
+  color: #606266;
+  margin-bottom: 8px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.headers-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 15px;
+}
+
+.header-tag {
+  margin: 2px;
+  font-size: 12px;
 }
 
 /* ID单元格样式 */

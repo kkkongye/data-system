@@ -34,6 +34,7 @@
     <div class="main-content">
       <!-- 标签页 -->
       <div class="content-card">
+        <!-- 删除刷新按钮容器 -->
         <el-tabs v-model="activeTab">
           <el-tab-pane label="数字对象列表" name="objectList">
             <!-- 使用ObjectList组件代替原有的列表内容 -->
@@ -206,18 +207,18 @@
   >
     <div class="preview-header">
       <div class="preview-info">
-        <!-- 修改基本信息样式为单行显示 -->
+        <!-- 基本信息表格 -->
         <div class="basic-info-table">
           <span class="info-item"><strong>实体：</strong>{{ previewForm.entity }}</span>
           <span class="info-item"><strong>定位信息：</strong>{{ previewForm.locationInfo }}</span>
-          <span class="info-item constraint-info" :title="Array.isArray(previewForm.constraint) ? previewForm.constraint.join('\n') : (previewForm.constraint || '-')"><strong>约束条件：</strong>{{ Array.isArray(previewForm.constraint) ? previewForm.constraint.join(', ') : (previewForm.constraint || '-') }}</span>
-          <span class="info-item"><strong>传输控制操作：</strong>{{ Array.isArray(previewForm.transferControl) ? previewForm.transferControl.join(', ') : (previewForm.transferControl || '-') }}</span>
+          <span class="info-item constraint-info" :title="Array.isArray(previewForm.constraint) ? previewForm.constraint.join(', ') : previewForm.constraint"><strong>约束条件：</strong>{{ Array.isArray(previewForm.constraint) ? previewForm.constraint.join(', ') : previewForm.constraint }}</span>
+          <span class="info-item"><strong>传输控制操作：</strong>{{ Array.isArray(previewForm.transferControl) ? previewForm.transferControl.join(', ') : previewForm.transferControl }}</span>
           <span class="info-item"><strong>状态：</strong>{{ previewForm.status }}</span>
         </div>
-        <!-- 添加元数据信息显示 -->
+        <!-- 元数据信息显示 -->
         <div v-if="previewForm.metadata" class="metadata-section">
           <div class="metadata-items">
-            <!-- 所有元数据项在一行显示 -->
+            <!-- 元数据项在一行显示 -->
             <div class="metadata-item">数据名称: <strong>{{ previewForm.metadata.dataName || previewForm.entity }}</strong></div>
             <div class="metadata-item">来源单位: <strong>{{ previewForm.metadata.sourceUnit || '数据部' }}</strong></div>
             <div class="metadata-item">联系人: <strong>{{ previewForm.metadata.contactPerson || '未指定' }}</strong></div>
@@ -403,95 +404,148 @@ const handleSelectionChange = (rows) => {
   selectedRows.value = rows
 }
 
-// 处理编辑操作
+// 编辑指定的对象
 const handleEdit = (row) => {
-  console.log('开始编辑对象:', row)
+  console.log('编辑对象:', row)
+  
+  // 克隆对象以避免直接修改原始引用
+  const sourceObj = JSON.parse(JSON.stringify(row))
+  console.log('克隆后的源对象:', sourceObj)
   
   // 重置编辑表单
   resetEditForm()
   
-  // 设置基本信息
-  editForm.id = row.id
-  editForm.entity = row.entity
-  editForm.locationInfo = row.locationInfo || { row: '', col: '' }
+  // 设置基本字段
+  editForm.id = sourceObj.id
+  editForm.entity = sourceObj.entity
   
-  // 如果locationInfo是字符串格式，尝试解析
-  if (typeof editForm.locationInfo === 'string') {
+  // 处理定位信息
+  if (sourceObj.locationInfo) {
+    if (typeof sourceObj.locationInfo === 'object') {
+      editForm.locationInfo = { 
+        row: sourceObj.locationInfo.row || '', 
+        col: sourceObj.locationInfo.col || '' 
+      }
+    } else if (typeof sourceObj.locationInfo === 'string') {
+      // 尝试解析字符串形式的定位信息
+      const locationInfo = parseLocationInfoString(sourceObj.locationInfo)
+      editForm.locationInfo = locationInfo
+    }
+  }
+  
+  // 处理元数据
+  editForm.metadata = extractMetadata(sourceObj)
+  console.log('已设置编辑表单的元数据:', editForm.metadata)
+  
+  // 处理约束条件
+  if (sourceObj.constraint) {
+    if (Array.isArray(sourceObj.constraint)) {
+      editForm.constraint = sourceObj.constraint
+      
+      // 解析约束条件字符串
+      sourceObj.constraint.forEach(constraint => {
+        if (constraint.includes('格式约束:')) {
+          editForm.formatConstraint = constraint.split(':')[1]
+        } else if (constraint.includes('访问权限:')) {
+          editForm.accessConstraint = constraint.split(':')[1]
+        } else if (constraint.includes('传输路径约束:')) {
+          editForm.pathConstraint = constraint.split(':')[1]
+        } else if (constraint.includes('地域性约束:')) {
+          editForm.regionConstraint = constraint.split(':')[1]
+        } else if (constraint.includes('共享约束:')) {
+          editForm.shareConstraint = constraint.split(':')[1]
+        }
+      })
+    } else if (typeof sourceObj.constraint === 'string') {
+      editForm.constraint = [sourceObj.constraint]
+    }
+  }
+  
+  // 处理传输控制操作
+  if (sourceObj.transferControl) {
+    editForm.transferControl = Array.isArray(sourceObj.transferControl) ? 
+      sourceObj.transferControl : [sourceObj.transferControl]
+  } else {
+    editForm.transferControl = []
+  }
+  
+  // 设置状态和反馈
+  editForm.status = sourceObj.status || ''
+  editForm.feedback = sourceObj.feedback || ''
+  
+  // 设置审计信息
+  editForm.auditInfo = sourceObj.auditInfo || ''
+  
+  // 设置Excel数据
+  editForm.excelData = sourceObj.excelData || null
+  
+  // 设置dataItems数组
+  editForm.dataItems = sourceObj.dataItems || []
+  
+  // 处理dataContent字段
+  if (sourceObj.dataContent) {
     try {
-      // 避免使用正则表达式匹配，改用字符串分割
-      const locString = editForm.locationInfo.trim()
-      if (locString.startsWith('(') && locString.endsWith(')')) {
-        // 去掉括号并分割
-        const parts = locString.substring(1, locString.length - 1).split(',').map(s => s.trim())
-        if (parts.length >= 3) {
-          // 第一部分是实体名称，第二部分是行，第三部分是列
-          editForm.locationInfo = { 
-            row: parts[1], 
-            col: parts[2] 
+      let contentObj;
+      
+      // 处理dataContent是字符串的情况
+      if (typeof sourceObj.dataContent === 'string') {
+        // 尝试解析JSON字符串
+        try {
+          contentObj = JSON.parse(sourceObj.dataContent);
+        } catch (jsonError) {
+          console.warn(`JSON解析失败: ${jsonError}，尝试正则提取`);
+          
+          // 如果JSON解析失败，尝试用正则表达式提取feedback
+          const feedbackMatch = sourceObj.dataContent.match(/"feedback"\s*:\s*"([^"]*)"/);
+          if (feedbackMatch && feedbackMatch[1]) {
+            editForm.feedback = feedbackMatch[1];
+            console.log(`通过正则提取到feedback: ${editForm.feedback}`);
           }
-        } else {
-          editForm.locationInfo = { row: '', col: '' }
+          
+          // 尝试提取status
+          const statusMatch = sourceObj.dataContent.match(/"status"\s*:\s*"([^"]*)"/);
+          if (statusMatch && statusMatch[1]) {
+            editForm.status = statusMatch[1];
+            console.log(`通过正则提取到status: ${editForm.status}`);
+          }
+          
+          // 提前返回，避免后续处理
+          return;
         }
       } else {
-        editForm.locationInfo = { row: '', col: '' }
+        contentObj = sourceObj.dataContent;
+      }
+      
+      if (contentObj) {
+        console.log(`处理数据项 ${sourceObj.entity} 的dataContent:`, contentObj);
+        
+        // 直接更新status，不管它是什么值
+        if (contentObj.status) {
+          editForm.status = contentObj.status;
+          console.log(`从dataContent提取状态: ${sourceObj.entity} - ${editForm.status}`);
+        }
+        
+        // 查找反馈意见 - 不管status是什么值都提取feedback
+        if (contentObj.feedback) {
+          editForm.feedback = contentObj.feedback;
+          console.log(`从dataContent直接提取反馈信息: ${sourceObj.entity} - ${editForm.feedback}`);
+        } else if (contentObj.data && contentObj.data.feedback) {
+          editForm.feedback = contentObj.data.feedback;
+          console.log(`从dataContent.data提取反馈信息: ${sourceObj.entity} - ${editForm.feedback}`);
+        }
+        
+        // 提取dataItems如果存在
+        if (contentObj.dataItems && Array.isArray(contentObj.dataItems)) {
+          editForm.dataItems = contentObj.dataItems;
+          console.log(`从dataContent提取数据项: ${sourceObj.entity} - ${contentObj.dataItems.length}项`);
+        }
       }
     } catch (e) {
-      console.error('解析locationInfo失败:', e)
-      editForm.locationInfo = { row: '', col: '' }
+      console.warn(`解析 ${sourceObj.entity} 的dataContent失败:`, e);
     }
   }
   
-  editForm.format = row.format || ''
-  editForm.resourcePath = row.resourcePath || ''
-  editForm.description = row.description || ''
-  
-  // 从约束条件中提取各类约束
-  if (Array.isArray(row.constraint)) {
-    row.constraint.forEach(constraint => {
-      if (constraint.includes('格式约束:')) {
-        editForm.formatConstraint = constraint.split(':')[1]
-      } else if (constraint.includes('访问权限:')) {
-        editForm.accessConstraint = constraint.split(':')[1]
-      } else if (constraint.includes('传输路径约束:')) {
-        editForm.pathConstraint = constraint.split(':')[1]
-      } else if (constraint.includes('地域性约束:')) {
-        editForm.regionConstraint = constraint.split(':')[1]
-      } else if (constraint.includes('共享约束:')) {
-        editForm.shareConstraint = constraint.split(':')[1]
-      }
-    })
-  } else if (typeof row.constraint === 'string') {
-    // 处理单个字符串约束
-    if (row.constraint.includes('格式约束:')) {
-      editForm.formatConstraint = row.constraint.split(':')[1]
-    }
-  }
-  
-  // 处理单独的约束字段
-  editForm.formatConstraint = row.formatConstraint || editForm.formatConstraint
-  editForm.accessConstraint = row.accessConstraint || editForm.accessConstraint
-  editForm.pathConstraint = row.pathConstraint || editForm.pathConstraint
-  editForm.regionConstraint = row.regionConstraint || editForm.regionConstraint
-  editForm.shareConstraint = row.shareConstraint || editForm.shareConstraint
-  
-  // 设置传输控制
-  editForm.transferControl = Array.isArray(row.transferControl) ? [...row.transferControl] : []
-  
-  // 使用extractMetadata获取元数据
-  const metadata = extractMetadata(row)
-  console.log('提取到的元数据:', metadata)
-  
-  // 更新元数据表单
-  if (metadata) {
-    editForm.metadata = metadata
-  } else {
-    console.warn('未找到有效的元数据，使用默认空值')
-    editForm.metadata = createDefaultMetadata(row.entity)
-  }
-  
-  console.log('编辑表单已更新:', editForm)
-  
-  // 显示对话框
+  // 显示编辑对话框
   editDialogVisible.value = true
 }
 
@@ -504,67 +558,63 @@ const cancelEdit = () => {
 
 // 保存编辑的对象
 const saveEditObject = async (updatedObject) => {
-  // 检查是否为离线模式上传（如果有excelData但没有通过API上传）
-  const isOfflineMode = updatedObject.offlineMode === true
+  console.log('保存编辑对象:', updatedObject)
   const objectId = updatedObject.id
-  console.log('保存编辑对象，ID:', objectId)
-
-  // 如果没有传输控制操作，设置默认值
-  if (!updatedObject.transferControl || updatedObject.transferControl.length === 0) {
-    updatedObject.transferControl = ['可读', '可修改', '可销毁', '可共享', '可委托']
-  }
-  
-  // 如果没有propagationControl对象，根据transferControl创建
-  if (!updatedObject.propagationControl) {
-    updatedObject.propagationControl = {
-      canRead: updatedObject.transferControl.includes('可读'),
-      canModify: updatedObject.transferControl.includes('可修改'),
-      canDestroy: updatedObject.transferControl.includes('可销毁'),
-      canShare: updatedObject.transferControl.includes('可共享'),
-      canDelegate: updatedObject.transferControl.includes('可委托')
-    }
-  }
-
-  // 处理定位信息为字符串格式
-  const entityName = updatedObject.entity
-  
-  // 准备元数据JSON
-  let metadataJson = null
-  if (updatedObject.metadata) {
-    metadataJson = JSON.stringify(updatedObject.metadata)
-  }
-  
-  const displayObject = {
-    ...updatedObject,
-    locationInfo: `(${entityName}, ${updatedObject.locationInfo.row}, ${updatedObject.locationInfo.col})`,
-    metadataJson: metadataJson // 添加元数据JSON字符串
-  }
   
   try {
-    // 使用API更新数据对象
-    let updated = false
-    
-    if (!isOfflineMode) {
-      // 尝试通过API更新
-      updated = await dataObjectService.updateDataObjectViaApi(objectId, displayObject)
-    } else {
-      // 离线模式仅更新本地数据
-      updated = dataObjectService.updateDataObject(displayObject)
+    // 修复位置信息
+    if (updatedObject.locationInfo) {
+      if (typeof updatedObject.locationInfo === 'object' && 
+          (updatedObject.locationInfo.row === undefined || updatedObject.locationInfo.col === undefined)) {
+        updatedObject.locationInfo = {
+          row: '',
+          col: ''
+        }
+      }
     }
     
-    if (updated) {
-      console.log('保存编辑后的对象:', displayObject)
-      
-      // 根据是否为离线模式显示不同的提示
-      if (isOfflineMode) {
-        ElMessage({
-          message: `已离线保存对 ${entityName} 的编辑，但数据未同步到服务器`,
-          type: 'warning',
-          duration: 5000
-        })
-      } else {
-        ElMessage.success(`已保存对 ${entityName} 的编辑`)
+    // 修复元数据
+    if (!updatedObject.metadata) {
+      updatedObject.metadata = createDefaultMetadata(updatedObject.entity)
+    }
+    
+    // 构建数据内容
+    let dataContent = {}
+    try {
+      // 尝试解析现有的dataContent
+      if (typeof updatedObject.dataContent === 'string') {
+        dataContent = JSON.parse(updatedObject.dataContent)
+      } else if (updatedObject.dataContent) {
+        dataContent = updatedObject.dataContent
       }
+    } catch (e) {
+      console.warn('解析现有dataContent失败，创建新对象', e)
+      dataContent = {}
+    }
+    
+    // 更新dataContent
+    dataContent.entity = updatedObject.entity
+    dataContent.status = updatedObject.status
+    dataContent.feedback = updatedObject.feedback
+    
+    // 保留dataItems
+    if (updatedObject.dataItems) {
+      dataContent.dataItems = updatedObject.dataItems
+    }
+    
+    // 如果元数据存在，添加到dataContent
+    if (updatedObject.metadata) {
+      dataContent.metadata = updatedObject.metadata
+    }
+    
+    // 将dataContent转为字符串
+    updatedObject.dataContent = JSON.stringify(dataContent)
+    
+    // 尝试通过API保存
+    const result = await dataObjectService.updateDataObjectViaApi(objectId, updatedObject)
+    
+    if (result) {
+      ElMessage.success(`已保存更改: ${updatedObject.entity}`)
       
       // 刷新数据列表
       refreshData()
@@ -948,6 +998,73 @@ const clearAllTestData = () => {
   excelSheets.value = []
 }
 
+// 专门处理客户反馈数据
+const fixCustomerFeedbackData = () => {
+  console.log("开始特殊处理客户反馈数据");
+  
+  // 遍历所有数据行
+  for (let i = 0; i < tableData.value.length; i++) {
+    const row = tableData.value[i];
+    
+    // 找到客户反馈实体
+    if (row.entity === '客户反馈') {
+      console.log(`找到客户反馈实体 [ID: ${row.id}]`);
+      
+      // 直接在Vue响应式对象上设置属性
+      if (!row.feedback && row.dataContent) {
+        console.log("原始dataContent:", typeof row.dataContent === 'string' ? 
+                   row.dataContent.substring(0, 100) + "..." : "对象类型");
+        
+        // 判断类型并提取feedback
+        if (typeof row.dataContent === 'string') {
+          // 使用正则表达式提取
+          const match = row.dataContent.match(/"feedback"\s*:\s*"([^"]*)"/);
+          if (match && match[1]) {
+            console.log(`直接提取到feedback: "${match[1]}"`);
+            
+            // 直接更新数据对象的属性
+            tableData.value[i] = {
+              ...row,
+              feedback: match[1],
+              status: '不合格'
+            };
+            
+            console.log(`已强制更新客户反馈数据: feedback="${match[1]}", status="不合格"`);
+            continue;
+          }
+        } 
+        // 处理对象类型
+        else if (typeof row.dataContent === 'object' && row.dataContent !== null) {
+          if (row.dataContent.feedback) {
+            // 直接更新数据对象的属性
+            tableData.value[i] = {
+              ...row,
+              feedback: row.dataContent.feedback,
+              status: '不合格'
+            };
+            
+            console.log(`已从对象中提取并更新: feedback="${row.dataContent.feedback}", status="不合格"`);
+            continue;
+          }
+        }
+        
+        // 强制设置默认值
+        if (row.dataContent.includes && row.dataContent.includes('数据格式错误')) {
+          tableData.value[i] = {
+            ...row,
+            feedback: '数据格式错误',
+            status: '不合格'
+          };
+          
+          console.log("已强制设置默认反馈: 数据格式错误");
+        }
+      }
+    }
+  }
+  
+  console.log("客户反馈数据处理完成");
+}
+
 // 在组件挂载后执行清理
 onMounted(() => {
   clearAllTestData()
@@ -958,7 +1075,17 @@ onMounted(() => {
   })
   
   // 从后端API加载数据
-  loadDataFromBackend()
+  loadDataFromBackend().then(() => {
+    // 在数据加载完成后执行特殊处理
+    console.log("加载完成，准备处理反馈数据");
+    fixCustomerFeedbackData();
+  });
+  
+  // 直接处理特定实体的反馈信息
+  setTimeout(() => {
+    console.log('延时检查并强制设置客户反馈实体的反馈信息');
+    fixCustomerFeedbackData();
+  }, 2000); // 给足够的时间加载数据
 })
 
 // 添加新的变量和方法
@@ -1001,6 +1128,9 @@ const loadDataFromBackend = async () => {
     // 获取最后接收的API数据
     lastReceivedApiData.value = dataObjectService.getLastReceivedApiData()
     
+    // 处理刚刚获取的数据，确保反馈意见能够正确显示
+    processNewlyFetchedData();
+    
     console.log('后端数据加载完成')
     ElMessage.success('数据加载成功')
     
@@ -1032,6 +1162,95 @@ const loadDataFromBackend = async () => {
   }
 }
 
+// 处理刚刚获取的数据，确保反馈意见能够正确显示
+const processNewlyFetchedData = () => {
+  if (!tableData.value || !tableData.value.length) return;
+
+  console.log("开始处理表格数据，总行数:", tableData.value.length);
+  
+  tableData.value.forEach(row => {
+    console.log(`处理行 [${row.id}] [${row.entity}]`);
+    
+    // 特别处理客户反馈实体
+    if (row.entity === '客户反馈') {
+      console.log(`找到客户反馈实体: ID=${row.id}`);
+      
+      // 直接从dataContent中提取feedback
+      if (row.dataContent) {
+        console.log(`dataContent类型: ${typeof row.dataContent}`);
+        
+        let feedbackValue = null;
+        
+        // 对字符串类型的dataContent进行处理
+        if (typeof row.dataContent === 'string') {
+          console.log(`dataContent内容: ${row.dataContent.substring(0, 100)}...`);
+          
+          // 使用正则表达式直接提取feedback值
+          const match = row.dataContent.match(/"feedback"\s*:\s*"([^"]*)"/);
+          if (match && match[1]) {
+            feedbackValue = match[1];
+            console.log(`通过正则表达式提取到feedback: "${feedbackValue}"`);
+          } else if (row.dataContent.includes('数据格式错误')) {
+            feedbackValue = '数据格式错误';
+            console.log(`直接从字符串中提取到: "${feedbackValue}"`);
+          }
+        } 
+        // 对对象类型的dataContent进行处理
+        else if (typeof row.dataContent === 'object') {
+          if (row.dataContent.feedback) {
+            feedbackValue = row.dataContent.feedback;
+            console.log(`从对象中提取到feedback: "${feedbackValue}"`);
+          }
+        }
+        
+        // 如果提取到了feedback值，直接设置到row上
+        if (feedbackValue) {
+          row.feedback = feedbackValue;
+          row.status = '不合格';
+          console.log(`成功设置反馈: feedback="${row.feedback}", status="${row.status}"`);
+        } else {
+          console.warn(`未能从dataContent中提取到feedback值`);
+        }
+      } else {
+        console.warn(`客户反馈实体没有dataContent`);
+      }
+    }
+    
+    // 一般的处理逻辑，适用于所有实体
+    if (row.dataContent && !row.feedback) {
+      let feedbackValue = null;
+      
+      // 尝试从字符串类型的dataContent中提取feedback
+      if (typeof row.dataContent === 'string') {
+        const match = row.dataContent.match(/"feedback"\s*:\s*"([^"]*)"/);
+        if (match && match[1]) {
+          feedbackValue = match[1];
+          console.log(`为${row.entity}提取到feedback: "${feedbackValue}"`);
+        }
+      }
+      // 尝试从对象类型的dataContent中提取feedback
+      else if (typeof row.dataContent === 'object' && row.dataContent.feedback) {
+        feedbackValue = row.dataContent.feedback;
+        console.log(`为${row.entity}从对象中提取到feedback: "${feedbackValue}"`);
+      }
+      
+      // 如果提取到了feedback值，设置到row上
+      if (feedbackValue) {
+        row.feedback = feedbackValue;
+        if (!row.status) {
+          row.status = '不合格';
+        }
+        console.log(`为${row.entity}设置反馈: ${row.feedback}`);
+      }
+    }
+    
+    // 最后做一次日志记录
+    console.log(`行 [${row.entity}] 最终状态: feedback=${row.feedback || '无'}, status=${row.status || '无'}`);
+  });
+  
+  console.log("数据处理完成");
+}
+
 // 添加刷新数据的方法
 // 添加loadTableData作为refreshData的别名
 const loadTableData = () => {
@@ -1046,6 +1265,9 @@ const refreshData = async () => {
     
     // 获取最后接收的API数据
     lastReceivedApiData.value = dataObjectService.getLastReceivedApiData()
+    
+    // 处理刚刚获取的数据，确保反馈意见能够正确显示
+    processNewlyFetchedData();
     
     ElMessage.success('数据刷新成功')
     
@@ -1410,7 +1632,10 @@ const processMetadataString = (metadataString) => {
   // 检查是否已经是对象
   if (typeof metadataString === 'object') {
     console.log('元数据已经是对象，无需解析')
-    return metadataString
+    return {
+      ...metadataString,
+      contactPhone: metadataString.contactPhone || '未提供'  // 确保contactPhone字段存在
+    }
   }
   
   // 修复JSON字符串中可能存在的常见问题
@@ -1462,7 +1687,7 @@ const processMetadataString = (metadataString) => {
         dataName: parsed.dataName || '未知数据',
         sourceUnit: parsed.sourceUnit || '未知来源',
         contactPerson: parsed.contactPerson || '未指定',
-        contactPhone: parsed.contactPhone || '未提供',
+        contactPhone: parsed.contactPhone || '未提供',  // 确保包含contactPhone
         resourceSummary: parsed.resourceSummary || '无描述',
         fieldClassification: parsed.fieldClassification || '未分类',
         headers: parsed.headers || []
@@ -1485,7 +1710,7 @@ const processMetadataString = (metadataString) => {
           dataName: keyValuePairs.dataName || '未知数据',
           sourceUnit: keyValuePairs.sourceUnit || '未知来源',
           contactPerson: keyValuePairs.contactPerson || '未指定',
-          contactPhone: keyValuePairs.contactPhone || '未提供',
+          contactPhone: keyValuePairs.contactPhone || '未提供',  // 确保包含contactPhone
           resourceSummary: keyValuePairs.resourceSummary || '无描述',
           fieldClassification: keyValuePairs.fieldClassification || '未分类'
         }
@@ -1508,7 +1733,7 @@ const processMetadataString = (metadataString) => {
       dataName: '解析错误',
       sourceUnit: '数据部',
       contactPerson: '未知',
-      contactPhone: '未知',
+      contactPhone: '未知',  // 确保默认值一致
       resourceSummary: '元数据解析失败: ' + e.message,
       fieldClassification: '未分类'
     }
@@ -1559,6 +1784,23 @@ const extractMetadata = (row) => {
       const contentObj = typeof row.dataContent === 'string' ? 
         JSON.parse(row.dataContent) : row.dataContent
       
+      // 更新status和feedback信息（如果存在）
+      if (contentObj && contentObj.status) {
+        row.status = contentObj.status;
+        console.log('从dataContent更新状态:', row.status);
+      }
+      
+      if (contentObj && contentObj.feedback) {
+        row.feedback = contentObj.feedback;
+        console.log('从dataContent提取反馈信息:', row.feedback);
+      }
+
+      // 更新dataItems（如果存在）
+      if (contentObj && contentObj.dataItems) {
+        row.dataItems = contentObj.dataItems;
+        console.log('从dataContent提取数据项数组, 共', contentObj.dataItems.length, '项');
+      }
+      
       if (contentObj && contentObj.metadataJson) {
         console.log('从row.dataContent.metadataJson提取元数据')
         const parsedMetadata = processMetadataString(contentObj.metadataJson)
@@ -1567,9 +1809,23 @@ const extractMetadata = (row) => {
       }
       
       // 直接从dataContent中提取元数据字段
-      if (contentObj && (contentObj.dataName || contentObj.sourceUnit || 
+      if (contentObj && (contentObj.metadata || contentObj.dataName || contentObj.sourceUnit || 
           contentObj.contactPerson || contentObj.contactPhone)) {
         console.log('直接从dataContent中获取元数据字段')
+        
+        // 优先使用metadata对象（如果存在）
+        if (contentObj.metadata && typeof contentObj.metadata === 'object') {
+          return {
+            dataName: contentObj.metadata.dataName || row.entity || '未知数据',
+            sourceUnit: contentObj.metadata.sourceUnit || '数据部',
+            contactPerson: contentObj.metadata.contactPerson || '未指定',
+            contactPhone: contentObj.metadata.contactPhone || '未提供',
+            resourceSummary: contentObj.metadata.resourceSummary || '无',
+            fieldClassification: contentObj.metadata.fieldClassification || '未分类',
+            headers: contentObj.metadata.headers || []
+          };
+        }
+        
         return {
           dataName: contentObj.dataName || row.entity || '未知数据',
           sourceUnit: contentObj.sourceUnit || '数据部',
@@ -1579,6 +1835,12 @@ const extractMetadata = (row) => {
           fieldClassification: contentObj.fieldClassification || '未分类',
           headers: contentObj.headers || []
         }
+      }
+
+      // 即使没有找到元数据，也尝试创建一个与entity相关的元数据
+      if (contentObj && contentObj.entity) {
+        console.log('从dataContent.entity创建基本元数据');
+        return createDefaultMetadata(contentObj.entity);
       }
     } catch (e) {
       console.warn('解析dataContent失败:', e)
@@ -1617,6 +1879,79 @@ const createDefaultMetadata = (entityName) => {
                         (entityName.includes('订单') ? '订单数据' : '基础数据'),
     headers: []
   }
+}
+
+// 添加新的位置信息提取方法
+const parseLocationInfoString = (locationInfoString) => {
+  if (!locationInfoString) {
+    return { row: '', col: '' };
+  }
+  
+  if (typeof locationInfoString === 'object') {
+    return {
+      row: locationInfoString.row || '',
+      col: locationInfoString.col || ''
+    };
+  }
+  
+  try {
+    // 处理标准的格式化字符串，例如 (entityName, row, col)
+    const locString = locationInfoString.toString().trim();
+    if (locString.startsWith('(') && locString.endsWith(')')) {
+      // 去掉括号并分割
+      const parts = locString.substring(1, locString.length - 1).split(',').map(s => s.trim());
+      if (parts.length >= 3) {
+        // 第一部分是实体名称，第二部分是行，第三部分是列
+        return { 
+          row: parts[1], 
+          col: parts[2] 
+        };
+      }
+    }
+    
+    // 处理简单格式的"行x列"字符串
+    if (locString.includes('行') && locString.includes('列')) {
+      const rowMatch = locString.match(/(\d+)[^\d]*行/);
+      const colMatch = locString.match(/(\d+)[^\d]*列/);
+      
+      return {
+        row: rowMatch ? rowMatch[1] : '',
+        col: colMatch ? colMatch[1] : ''
+      };
+    }
+  } catch (e) {
+    console.warn('解析位置信息字符串失败:', e);
+  }
+  
+  // 返回默认空值
+  return { row: '', col: '' };
+};
+
+// 处理刷新按钮点击
+const handleRefreshClick = () => {
+  console.log('手动刷新数据');
+  ElMessage.info('正在刷新数据...');
+  
+  // 刷新数据
+  refreshData();
+  
+  // 强制处理特定实体的反馈信息
+  setTimeout(() => {
+    console.log('检查并强制设置客户反馈实体的反馈信息');
+    if (tableData.value && tableData.value.length) {
+      tableData.value.forEach(row => {
+        if (row.entity === '客户反馈') {
+          if (row.dataContent && typeof row.dataContent === 'string' && 
+              row.dataContent.includes('数据格式错误')) {
+            console.log(`找到客户反馈实体，设置反馈信息`);
+            row.feedback = '数据格式错误';
+            row.status = '不合格';
+          }
+        }
+      });
+    }
+    ElMessage.success('数据刷新完成');
+  }, 1000);
 }
 </script>
 

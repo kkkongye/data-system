@@ -220,6 +220,109 @@ const adaptBackendData = (backendItem) => {
   const locationInfo = extractLocationInfo(backendItem)
   console.log('处理后的位置信息:', locationInfo)
   
+  // 处理元数据
+  let metadata = null
+  let metadataJson = null
+  
+  // 1. 检查是否有metadata对象
+  if (backendItem.metadata && typeof backendItem.metadata === 'object') {
+    metadata = {
+      dataName: backendItem.metadata.dataName || extractEntityName(backendItem),
+      sourceUnit: backendItem.metadata.sourceUnit || '数据部',
+      contactPerson: backendItem.metadata.contactPerson || '未指定',
+      contactPhone: backendItem.metadata.contactPhone || '未提供',
+      resourceSummary: backendItem.metadata.resourceSummary || '无',
+      fieldClassification: backendItem.metadata.fieldClassification || '未分类',
+      headers: backendItem.metadata.headers || []
+    }
+    console.log('从对象中直接提取元数据:', metadata)
+  }
+  // 2. 检查是否有metadataJson字段
+  else if (backendItem.metadataJson) {
+    try {
+      let parsedMetadata = typeof backendItem.metadataJson === 'string' ? 
+        JSON.parse(backendItem.metadataJson) : backendItem.metadataJson
+      
+      metadata = {
+        dataName: parsedMetadata.dataName || extractEntityName(backendItem),
+        sourceUnit: parsedMetadata.sourceUnit || '数据部',
+        contactPerson: parsedMetadata.contactPerson || '未指定',
+        contactPhone: parsedMetadata.contactPhone || '未提供',
+        resourceSummary: parsedMetadata.resourceSummary || '无',
+        fieldClassification: parsedMetadata.fieldClassification || '未分类',
+        headers: parsedMetadata.headers || []
+      }
+      console.log('从metadataJson解析元数据:', metadata)
+    } catch (error) {
+      console.error('解析metadataJson失败:', error)
+    }
+  }
+  // 3. 尝试从dataContent中提取
+  else if (backendItem.dataContent) {
+    try {
+      let contentObj = typeof backendItem.dataContent === 'string' ? 
+        JSON.parse(backendItem.dataContent) : backendItem.dataContent
+      
+      if (contentObj && contentObj.metadata) {
+        metadata = {
+          dataName: contentObj.metadata.dataName || extractEntityName(backendItem),
+          sourceUnit: contentObj.metadata.sourceUnit || '数据部',
+          contactPerson: contentObj.metadata.contactPerson || '未指定',
+          contactPhone: contentObj.metadata.contactPhone || '未提供',
+          resourceSummary: contentObj.metadata.resourceSummary || '无',
+          fieldClassification: contentObj.metadata.fieldClassification || '未分类',
+          headers: contentObj.metadata.headers || []
+        }
+        console.log('从dataContent.metadata提取元数据:', metadata)
+      }
+      else if (contentObj && contentObj.metadataJson) {
+        try {
+          let parsedMetadata = typeof contentObj.metadataJson === 'string' ?
+            JSON.parse(contentObj.metadataJson) : contentObj.metadataJson
+            
+          metadata = {
+            dataName: parsedMetadata.dataName || extractEntityName(backendItem),
+            sourceUnit: parsedMetadata.sourceUnit || '数据部',
+            contactPerson: parsedMetadata.contactPerson || '未指定',
+            contactPhone: parsedMetadata.contactPhone || '未提供',
+            resourceSummary: parsedMetadata.resourceSummary || '无',
+            fieldClassification: parsedMetadata.fieldClassification || '未分类',
+            headers: parsedMetadata.headers || []
+          }
+          console.log('从dataContent.metadataJson解析元数据:', metadata)
+        } catch (error) {
+          console.error('解析dataContent.metadataJson失败:', error)
+        }
+      }
+    } catch (error) {
+      console.error('解析dataContent失败:', error)
+    }
+  }
+  
+  // 如果没有提取到元数据，创建默认元数据
+  if (!metadata) {
+    const entityName = extractEntityName(backendItem)
+    metadata = {
+      dataName: entityName,
+      sourceUnit: '数据部',
+      contactPerson: '未指定',
+      contactPhone: '未提供',
+      resourceSummary: `${entityName}数据资源`,
+      fieldClassification: '未分类',
+      headers: []
+    }
+    console.log('使用默认元数据:', metadata)
+  }
+  
+  // 如果有元数据，创建JSON字符串
+  if (metadata) {
+    try {
+      metadataJson = JSON.stringify(metadata)
+    } catch (error) {
+      console.error('序列化元数据失败:', error)
+    }
+  }
+  
   // 创建一个标准的前端对象结构
   const frontendItem = {
     id: getValidValue(backendItem.id, backendItem.numericId, 0),
@@ -230,7 +333,9 @@ const adaptBackendData = (backendItem) => {
     auditInfo: auditInfo,
     status: extractStatus(backendItem),
     feedback: getValidValue(backendItem.feedback, ''),
-    excelData: null
+    excelData: null,
+    metadata: metadata,
+    metadataJson: metadataJson
   }
   
   // 添加单独的约束条件字段
