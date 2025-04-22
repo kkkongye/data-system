@@ -151,8 +151,9 @@
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="decryptDialogVisible = false">取消</el-button>
+        <el-button type="info" plain @click="handleRequestToken">申请token</el-button>
         <el-button type="primary" @click="handleDecrypt">确定</el-button>
+        <el-button @click="decryptDialogVisible = false">取消</el-button>
       </span>
     </template>
   </el-dialog>
@@ -421,6 +422,27 @@ const handleDecrypt = () => {
       return false
     }
   })
+}
+
+// 处理申请token操作
+const handleRequestToken = () => {
+  // 检查是否已填写数字对象ID
+  if (!decryptForm.objectId) {
+    ElMessage.warning('请先填写数字对象ID')
+    return
+  }
+  
+  // 模拟申请token流程
+  ElMessage.info(`正在为数字对象[${decryptForm.objectId}]申请token，请稍候...`)
+  
+  // 模拟异步请求
+  setTimeout(() => {
+    // 模拟生成token
+    const randomToken = Math.random().toString(36).substr(2, 10).toUpperCase()
+    decryptForm.token = randomToken
+    
+    ElMessage.success('token申请成功')
+  }, 1000)
 }
 
 // Excel预览相关

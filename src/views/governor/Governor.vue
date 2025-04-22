@@ -196,17 +196,15 @@
     class="decrypt-dialog"
   >
     <el-form :model="decryptForm" label-width="120px" ref="decryptFormRef" :rules="decryptFormRules">
-      <el-form-item label="数字对象ID:" prop="objectId">
-        <el-input v-model="decryptForm.objectId" placeholder="请输入ID"></el-input>
-      </el-form-item>
       <el-form-item label="token:" prop="token">
         <el-input v-model="decryptForm.token" placeholder="请输入token"></el-input>
       </el-form-item>
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="decryptDialogVisible = false">取消</el-button>
+        <el-button type="info" plain @click="handleRequestToken">申请token</el-button>
         <el-button type="primary" @click="handleDecrypt">确定</el-button>
+        <el-button @click="decryptDialogVisible = false">取消</el-button>
       </span>
     </template>
   </el-dialog>
@@ -499,11 +497,9 @@ const handleSizeChange = (val) => {
 const decryptDialogVisible = ref(false)
 const decryptFormRef = ref(null)
 const decryptForm = reactive({
-  objectId: '',
   token: ''
 })
 const decryptFormRules = {
-  objectId: [{ required: true, message: '请输入数字对象ID', trigger: 'blur' }],
   token: [{ required: true, message: '请输入token', trigger: 'blur' }]
 }
 
@@ -526,6 +522,21 @@ const handleDecrypt = () => {
       return false
     }
   })
+}
+
+// 处理申请token操作
+const handleRequestToken = () => {
+  // 模拟申请token流程
+  ElMessage.info('正在申请token，请稍候...')
+  
+  // 模拟异步请求
+  setTimeout(() => {
+    // 模拟生成token
+    const randomToken = Math.random().toString(36).substr(2, 10).toUpperCase()
+    decryptForm.token = randomToken
+    
+    ElMessage.success('token申请成功')
+  }, 1000)
 }
 
 // Excel预览相关
