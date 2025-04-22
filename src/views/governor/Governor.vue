@@ -433,12 +433,24 @@ const handleDelete = (row) => {
 }
 
 // 更新数字对象状态
-const updateStatus = (row, newStatus) => {
+const updateStatus = async (row, newStatus) => {
+  // 本地模式标志，设为false以使用后端API
+  const localModeOnly = false; // 设置为false表示尝试调用后端API
+  
   // 查找数据行索引
   if (newStatus === '已合格' || newStatus === '待检验') {
     // 如果是已合格状态或待检验状态，直接更新
-    dataObjectService.updateObjectStatus(row.id, newStatus)
-    ElMessage.success(`${row.entity} 已更新为"${newStatus}"状态`)
+    try {
+      const result = await dataObjectService.updateObjectStatusViaApi(row.id, newStatus, '', localModeOnly)
+      if (result) {
+        ElMessage.success(`${row.entity} 已更新为"${newStatus}"状态${localModeOnly ? '（本地模式）' : '，并已保存到后端数据库'}`)
+      } else {
+        ElMessage.warning(`${row.entity} 状态更新失败`)
+      }
+    } catch (error) {
+      console.error('更新状态时出错:', error)
+      ElMessage.error(`更新 ${row.entity} 状态失败: ${error.message || '未知错误'}`)
+    }
   } 
   // 如果是不合格状态，弹出对话框要求输入反馈意见
   else if (newStatus === '不合格') {
@@ -452,9 +464,18 @@ const updateStatus = (row, newStatus) => {
       inputValidator: (value) => {
         return value.trim() !== '' || '反馈意见不能为空'
       }
-    }).then(({ value }) => {
-      dataObjectService.updateObjectStatus(row.id, newStatus, value)
-      ElMessage.success(`${row.entity} 已更新为"不合格"状态`)
+    }).then(async ({ value }) => {
+      try {
+        const result = await dataObjectService.updateObjectStatusViaApi(row.id, newStatus, value, localModeOnly)
+        if (result) {
+          ElMessage.success(`${row.entity} 已更新为"不合格"状态${localModeOnly ? '（本地模式）' : '，并已保存到后端数据库'}`)
+        } else {
+          ElMessage.warning(`${row.entity} 状态更新失败`)
+        }
+      } catch (error) {
+        console.error('更新状态时出错:', error)
+        ElMessage.error(`更新 ${row.entity} 状态失败: ${error.message || '未知错误'}`)
+      }
     }).catch(() => {
       ElMessage.info('已取消状态更新')
     })

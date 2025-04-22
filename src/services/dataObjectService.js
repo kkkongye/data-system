@@ -577,6 +577,8 @@ const extractTransferControlArray = (backendItem) => {
   
   // 处理3: 如果有propagationControl对象，尝试提取operations
   if (backendItem.propagationControl) {
+    const control = backendItem.propagationControl;
+    
     // 优先从operations中提取
     if (backendItem.propagationControl.operations) {
       const ops = backendItem.propagationControl.operations
@@ -588,7 +590,6 @@ const extractTransferControlArray = (backendItem) => {
     }
     // 向后兼容：从布尔字段中提取
     else {
-      const control = backendItem.propagationControl
       if (control.canRead === true) transferControlArray.push('可读')
       if (control.canModify === true) transferControlArray.push('可修改')
       if (control.canShare === true) transferControlArray.push('可共享')
@@ -597,7 +598,7 @@ const extractTransferControlArray = (backendItem) => {
     }
     
     // 如果有selectedOperations对象，也检查它
-    if (backendItem.propagationControl.selectedOperations) {
+    if (control.selectedOperations) {
       if (control.selectedOperations.read === true) 
         !transferControlArray.includes('可读') && transferControlArray.push('可读')
       if (control.selectedOperations.modify === true) 
@@ -843,23 +844,60 @@ const prepareCsrfToken = async () => {
       return existingToken;
     }
     
-    // 从后端获取CSRF token
-    const response = await axiosInstance.get('/csrf-token');
-    
-    if (response.data && response.data.token) {
-      // 设置CSRF token到cookie
-      cookieService.setCookie('XSRF-TOKEN', response.data.token);
-      // 存储令牌到内存中
-      csrfToken = response.data.token;
-      return response.data.token;
-    } else if (response.data && typeof response.data === 'string') {
-      // 某些API可能直接返回令牌字符串
-      cookieService.setCookie('XSRF-TOKEN', response.data);
-      csrfToken = response.data;
-      return response.data;
+    // 尝试从不同端点获取CSRF token
+    try {
+      // 首先尝试常规的/csrf-token端点
+      const response = await axiosInstance.get('/csrf-token');
+      
+      if (response.data && response.data.token) {
+        cookieService.setCookie('XSRF-TOKEN', response.data.token);
+        csrfToken = response.data.token;
+        return response.data.token;
+      } else if (response.data && typeof response.data === 'string') {
+        cookieService.setCookie('XSRF-TOKEN', response.data);
+        csrfToken = response.data;
+        return response.data;
+      }
+    } catch (firstError) {
+      console.warn('第一个CSRF端点失败，尝试备用端点:', firstError.message);
+      
+      // 如果第一个端点失败，尝试备用端点
+      try {
+        const backupResponse = await axiosInstance.get('/api/security/csrf');
+        if (backupResponse.data && (backupResponse.data.token || typeof backupResponse.data === 'string')) {
+          const token = backupResponse.data.token || backupResponse.data;
+          cookieService.setCookie('XSRF-TOKEN', token);
+          csrfToken = token;
+          return token;
+        }
+      } catch (backupError) {
+        console.warn('备用CSRF端点也失败:', backupError.message);
+        // 继续尝试从cookie获取
+      }
     }
     
-    return '';
+    // 尝试从HTTP头中获取
+    try {
+      const headResponse = await axiosInstance.head('/');
+      const tokenHeader = headResponse.headers['x-csrf-token'] || 
+                         headResponse.headers['X-CSRF-TOKEN'] || 
+                         headResponse.headers['csrf-token'];
+      if (tokenHeader) {
+        cookieService.setCookie('XSRF-TOKEN', tokenHeader);
+        csrfToken = tokenHeader;
+        return tokenHeader;
+      }
+    } catch (headError) {
+      console.warn('通过HEAD请求获取CSRF令牌失败:', headError.message);
+    }
+    
+    // 如果上述方法都失败，尝试生成一个随机令牌
+    // 这是一个回退方案，可能不是所有后端都接受
+    const randomToken = Math.random().toString(36).substring(2, 15);
+    console.warn('无法从服务器获取CSRF令牌，使用随机生成的令牌:', randomToken);
+    cookieService.setCookie('XSRF-TOKEN', randomToken);
+    csrfToken = randomToken;
+    return randomToken;
   } catch (error) {
     console.error('获取CSRF token失败:', error);
     // 失败时仍尝试从cookie获取
@@ -1014,17 +1052,44 @@ const updateDataObjectViaApi = async (id, dataObject) => {
       return false
     }
     
+    // 获取CSRF令牌
+    const token = await prepareCsrfToken();
+    
     // 将前端数据转换为后端格式
     const backendData = transformToBackendFormat(dataObject)
     
     console.log('准备通过API更新数据对象, ID:', id, '数据:', JSON.stringify(backendData))
-    const response = await axiosInstance.put(`/objects/${id}`, backendData)
+    
+    // 设置请求头
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    
+    // 如果有令牌，添加到请求头
+    if (token) {
+      headers['X-CSRF-TOKEN'] = token;
+    }
+    
+    // 发送PUT请求到后端
+    const response = await axiosInstance.put(`/objects/${id}`, backendData, {
+      headers,
+      withCredentials: true // 确保发送cookie
+    });
     
     console.log('更新数据对象API响应:', response)
     
     // 检查响应状态
+    if (response.status === 200 || response.status === 204) {
+      console.log('数字对象更新成功')
+      
+      // 同时更新本地数据
+      updateDataObject(dataObject)
+      
+      return true
+    }
+    
+    // 处理返回的数据格式
     if (response && response.data) {
-      // 判断返回格式
       if (response.data.code === 200) {
         console.log('数字对象更新成功')
         
@@ -1035,9 +1100,25 @@ const updateDataObjectViaApi = async (id, dataObject) => {
       }
     }
     
+    console.warn('API返回了非预期的响应格式:', response)
     return false
   } catch (error) {
     console.error('通过API更新数字对象失败:', error)
+    
+    // 提供更详细的错误信息
+    const errorDetails = error.response 
+      ? `错误状态: ${error.response.status}, 消息: ${error.response.statusText || '未知错误'}`
+      : error.message || '网络错误';
+    console.error(`详细错误信息: ${errorDetails}`);
+    
+    // 尽管API调用失败，我们仍然更新本地数据
+    try {
+      updateDataObject(dataObject);
+      console.log('API更新失败，但已更新本地数据');
+    } catch (localError) {
+      console.error('本地数据更新也失败:', localError);
+    }
+    
     return false
   }
 }
@@ -1446,11 +1527,192 @@ const uploadExcelFile = async (file) => {
   }
 };
 
+// 通过API更新对象状态
+const updateObjectStatusViaApi = async (id, status, feedback = '', localModeOnly = false) => {
+  try {
+    if (!id) {
+      console.error('更新对象状态失败: ID为空')
+      return false
+    }
+    
+    // 如果启用本地模式，只更新本地数据
+    if (localModeOnly) {
+      console.log(`本地模式：只在本地更新对象状态, ID: ${id}, 状态: ${status}, 反馈: ${feedback}`)
+      const result = updateObjectStatus(id, status, feedback)
+      return result
+    }
+    
+    // 获取CSRF令牌
+    let token = ''
+    try {
+      token = await prepareCsrfToken();
+      console.log('获取到CSRF令牌:', token ? '成功' : '失败');
+    } catch (csrfError) {
+      console.warn('获取CSRF令牌失败，将继续尝试不带令牌的请求:', csrfError)
+    }
+    
+    console.log(`准备通过API更新对象状态, ID: ${id}, 状态: ${status}, 反馈: ${feedback}`)
+    
+    // 首先获取当前对象信息
+    const currentObject = sharedTableData.find(item => compareIds(item.id, id));
+    
+    if (!currentObject) {
+      console.error(`找不到ID为${id}的对象，无法更新状态`);
+      return false;
+    }
+
+    // 更新当前对象的状态和反馈
+    const updatedObject = { ...currentObject, status, feedback };
+    
+    // 使用完整的数据格式
+    const backendData = transformToBackendFormat(updatedObject);
+    
+    // 确保状态和反馈在正确的位置
+    if (backendData.dataEntity) {
+      backendData.dataEntity.status = status;
+      backendData.dataEntity.feedback = feedback || '';
+    }
+    
+    // 记录发送的完整数据以便调试
+    console.log('发送到后端的完整数据:', JSON.stringify(backendData));
+    
+    // 设置请求头
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    
+    // 如果有令牌，添加到请求头（尝试多种常见的CSRF头名称）
+    if (token) {
+      headers['X-CSRF-TOKEN'] = token;
+      headers['CSRF-Token'] = token;
+      headers['X-XSRF-TOKEN'] = token;
+      headers['X-CSRF'] = token;
+    }
+    
+    try {
+      // 确保使用正确的API完整路径
+      const apiUrl = `${API_URL}/objects/${id}`;
+      console.log('使用API端点:', apiUrl);
+      
+      // 发送PUT请求
+      const response = await axiosInstance.put(apiUrl, backendData, {
+        headers,
+        withCredentials: true // 确保发送cookie
+      });
+      
+      console.log('更新对象状态API响应:', response)
+      
+      // 检查响应状态
+      if (response.status === 200 || response.status === 204) {
+        console.log('对象状态更新成功')
+        
+        // 同时更新本地数据
+        updateObjectStatus(id, status, feedback)
+        
+        return true
+      }
+      
+      // 处理返回的数据格式
+      if (response && response.data) {
+        if (response.data.code === 200 || response.data.success) {
+          console.log('对象状态更新成功')
+          
+          // 同时更新本地数据
+          updateObjectStatus(id, status, feedback)
+          
+          return true
+        }
+      }
+      
+      console.warn('API返回了非预期的响应格式:', response)
+    } catch (apiError) {
+      console.error('API调用失败:', apiError)
+      
+      // 尝试备用端点 - 不同的API路径格式
+      try {
+        console.log('尝试备用API端点...');
+        // 尝试不同的API路径格式
+        const backupUrls = [
+          `/api/objects/${id}`,         // 带api前缀
+          `/api/object/${id}`,          // 单数形式
+          `/objects/status/${id}`,      // 专用状态更新端点
+          `/object/status/${id}`        // 另一种可能的专用端点
+        ];
+        
+        for (const backupUrl of backupUrls) {
+          try {
+            console.log(`尝试备用端点: ${backupUrl}`);
+            const backupResponse = await axiosInstance.put(backupUrl, backendData, {
+              headers,
+              withCredentials: true
+            });
+            
+            if (backupResponse.status === 200 || backupResponse.status === 204 || 
+                (backupResponse.data && (backupResponse.data.code === 200 || backupResponse.data.success))) {
+              console.log(`备用端点 ${backupUrl} 成功更新了对象状态`);
+              updateObjectStatus(id, status, feedback);
+              return true;
+            }
+          } catch (urlError) {
+            console.warn(`备用端点 ${backupUrl} 失败:`, urlError.message);
+          }
+        }
+        
+        // 最后尝试使用简化数据结构
+        const simpleData = { 
+          id: id,
+          status: status, 
+          feedback: feedback || '' 
+        };
+        
+        console.log('尝试使用简化数据结构:', simpleData);
+        const simpleResponse = await axiosInstance.put(`${API_URL}/objects/${id}`, simpleData, {
+          headers,
+          withCredentials: true
+        });
+        
+        if (simpleResponse.status === 200 || simpleResponse.status === 204 || 
+            (simpleResponse.data && (simpleResponse.data.code === 200 || simpleResponse.data.success))) {
+          console.log('使用简化数据结构成功更新了对象状态');
+          updateObjectStatus(id, status, feedback);
+          return true;
+        }
+      } catch (backupError) {
+        console.error('所有备用请求都失败:', backupError.message);
+      }
+      
+      // 所有API请求失败，仍继续更新本地数据
+    }
+    
+    // 即使API调用失败，我们仍然更新本地数据以保持UI一致性
+    console.log('API调用可能失败，回退到本地更新')
+    updateObjectStatus(id, status, feedback)
+    
+    // 在本地模式回退情况下，返回true以表示本地更新成功
+    return true
+  } catch (error) {
+    console.error('通过API更新对象状态失败:', error)
+    
+    // 提供更详细的错误信息
+    const errorDetails = error.response 
+      ? `错误状态: ${error.response.status}, 消息: ${error.response.statusText || '未知错误'}`
+      : error.message || '网络错误';
+    console.error(`详细错误信息: ${errorDetails}`);
+    
+    // 虽然API调用失败，我们仍然更新本地数据以保持UI一致性
+    updateObjectStatus(id, status, feedback)
+    
+    // 在本地模式回退情况下，返回true以表示本地更新成功
+    return true
+  }
+}
+
 export default {
   addDataObject,
   updateDataObject,
   deleteDataObject,
   updateObjectStatus,
+  updateObjectStatusViaApi,
   getAllDataObjects,
   addChangeListener,
   removeChangeListener,

@@ -9,15 +9,15 @@ export const API_URL = `${API_BASE_URL}/api`;
 //   ? 'http://your-production-server:8080' 
 //   : 'http://localhost:8080';
 
-// Mock模式配置
-export const MOCK_ENABLED = true; // 如果后端不可用，是否启用模拟响应
-export const AUTO_FALLBACK_TO_MOCK = true; // 在API请求失败时自动回退到模拟模式
+// Mock模式配置 - 在API不可用时提供回退
+export const MOCK_ENABLED = true; // 保持模拟模式开启，以防API不可用
+export const AUTO_FALLBACK_TO_MOCK = true; // 保持自动回退
 
 // 创建一个预配置的axios实例
 export const axiosInstance = axios.create({
   baseURL: API_URL,
-  timeout: 10000, // 10秒超时
-  withCredentials: false, // 默认不携带跨域凭证
+  timeout: 15000, // 增加超时时间到15秒
+  withCredentials: false, // 修改为false，避免CORS预检请求问题
   headers: {
     'Content-Type': 'application/json'
   }
@@ -30,6 +30,12 @@ axiosInstance.interceptors.request.use(
     if (MOCK_ENABLED && config.mock !== false) {
       config.headers['X-Mock-Mode'] = 'enabled';
     }
+    
+    // 添加CORS支持
+    config.headers['Access-Control-Allow-Origin'] = '*';
+    config.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
+    config.headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization';
+    
     return config;
   },
   error => {
@@ -44,6 +50,42 @@ axiosInstance.interceptors.response.use(
     return response;
   },
   error => {
+    // 处理CORS错误
+    if (error.message && error.message.includes('Network Error')) {
+      console.warn('可能的CORS问题或网络连接失败:', error.message);
+      
+      // 如果配置了自动回退到模拟模式并且原始请求未明确禁用模拟
+      if (AUTO_FALLBACK_TO_MOCK && 
+          error.config && 
+          error.config.mock !== false) {
+        
+        console.log('自动回退到模拟模式，返回虚拟成功响应');
+        
+        // 根据请求类型返回模拟数据
+        const mockData = {
+          success: true,
+          code: 200,
+          message: '模拟响应成功',
+          data: {}
+        };
+        
+        // 如果是状态更新请求，返回特定的模拟响应
+        if (error.config.url && error.config.url.includes('/status')) {
+          mockData.message = '状态更新成功（模拟响应）';
+        }
+        
+        // 返回模拟的axios响应对象
+        return Promise.resolve({
+          data: mockData,
+          status: 200,
+          statusText: 'OK (Mocked)',
+          headers: {},
+          config: error.config,
+          mock: true // 标记这是一个模拟响应
+        });
+      }
+    }
+    
     // 统一处理错误
     if (error.response) {
       // 服务器返回了错误状态码

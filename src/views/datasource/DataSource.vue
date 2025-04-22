@@ -72,7 +72,7 @@
       <el-form-item label="ID：" v-if="editForm.id !== undefined && editForm.id !== null">
         <el-input v-model="editForm.id" disabled placeholder="自动生成" style="width: 300px;"></el-input>
       </el-form-item>
-      <el-form-item label="实体：">
+      <el-form-item label="实体：" prop="entity">
         <div style="display: flex; align-items: center; gap: 10px;">
           <el-input v-model="editForm.entity" placeholder="请输入实体名称" style="width: 300px;"></el-input>
           <el-upload
@@ -119,55 +119,65 @@
         </div>
       </el-form-item>
       
-      <el-form-item label="约束条件：" prop="constraint">
+      <el-form-item label="约束条件：">
         <div class="constraint-section">
-          <div class="constraint-item">
-            <label>格式约束：</label>
-            <el-select v-model="editForm.formatConstraint" placeholder="请选择格式" style="width: 300px;">
-              <el-option label="jpg" value="jpg"></el-option>
-              <el-option label="xlsx" value="xlsx"></el-option>
-              <el-option label="json" value="json"></el-option>
-              <el-option label="csv" value="csv"></el-option>
-              <el-option label="pdf" value="pdf"></el-option>
-              <el-option label="txt" value="txt"></el-option>
-            </el-select>
-          </div>
+          <el-form-item prop="formatConstraint">
+            <div class="constraint-item">
+              <label>格式约束：</label>
+              <el-select v-model="editForm.formatConstraint" placeholder="请选择格式" style="width: 300px;">
+                <el-option label="jpg" value="jpg"></el-option>
+                <el-option label="xlsx" value="xlsx"></el-option>
+                <el-option label="json" value="json"></el-option>
+                <el-option label="csv" value="csv"></el-option>
+                <el-option label="pdf" value="pdf"></el-option>
+                <el-option label="txt" value="txt"></el-option>
+              </el-select>
+            </div>
+          </el-form-item>
           
-          <div class="constraint-item">
-            <label>访问权限：</label>
-            <el-select v-model="editForm.accessConstraint" placeholder="请选择访问权限" style="width: 300px;">
-              <el-option label="只允许管理方获取" value="只允许管理方获取"></el-option>
-              <el-option label="全部允许" value="全部允许"></el-option>
-            </el-select>
-          </div>
+          <el-form-item prop="accessConstraint">
+            <div class="constraint-item">
+              <label>访问权限：</label>
+              <el-select v-model="editForm.accessConstraint" placeholder="请选择访问权限" style="width: 300px;">
+                <el-option label="只允许管理方获取" value="只允许管理方获取"></el-option>
+                <el-option label="全部允许" value="全部允许"></el-option>
+              </el-select>
+            </div>
+          </el-form-item>
           
-          <div class="constraint-item">
-            <label>传输路径约束：</label>
-            <el-select v-model="editForm.pathConstraint" placeholder="请选择传输路径" style="width: 300px;">
-              <el-option label="点对点" value="点对点"></el-option>
-              <el-option label="广播" value="广播"></el-option>
-            </el-select>
-          </div>
+          <el-form-item prop="pathConstraint">
+            <div class="constraint-item">
+              <label>传输路径约束：</label>
+              <el-select v-model="editForm.pathConstraint" placeholder="请选择传输路径" style="width: 300px;">
+                <el-option label="点对点" value="点对点"></el-option>
+                <el-option label="广播" value="广播"></el-option>
+              </el-select>
+            </div>
+          </el-form-item>
           
-          <div class="constraint-item">
-            <label>地域性约束：</label>
-            <el-select v-model="editForm.regionConstraint" placeholder="请选择地域性约束" style="width: 300px;">
-              <el-option label="内网" value="内网"></el-option>
-              <el-option label="外网" value="外网"></el-option>
-            </el-select>
-          </div>
+          <el-form-item prop="regionConstraint">
+            <div class="constraint-item">
+              <label>地域性约束：</label>
+              <el-select v-model="editForm.regionConstraint" placeholder="请选择地域性约束" style="width: 300px;">
+                <el-option label="内网" value="内网"></el-option>
+                <el-option label="外网" value="外网"></el-option>
+              </el-select>
+            </div>
+          </el-form-item>
           
-          <div class="constraint-item">
-            <label>共享约束：</label>
-            <el-select v-model="editForm.shareConstraint" placeholder="请选择共享约束" style="width: 300px;">
-              <el-option label="不允许共享" value="不允许共享"></el-option>
-              <el-option label="允许共享" value="允许共享"></el-option>
-            </el-select>
-          </div>
+          <el-form-item prop="shareConstraint">
+            <div class="constraint-item">
+              <label>共享约束：</label>
+              <el-select v-model="editForm.shareConstraint" placeholder="请选择共享约束" style="width: 300px;">
+                <el-option label="不允许共享" value="不允许共享"></el-option>
+                <el-option label="允许共享" value="允许共享"></el-option>
+              </el-select>
+            </div>
+          </el-form-item>
         </div>
       </el-form-item>
       
-      <el-form-item label="传输控制操作：">
+      <el-form-item label="传输控制操作：" prop="transferControl">
         <el-select v-model="editForm.transferControl" multiple placeholder="请选择传输控制操作" style="width: 300px;">
           <el-option label="可读" value="可读"></el-option>
           <el-option label="可修改" value="可修改"></el-option>
@@ -439,13 +449,55 @@ const handleEdit = (row) => {
   editForm.metadata = extractMetadata(sourceObj)
   console.log('已设置编辑表单的元数据:', editForm.metadata)
   
-  // 处理约束条件
+  // 处理约束条件 - 同时处理单个字段和约束数组
+  editForm.constraint = []
+  
+  // 先处理前端单独字段
+  if (sourceObj.formatConstraint) {
+    editForm.formatConstraint = sourceObj.formatConstraint
+    if (!editForm.constraint.includes(`格式约束:${sourceObj.formatConstraint}`)) {
+      editForm.constraint.push(`格式约束:${sourceObj.formatConstraint}`)
+    }
+  }
+  
+  if (sourceObj.accessConstraint) {
+    editForm.accessConstraint = sourceObj.accessConstraint
+    if (!editForm.constraint.includes(`访问权限:${sourceObj.accessConstraint}`)) {
+      editForm.constraint.push(`访问权限:${sourceObj.accessConstraint}`)
+    }
+  }
+  
+  if (sourceObj.pathConstraint) {
+    editForm.pathConstraint = sourceObj.pathConstraint
+    if (!editForm.constraint.includes(`传输路径约束:${sourceObj.pathConstraint}`)) {
+      editForm.constraint.push(`传输路径约束:${sourceObj.pathConstraint}`)
+    }
+  }
+  
+  if (sourceObj.regionConstraint) {
+    editForm.regionConstraint = sourceObj.regionConstraint
+    if (!editForm.constraint.includes(`地域性约束:${sourceObj.regionConstraint}`)) {
+      editForm.constraint.push(`地域性约束:${sourceObj.regionConstraint}`)
+    }
+  }
+  
+  if (sourceObj.shareConstraint) {
+    editForm.shareConstraint = sourceObj.shareConstraint
+    if (!editForm.constraint.includes(`共享约束:${sourceObj.shareConstraint}`)) {
+      editForm.constraint.push(`共享约束:${sourceObj.shareConstraint}`)
+    }
+  }
+  
+  // 处理约束条件数组
   if (sourceObj.constraint) {
     if (Array.isArray(sourceObj.constraint)) {
-      editForm.constraint = sourceObj.constraint
-      
-      // 解析约束条件字符串
+      // 将所有约束条件添加到数组
       sourceObj.constraint.forEach(constraint => {
+        if (!editForm.constraint.includes(constraint)) {
+          editForm.constraint.push(constraint)
+        }
+        
+        // 同时更新相应的单独字段
         if (constraint.includes('格式约束:')) {
           editForm.formatConstraint = constraint.split(':')[1]
         } else if (constraint.includes('访问权限:')) {
@@ -459,7 +511,23 @@ const handleEdit = (row) => {
         }
       })
     } else if (typeof sourceObj.constraint === 'string') {
-      editForm.constraint = [sourceObj.constraint]
+      const constraint = sourceObj.constraint
+      if (!editForm.constraint.includes(constraint)) {
+        editForm.constraint.push(constraint)
+      }
+      
+      // 处理单个约束字符串
+      if (constraint.includes('格式约束:')) {
+        editForm.formatConstraint = constraint.split(':')[1]
+      } else if (constraint.includes('访问权限:')) {
+        editForm.accessConstraint = constraint.split(':')[1]
+      } else if (constraint.includes('传输路径约束:')) {
+        editForm.pathConstraint = constraint.split(':')[1]
+      } else if (constraint.includes('地域性约束:')) {
+        editForm.regionConstraint = constraint.split(':')[1]
+      } else if (constraint.includes('共享约束:')) {
+        editForm.shareConstraint = constraint.split(':')[1]
+      }
     }
   }
   
@@ -469,6 +537,30 @@ const handleEdit = (row) => {
       sourceObj.transferControl : [sourceObj.transferControl]
   } else {
     editForm.transferControl = []
+  }
+  
+  // 确保传输控制为数组
+  if (!Array.isArray(editForm.transferControl)) {
+    editForm.transferControl = []
+  }
+  
+  // 检查传播控制对象（如果存在）
+  if (sourceObj.propagationControl) {
+    if (sourceObj.propagationControl.canRead && !editForm.transferControl.includes('可读')) {
+      editForm.transferControl.push('可读')
+    }
+    if (sourceObj.propagationControl.canModify && !editForm.transferControl.includes('可修改')) {
+      editForm.transferControl.push('可修改')
+    }
+    if (sourceObj.propagationControl.canDestroy && !editForm.transferControl.includes('可销毁')) {
+      editForm.transferControl.push('可销毁')
+    }
+    if (sourceObj.propagationControl.canShare && !editForm.transferControl.includes('可共享')) {
+      editForm.transferControl.push('可共享')
+    }
+    if (sourceObj.propagationControl.canDelegate && !editForm.transferControl.includes('可委托')) {
+      editForm.transferControl.push('可委托')
+    }
   }
   
   // 设置状态和反馈
@@ -510,9 +602,6 @@ const handleEdit = (row) => {
             editForm.status = statusMatch[1];
             console.log(`通过正则提取到status: ${editForm.status}`);
           }
-          
-          // 提前返回，避免后续处理
-          return;
         }
       } else {
         contentObj = sourceObj.dataContent;
@@ -546,6 +635,8 @@ const handleEdit = (row) => {
       console.warn(`解析 ${sourceObj.entity} 的dataContent失败:`, e);
     }
   }
+  
+  console.log('最终编辑表单数据:', JSON.stringify(editForm))
   
   // 显示编辑对话框
   editDialogVisible.value = true
@@ -612,7 +703,40 @@ const saveEditObject = async (updatedObject) => {
     // 将dataContent转为字符串
     updatedObject.dataContent = JSON.stringify(dataContent)
     
+    // 创建约束条件数组
+    if (!Array.isArray(updatedObject.constraint)) {
+      updatedObject.constraint = []
+    }
+    
+    if (updatedObject.formatConstraint && !updatedObject.constraint.includes(`格式约束:${updatedObject.formatConstraint}`)) {
+      updatedObject.constraint.push(`格式约束:${updatedObject.formatConstraint}`)
+    }
+    
+    if (updatedObject.accessConstraint && !updatedObject.constraint.includes(`访问权限:${updatedObject.accessConstraint}`)) {
+      updatedObject.constraint.push(`访问权限:${updatedObject.accessConstraint}`)
+    }
+    
+    if (updatedObject.pathConstraint && !updatedObject.constraint.includes(`传输路径约束:${updatedObject.pathConstraint}`)) {
+      updatedObject.constraint.push(`传输路径约束:${updatedObject.pathConstraint}`)
+    }
+    
+    if (updatedObject.regionConstraint && !updatedObject.constraint.includes(`地域性约束:${updatedObject.regionConstraint}`)) {
+      updatedObject.constraint.push(`地域性约束:${updatedObject.regionConstraint}`)
+    }
+    
+    if (updatedObject.shareConstraint && !updatedObject.constraint.includes(`共享约束:${updatedObject.shareConstraint}`)) {
+      updatedObject.constraint.push(`共享约束:${updatedObject.shareConstraint}`)
+    }
+    
+    // 确保传输控制为数组
+    if (!Array.isArray(updatedObject.transferControl)) {
+      updatedObject.transferControl = []
+    }
+    
+    console.log('处理后的更新对象:', JSON.stringify(updatedObject))
+    
     // 尝试通过API保存
+    ElMessage.info('正在向后端保存数据...')
     const result = await dataObjectService.updateDataObjectViaApi(objectId, updatedObject)
     
     if (result) {
@@ -621,11 +745,32 @@ const saveEditObject = async (updatedObject) => {
       // 刷新数据列表
       refreshData()
     } else {
-      ElMessage.error(`编辑失败：未找到ID为 ${objectId} 的对象或API请求失败`)
+      // 即使API保存失败，我们也更新本地数据并显示成功消息
+      dataObjectService.updateDataObject(updatedObject)
+      ElMessage({
+        message: `已在本地保存: ${updatedObject.entity}，服务器保存失败`,
+        type: 'warning',
+        duration: 3000
+      })
+      
+      // 仍然刷新数据
+      refreshData()
     }
   } catch (error) {
     console.error('保存编辑时出错:', error)
-    ElMessage.error('保存编辑失败，请稍后再试')
+    ElMessage.error(`保存编辑失败: ${error.message || '未知错误'}`)
+    
+    // 尝试在本地保存
+    try {
+      dataObjectService.updateDataObject(updatedObject)
+      ElMessage({
+        message: `已在本地保存: ${updatedObject.entity}，但服务器保存失败`,
+        type: 'warning',
+        duration: 3000
+      })
+    } catch (localError) {
+      ElMessage.error('本地保存也失败，请稍后再试')
+    }
   }
 }
 
@@ -741,32 +886,42 @@ const formRules = {
   locationInfo: [
     { 
       validator: (rule, value, callback) => {
-        if (createForm.locationInfo.row && createForm.locationInfo.col) {
+        // 这里我们不再强制要求定位信息
+        console.log('验证定位信息: ', {
+          isEditDialogVisible: editDialogVisible.value,
+          'editForm.locationInfo': editForm.locationInfo,
+          value: value,
+          'form.locationInfo': value
+        });
+        
+        // 如果两个字段都有值或者都没有值，则通过验证
+        if ((value && value.row && value.col) || (!value || (!value.row && !value.col))) {
           callback()
         } else {
-          callback(new Error('请输入行和列'))
+          // 如果只填了一个，则提示需要同时填写
+          callback(new Error('请同时填写行和列，或者都不填'))
         }
       },
       trigger: 'blur'
     }
   ],
   formatConstraint: [
-    { required: true, message: '请选择格式约束', trigger: 'change' }
+    { required: false, message: '请选择格式约束', trigger: 'change' }
   ],
   accessConstraint: [
-    { required: true, message: '请选择访问权限', trigger: 'change' }
+    { required: false, message: '请选择访问权限', trigger: 'change' }
   ],
   pathConstraint: [
-    { required: true, message: '请选择传输路径约束', trigger: 'change' }
+    { required: false, message: '请选择传输路径约束', trigger: 'change' }
   ],
   regionConstraint: [
-    { required: true, message: '请选择地域性约束', trigger: 'change' }
+    { required: false, message: '请选择地域性约束', trigger: 'change' }
   ],
   shareConstraint: [
-    { required: true, message: '请选择共享约束', trigger: 'change' }
+    { required: false, message: '请选择共享约束', trigger: 'change' }
   ],
   transferControl: [
-    { type: 'array', required: true, message: '请选择传输控制操作', trigger: 'change' }
+    { type: 'array', required: false, message: '请选择传输控制操作', trigger: 'change' }
   ]
 }
 
@@ -774,7 +929,23 @@ const formRules = {
 const handleSaveEditManually = () => {
   // 验证表单
   if (editFormRef.value) {
-    editFormRef.value.validate((valid) => {
+    // 先检查是否有必填字段为空
+    if (!editForm.entity) {
+      ElMessage.warning('请输入实体名称');
+      return;
+    }
+    
+    // 保存前检查定位信息是否合理
+    if (editForm.locationInfo) {
+      if ((editForm.locationInfo.row && !editForm.locationInfo.col) || 
+          (!editForm.locationInfo.row && editForm.locationInfo.col)) {
+        ElMessage.warning('请同时填写定位信息的行和列，或者都不填');
+        return;
+      }
+    }
+    
+    // 进行表单验证
+    editFormRef.value.validate((valid, fields) => {
       if (valid) {
         // 构建约束条件数组
         const constraintArray = []
@@ -783,6 +954,9 @@ const handleSaveEditManually = () => {
         if (editForm.pathConstraint) constraintArray.push(`传输路径约束:${editForm.pathConstraint}`)
         if (editForm.regionConstraint) constraintArray.push(`地域性约束:${editForm.regionConstraint}`)
         if (editForm.shareConstraint) constraintArray.push(`共享约束:${editForm.shareConstraint}`)
+        
+        // 更新约束数组
+        editForm.constraint = constraintArray
         
         // 构建传播控制对象，与transferControl数组对应
         const propagationControl = {
@@ -798,74 +972,71 @@ const handleSaveEditManually = () => {
           id: editForm.id,
           entity: editForm.entity,
           locationInfo: {
-            row: editForm.locationInfo.row,
-            col: editForm.locationInfo.col
+            row: editForm.locationInfo.row || '',
+            col: editForm.locationInfo.col || ''
           },
           metadata: {
-            dataName: editForm.metadata.dataName,
-            sourceUnit: editForm.metadata.sourceUnit,
-            contactPerson: editForm.metadata.contactPerson,
-            contactPhone: editForm.metadata.contactPhone,
-            resourceSummary: editForm.metadata.resourceSummary,
-            fieldClassification: editForm.metadata.fieldClassification,
+            dataName: editForm.metadata.dataName || editForm.entity,
+            sourceUnit: editForm.metadata.sourceUnit || '',
+            contactPerson: editForm.metadata.contactPerson || '',
+            contactPhone: editForm.metadata.contactPhone || '',
+            resourceSummary: editForm.metadata.resourceSummary || '',
+            fieldClassification: editForm.metadata.fieldClassification || '',
             headers: editForm.metadata.headers || []
           },
           constraint: constraintArray,
-          formatConstraint: editForm.formatConstraint,
-          accessConstraint: editForm.accessConstraint,
-          pathConstraint: editForm.pathConstraint,
-          regionConstraint: editForm.regionConstraint,
-          shareConstraint: editForm.shareConstraint,
-          transferControl: editForm.transferControl,
+          formatConstraint: editForm.formatConstraint || '',
+          accessConstraint: editForm.accessConstraint || '',
+          pathConstraint: editForm.pathConstraint || '',
+          regionConstraint: editForm.regionConstraint || '',
+          shareConstraint: editForm.shareConstraint || '',
+          transferControl: editForm.transferControl || [],
           propagationControl: propagationControl,
-          auditInfo: editForm.auditInfo,
-          status: editForm.status,
-          feedback: editForm.feedback,
+          auditInfo: editForm.auditInfo || '',
+          status: editForm.status || '',
+          feedback: editForm.feedback || '',
           excelData: editForm.excelData,
-          dataItems: editForm.dataItems || []
+          dataItems: editForm.dataItems || [] // 添加数据项
         }
         
-        // 调用保存方法
+        console.log('准备保存更新的对象:', updatedObject)
+        
+        // 调用保存函数
         saveEditObject(updatedObject)
         
         // 关闭对话框
         editDialogVisible.value = false
       } else {
-        ElMessage.warning('请填写必填项')
-        return false
+        // 显示具体的验证错误
+        console.error('表单验证错误:', fields);
+        
+        // 获取第一个错误字段的信息
+        let firstErrorField = '';
+        let firstErrorMessage = '';
+        
+        if (fields) {
+          // 遍历错误字段
+          for (const key in fields) {
+            if (fields[key] && fields[key][0]) {
+              firstErrorField = key;
+              firstErrorMessage = fields[key][0].message;
+              break;
+            }
+          }
+        }
+        
+        // 显示具体的错误提示
+        if (firstErrorField && firstErrorMessage) {
+          ElMessage.warning(`${firstErrorMessage} (字段: ${firstErrorField})`);
+        } else {
+          ElMessage.warning('表单验证失败，请检查必填字段');
+        }
+        return false;
       }
     })
   } else {
     console.error('表单引用不存在')
-    
-    // 尝试直接保存
-    const constraintArray = []
-    if (editForm.formatConstraint) constraintArray.push(`格式约束:${editForm.formatConstraint}`)
-    if (editForm.accessConstraint) constraintArray.push(`访问权限:${editForm.accessConstraint}`)
-    if (editForm.pathConstraint) constraintArray.push(`传输路径约束:${editForm.pathConstraint}`)
-    if (editForm.regionConstraint) constraintArray.push(`地域性约束:${editForm.regionConstraint}`)
-    if (editForm.shareConstraint) constraintArray.push(`共享约束:${editForm.shareConstraint}`)
-    
-    const updatedObject = {
-      id: editForm.id,
-      entity: editForm.entity,
-      locationInfo: editForm.locationInfo,
-      metadata: editForm.metadata,
-      constraint: constraintArray,
-      formatConstraint: editForm.formatConstraint,
-      accessConstraint: editForm.accessConstraint,
-      pathConstraint: editForm.pathConstraint,
-      regionConstraint: editForm.regionConstraint,
-      shareConstraint: editForm.shareConstraint,
-      transferControl: editForm.transferControl,
-      auditInfo: editForm.auditInfo,
-      status: editForm.status,
-      feedback: editForm.feedback,
-      excelData: editForm.excelData
-    }
-    
-    saveEditObject(updatedObject)
-    editDialogVisible.value = false
+    ElMessage.error('表单引用不存在，无法验证表单')
   }
 }
 
