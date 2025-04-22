@@ -513,16 +513,24 @@ const handleFileChange = (file) => {
                 console.log('从临时对象ID获取文件ID:', form.excelFileId)
               }
               
-              // 提取元数据
-              if (uploadResult.data.metadata) {
+              // 只有在用户未输入任何元数据字段时，才考虑使用服务器元数据
+              if (uploadResult.data.metadata && 
+                  (!form.metadata.dataName && !form.metadata.sourceUnit && 
+                   !form.metadata.contactPerson && !form.metadata.contactPhone && 
+                   !form.metadata.resourceSummary && !form.metadata.fieldClassification)) {
+                console.log('用户未输入元数据，使用服务器返回的默认元数据')
+                // 保留表头信息，其他使用服务器返回的数据
+                const headers = form.metadata.headers || []
                 form.metadata = {
-                  ...form.metadata,
-                  ...uploadResult.data.metadata
+                  ...uploadResult.data.metadata,
+                  headers: headers
                 }
                 console.log('从临时对象获取元数据')
+              } else {
+                console.log('保留用户输入的元数据信息')
               }
               
-              // 提取实体名称
+              // 提取实体名称，只在用户未输入时使用
               if (uploadResult.data.entity && !form.entity) {
                 form.entity = uploadResult.data.entity
                 console.log('从临时对象获取实体名称:', form.entity)
@@ -659,6 +667,19 @@ const handleSave = () => {
         form.dataItems = dataItems
       }
       
+      // 保存用户输入的原始元数据，确保不被覆盖
+      const userMetadata = {
+        dataName: form.metadata.dataName,
+        sourceUnit: form.metadata.sourceUnit,
+        contactPerson: form.metadata.contactPerson,
+        contactPhone: form.metadata.contactPhone,
+        resourceSummary: form.metadata.resourceSummary,
+        fieldClassification: form.metadata.fieldClassification,
+        headers: form.metadata.headers || []
+      }
+      
+      console.log('保存用户输入的元数据:', userMetadata)
+      
       // 构建新对象
       const newObject = {
         entity: form.entity,
@@ -666,15 +687,8 @@ const handleSave = () => {
           row: form.locationInfo.row,
           col: form.locationInfo.col
         },
-        metadata: {
-          dataName: form.metadata.dataName,
-          sourceUnit: form.metadata.sourceUnit,
-          contactPerson: form.metadata.contactPerson,
-          contactPhone: form.metadata.contactPhone,
-          resourceSummary: form.metadata.resourceSummary,
-          fieldClassification: form.metadata.fieldClassification,
-          headers: form.metadata.headers || []
-        },
+        metadata: userMetadata,
+        originalMetadata: userMetadata, // 添加原始元数据副本，确保在后续处理中不丢失
         constraint: constraintArray,
         formatConstraint: form.formatConstraint,
         accessConstraint: form.accessConstraint,

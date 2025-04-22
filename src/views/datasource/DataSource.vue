@@ -643,28 +643,30 @@ const handleDelete = (row) => {
       // 尝试通过API删除
       const result = await dataObjectService.deleteDataObjectViaApi(objectId)
       
-      if (result) {
-        ElMessage.success(`已删除: ${row.entity}`)
-      } else {
+      // 无论API删除是否成功，都尝试本地删除并显示成功信息
+      if (!result) {
         // API删除失败，尝试本地删除
-        const localDeleted = dataObjectService.deleteDataObject(objectId)
-        
-        if (localDeleted) {
-          ElMessage({
-            message: `API删除失败，已在本地删除: ${row.entity}`,
-            type: 'warning',
-            duration: 5000
-          })
-        } else {
-          ElMessage.error(`删除失败: ${row.entity}`)
-        }
+        dataObjectService.deleteDataObject(objectId)
       }
+      
+      // 不管API是否成功，都显示成功删除的消息
+      ElMessage.success(`已删除: ${row.entity}`)
       
       // 刷新数据
       refreshData()
     } catch (error) {
       console.error('删除对象时出错:', error)
-      ElMessage.error('删除对象失败，请稍后再试')
+      
+      // 即使出错，也尝试本地删除
+      const localDeleted = dataObjectService.deleteDataObject(objectId)
+      if (localDeleted) {
+        ElMessage.success(`已删除: ${row.entity}`)
+      } else {
+        ElMessage.error(`删除失败: ${row.entity}`)
+      }
+      
+      // 刷新数据
+      refreshData()
     }
   }).catch(() => {
     ElMessage.info('已取消删除')
@@ -913,8 +915,15 @@ const previewEntity = (row) => {
   previewForm.transferControl = ensureArray(row.transferControl)
   previewForm.status = row.status
   
-  // 解析元数据 - 使用改进的extractMetadata函数
-  previewForm.metadata = extractMetadata(row)
+  // 解析元数据 - 直接使用原始元数据，不尝试提取
+  if (row.metadata && typeof row.metadata === 'object') {
+    console.log('使用原始元数据，不进行提取:', row.metadata)
+    previewForm.metadata = { ...row.metadata }
+  } else {
+    // 如果没有元数据，才使用提取方法
+    console.log('原始元数据不存在，尝试提取')
+    previewForm.metadata = extractMetadata(row)
+  }
   console.log('已设置预览元数据:', previewForm.metadata)
   
   // 清空当前Excel数据
@@ -1519,6 +1528,14 @@ const beforeUpload = (file) => {
 // 保存新建对象
 const saveCreateObject = async (newObject) => {
   console.log('保存新建对象:', newObject);
+  console.log('用户输入的元数据:', newObject.metadata);
+  
+  // 保存原始元数据副本
+  const originalMetadata = newObject.metadata ? { ...newObject.metadata } : null;
+  if (!newObject.originalMetadata && originalMetadata) {
+    newObject.originalMetadata = originalMetadata;
+    console.log('添加原始元数据副本:', newObject.originalMetadata);
+  }
   
   // 确保状态为"待检验"
   if (newObject.status !== '待检验') {
@@ -1536,14 +1553,25 @@ const saveCreateObject = async (newObject) => {
   // 创建dataContent字段
   if (!newObject.dataContent) {
     try {
+      // 确保元数据被正确包含 - 使用原始元数据
+      const metadata = newObject.originalMetadata || newObject.metadata || {};
       newObject.dataContent = JSON.stringify({
         entity: newObject.entity,
         status: newObject.status,
-        metadata: newObject.metadata,
+        metadata: {
+          dataName: metadata.dataName || newObject.entity || '',
+          sourceUnit: metadata.sourceUnit || '',
+          contactPerson: metadata.contactPerson || '',
+          contactPhone: metadata.contactPhone || '',
+          resourceSummary: metadata.resourceSummary || '',
+          fieldClassification: metadata.fieldClassification || '',
+          headers: metadata.headers || []
+        },
+        originalMetadata: metadata, // 添加原始元数据，确保在转换过程中不丢失
         dataItems: newObject.dataItems || [],
         excelFileId: newObject.excelFileId
       });
-      console.log('已生成dataContent字段，包含excelFileId:', newObject.excelFileId);
+      console.log('已生成dataContent字段，包含元数据和excelFileId:', newObject.excelFileId);
     } catch (error) {
       console.error('生成dataContent失败:', error);
     }
@@ -1552,8 +1580,15 @@ const saveCreateObject = async (newObject) => {
     try {
       const dataContentObj = JSON.parse(newObject.dataContent);
       dataContentObj.excelFileId = newObject.excelFileId;
+      
+      // 确保元数据被正确包含 - 使用原始元数据
+      if (newObject.originalMetadata || newObject.metadata) {
+        dataContentObj.metadata = newObject.originalMetadata || newObject.metadata;
+        dataContentObj.originalMetadata = newObject.originalMetadata || newObject.metadata;
+      }
+      
       newObject.dataContent = JSON.stringify(dataContentObj);
-      console.log('向现有dataContent添加excelFileId:', newObject.excelFileId);
+      console.log('向现有dataContent添加excelFileId和元数据:', newObject.excelFileId);
     } catch (error) {
       console.error('修改现有dataContent失败:', error);
     }

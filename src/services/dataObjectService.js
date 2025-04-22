@@ -204,78 +204,86 @@ const adaptBackendData = (backendItem) => {
   // 处理位置信息
   const locationInfo = extractLocationInfo(backendItem)
   
-  // 处理元数据
+  // 处理元数据 - 关键修改：优先保留原始元数据，不执行元数据提取逻辑
   let metadata = null
   let metadataJson = null
   
-  // 1. 检查是否有metadata对象
-  if (backendItem.metadata && typeof backendItem.metadata === 'object') {
-    metadata = {
-      dataName: backendItem.metadata.dataName || extractEntityName(backendItem),
-      sourceUnit: backendItem.metadata.sourceUnit || '数据部',
-      contactPerson: backendItem.metadata.contactPerson || '未指定',
-      contactPhone: backendItem.metadata.contactPhone || '未提供',
-      resourceSummary: backendItem.metadata.resourceSummary || '无',
-      fieldClassification: backendItem.metadata.fieldClassification || '未分类',
-      headers: backendItem.metadata.headers || []
-    }
+  // 检查是否保留了原始元数据(防止覆盖用户输入的元数据)
+  if (backendItem.originalMetadata && typeof backendItem.originalMetadata === 'object') {
+    console.log('使用原始保留的元数据:', backendItem.originalMetadata)
+    metadata = { ...backendItem.originalMetadata }
   }
-  // 2. 检查是否有metadataJson字段
-  else if (backendItem.metadataJson) {
-    try {
-      let parsedMetadata = typeof backendItem.metadataJson === 'string' ? 
-        JSON.parse(backendItem.metadataJson) : backendItem.metadataJson
-      
+  // 只有在没有原始元数据的情况下才尝试从其他来源提取
+  else if (!metadata) {
+    // 1. 检查是否有metadata对象
+    if (backendItem.metadata && typeof backendItem.metadata === 'object') {
       metadata = {
-        dataName: parsedMetadata.dataName || extractEntityName(backendItem),
-        sourceUnit: parsedMetadata.sourceUnit || '数据部',
-        contactPerson: parsedMetadata.contactPerson || '未指定',
-        contactPhone: parsedMetadata.contactPhone || '未提供',
-        resourceSummary: parsedMetadata.resourceSummary || '无',
-        fieldClassification: parsedMetadata.fieldClassification || '未分类',
-        headers: parsedMetadata.headers || []
+        dataName: backendItem.metadata.dataName || extractEntityName(backendItem),
+        sourceUnit: backendItem.metadata.sourceUnit || '数据部',
+        contactPerson: backendItem.metadata.contactPerson || '未指定',
+        contactPhone: backendItem.metadata.contactPhone || '未提供',
+        resourceSummary: backendItem.metadata.resourceSummary || '无',
+        fieldClassification: backendItem.metadata.fieldClassification || '未分类',
+        headers: backendItem.metadata.headers || []
       }
-    } catch (error) {
-      console.error('解析metadataJson失败:', error)
     }
-  }
-  // 3. 尝试从dataContent中提取
-  else if (backendItem.dataContent) {
-    try {
-      let contentObj = typeof backendItem.dataContent === 'string' ? 
-        JSON.parse(backendItem.dataContent) : backendItem.dataContent
-      
-      if (contentObj && contentObj.metadata) {
+    // 2. 检查是否有metadataJson字段
+    else if (backendItem.metadataJson) {
+      try {
+        let parsedMetadata = typeof backendItem.metadataJson === 'string' ? 
+          JSON.parse(backendItem.metadataJson) : backendItem.metadataJson
+        
         metadata = {
-          dataName: contentObj.metadata.dataName || extractEntityName(backendItem),
-          sourceUnit: contentObj.metadata.sourceUnit || '数据部',
-          contactPerson: contentObj.metadata.contactPerson || '未指定',
-          contactPhone: contentObj.metadata.contactPhone || '未提供',
-          resourceSummary: contentObj.metadata.resourceSummary || '无',
-          fieldClassification: contentObj.metadata.fieldClassification || '未分类',
-          headers: contentObj.metadata.headers || []
+          dataName: parsedMetadata.dataName || extractEntityName(backendItem),
+          sourceUnit: parsedMetadata.sourceUnit || '数据部',
+          contactPerson: parsedMetadata.contactPerson || '未指定',
+          contactPhone: parsedMetadata.contactPhone || '未提供',
+          resourceSummary: parsedMetadata.resourceSummary || '无',
+          fieldClassification: parsedMetadata.fieldClassification || '未分类',
+          headers: parsedMetadata.headers || []
         }
+      } catch (error) {
+        console.error('解析metadataJson失败:', error)
       }
-      else if (contentObj && contentObj.metadataJson) {
-        try {
-          let parsedMetadata = typeof contentObj.metadataJson === 'string' ?
-            JSON.parse(contentObj.metadataJson) : contentObj.metadataJson
-            
+    }
+    // 3. 尝试从dataContent中提取
+    else if (backendItem.dataContent) {
+      try {
+        let contentObj = typeof backendItem.dataContent === 'string' ? 
+          JSON.parse(backendItem.dataContent) : backendItem.dataContent
+        
+        if (contentObj && contentObj.metadata) {
           metadata = {
-            dataName: parsedMetadata.dataName || extractEntityName(backendItem),
-            sourceUnit: parsedMetadata.sourceUnit || '数据部',
-            contactPerson: parsedMetadata.contactPerson || '未指定',
-            contactPhone: parsedMetadata.contactPhone || '未提供',
-            resourceSummary: parsedMetadata.resourceSummary || '无',
-            fieldClassification: parsedMetadata.fieldClassification || '未分类',
-            headers: parsedMetadata.headers || []
+            dataName: contentObj.metadata.dataName || extractEntityName(backendItem),
+            sourceUnit: contentObj.metadata.sourceUnit || '数据部',
+            contactPerson: contentObj.metadata.contactPerson || '未指定',
+            contactPhone: contentObj.metadata.contactPhone || '未提供',
+            resourceSummary: contentObj.metadata.resourceSummary || '无',
+            fieldClassification: contentObj.metadata.fieldClassification || '未分类',
+            headers: contentObj.metadata.headers || []
           }
-        } catch (error) {
-          console.error('解析dataContent.metadataJson失败:', error)
         }
+        else if (contentObj && contentObj.metadataJson) {
+          try {
+            let parsedMetadata = typeof contentObj.metadataJson === 'string' ?
+              JSON.parse(contentObj.metadataJson) : contentObj.metadataJson
+              
+            metadata = {
+              dataName: parsedMetadata.dataName || extractEntityName(backendItem),
+              sourceUnit: parsedMetadata.sourceUnit || '数据部',
+              contactPerson: parsedMetadata.contactPerson || '未指定',
+              contactPhone: parsedMetadata.contactPhone || '未提供',
+              resourceSummary: parsedMetadata.resourceSummary || '无',
+              fieldClassification: parsedMetadata.fieldClassification || '未分类',
+              headers: parsedMetadata.headers || []
+            }
+          } catch (error) {
+            console.error('解析dataContent.metadataJson失败:', error)
+          }
+        }
+      } catch (error) {
+        console.error('解析dataContent失败:', error)
       }
-    } catch (error) {
-      console.error('解析dataContent失败:', error)
     }
   }
   
@@ -696,19 +704,23 @@ const createDefaultDataObject = () => {
 
 // 将前端数据转换为后端所需的格式
 const transformToBackendFormat = (frontendData) => {
+  // 确保元数据不使用默认值覆盖
+  const metadata = frontendData.metadata || {};
+  
   // 构建数据实体对象 - 确保所有字段都在dataEntity内
   const dataEntity = {
     entity: frontendData.entity || '',
     status: frontendData.status || '待审核', // 注意这里使用"待审核"作为默认值
     feedback: frontendData.feedback || '',
-    metadata: frontendData.metadata || {
-      dataName: frontendData.entity || '',
-      sourceUnit: '',
-      contactPerson: '',
-      contactPhone: '',
-      resourceSummary: '',
-      fieldClassification: '',
-      headers: []
+    // 确保使用用户提供的元数据，只有在用户未提供时才使用默认值
+    metadata: {
+      dataName: metadata.dataName || frontendData.entity || '',
+      sourceUnit: metadata.sourceUnit || '',
+      contactPerson: metadata.contactPerson || '',
+      contactPhone: metadata.contactPhone || '',
+      resourceSummary: metadata.resourceSummary || '',
+      fieldClassification: metadata.fieldClassification || '',
+      headers: metadata.headers || []
     },
     dataItems: frontendData.dataItems || []
   }
@@ -869,16 +881,30 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
     // 准备csrfToken
     const token = await prepareCsrfToken();
     
+    // 保存原始元数据，确保不会丢失
+    const originalMetadata = dataObject.metadata ? { ...dataObject.metadata } : null;
+    console.log('保存原始元数据:', originalMetadata);
+    
+    // 添加元数据日志，帮助调试
     console.log('开始通过API添加数据对象:', {
       entity: dataObject.entity,
       hasExcelData: !!dataObject.excelData,
       excelFileId: dataObject.excelFileId,
       extraParams: Object.keys(extraParams),
-      hasToken: !!token
+      hasToken: !!token,
+      metadata: dataObject.metadata || '无元数据'
     });
     
     // 创建请求数据对象
     const requestData = transformToBackendFormat(dataObject);
+    
+    // 确保原始元数据被保留
+    if (originalMetadata) {
+      requestData.originalMetadata = originalMetadata;
+    }
+    
+    // 记录转换后的元数据，用于调试
+    console.log('转换后的元数据:', requestData.dataEntity.metadata);
     
     // 添加额外的请求参数
     if (extraParams && Object.keys(extraParams).length > 0) {
@@ -918,8 +944,19 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
     if (response.status === 200 || response.status === 201) {
       console.log('成功通过API添加数据对象:', response.data);
       
+      // 确保响应数据保留原始元数据
+      if (response.data && originalMetadata) {
+        response.data.originalMetadata = originalMetadata;
+      }
+      
       // 更新本地数据
       const newObject = adaptBackendData(response.data);
+      
+      // 确保新对象也保留原始元数据
+      if (originalMetadata && newObject) {
+        newObject.metadata = originalMetadata;
+        newObject.originalMetadata = originalMetadata;
+      }
       
       // 添加到数据列表
       sharedTableData.push(newObject);
@@ -1059,14 +1096,20 @@ const deleteDataObjectViaApi = async (id) => {
     }
     
     console.log('准备通过API删除数据对象, ID:', id)
-    const response = await axiosInstance.delete(`/objects/${id}`)
+    let apiResponse = null
+    try {
+      apiResponse = await axiosInstance.delete(`/${id}`)
+    } catch (apiError) {
+      console.error('API调用失败:', apiError)
+      return false
+    }
     
-    console.log('删除数据对象API响应:', response)
+    console.log('删除数据对象API响应:', apiResponse)
     
     // 检查响应状态
-    if (response && response.data) {
+    if (apiResponse && apiResponse.data) {
       // 判断返回格式
-      if (response.data.code === 200) {
+      if (apiResponse.data.code === 200) {
         console.log('数字对象删除成功')
         
         // 同时更新本地数据

@@ -10,7 +10,7 @@
 
 | GET | /objects/{id} | 根据ID查询数字对象 |ok
 
-| POST | /objects | 新增数字对象 |no500
+| POST | /objects | 新增数字对象 |ok
 
 | PUT | /objects/{id} | 根据ID更新数字对象 |no
 

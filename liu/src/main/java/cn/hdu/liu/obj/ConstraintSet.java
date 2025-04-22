@@ -6,35 +6,24 @@ import lombok.Data;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Data
 public class ConstraintSet {
     @JsonProperty("constraints")
     private List<Constraint> constraints = new ArrayList<>();
-    private Constraint selectedConstraint;
 
-    // 添加约束
+    // 添加约束（移除选中逻辑）
     public void addConstraint(Constraint constraint) {
         constraints.add(constraint);
-        if (selectedConstraint == null) {
-            selectedConstraint = constraint;
-        }
     }
 
-    // 选择约束
-    public void selectConstraint(int index) {
-        if (index >= 0 && index < constraints.size()) {
-            selectedConstraint = constraints.get(index);
-        }
-    }
-
-    // 获取约束数组格式
+    // 获取约束数组格式（使用全部约束）
     @JsonIgnore
     public List<String> getConstraintArray() {
-        if (selectedConstraint != null) {
-            return selectedConstraint.getConstraintArray();
-        }
-        return new ArrayList<>();
+        return constraints.stream()
+                .flatMap(c -> c.getConstraintArray().stream())
+                .collect(Collectors.toList());
     }
 
     // 设置约束数组
@@ -49,47 +38,24 @@ public class ConstraintSet {
         return constraints.toString();
     }
 
-    // 获取可读的中文描述
+    // 获取可读的中文描述（使用全部约束）
     @JsonIgnore
     public String getDescription() {
-        if (selectedConstraint != null) {
-            return selectedConstraint.getDescription();
+        if (!constraints.isEmpty()) {
+            return constraints.stream()
+                    .map(Constraint::getDescription)
+                    .collect(Collectors.joining("\n\n"));
         }
         return "约束条件集合：空";
     }
 
-
-    // Getter for constraints
+    // Getter for constraints（保持不变）
     public List<Constraint> getConstraints() {
-        return new ArrayList<>(constraints); // 返回防御性拷贝
+        return new ArrayList<>(constraints);
     }
 
-    // Setter for constraints（带数据校验）
+    // Setter for constraints（简化逻辑）
     public void setConstraints(List<Constraint> constraints) {
-        this.constraints = new ArrayList<>(constraints); // 防御性拷贝
-
-        // 自动选择逻辑：当设置新列表且当前无选中项时，选择第一个约束
-        if (this.selectedConstraint == null && !this.constraints.isEmpty()) {
-            this.selectedConstraint = this.constraints.get(0);
-        }
+        this.constraints = new ArrayList<>(constraints);
     }
-
-    // Getter for selectedConstraint
-    public Constraint getSelectedConstraint() {
-        return selectedConstraint; // 直接返回引用（根据业务需求决定是否拷贝）
-    }
-
-    public void setSelectedConstraint(Constraint selectedConstraint) {
-        if (selectedConstraint != null) {
-            // 检查列表中是否存在值相等的约束
-            boolean exists = this.constraints.stream()
-                    .anyMatch(constraint -> constraint.equals(selectedConstraint));
-
-            if (!exists) {
-                throw new IllegalArgumentException("Selected constraint must exist in the constraints list");
-            }
-        }
-        this.selectedConstraint = selectedConstraint;
-    }
-
 }

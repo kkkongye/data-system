@@ -58,9 +58,9 @@ public class SourceController {
 
         String newFileName = uuid + '.' + extname;
         log.info("新的文件名:()",newFileName);
-        file.transferTo(new File("J:\\za\\cun\\"+newFileName));
+        file.transferTo(new File("D:\\datasystem\\excel\\"+newFileName));
 
-        DataObject tmpObject= dataObjectService.importFromExcel("J:\\za\\cun\\"+newFileName,origin,uuid);
+        DataObject tmpObject= dataObjectService.importFromExcel("D:\\datasystem\\excel\\"+newFileName,origin,uuid);
         session.setAttribute("tmpDataObject", tmpObject);
 
         return Result.success();
