@@ -621,26 +621,7 @@ const extractTransferControlArray = (backendItem) => {
 
 // 提取审计信息
 const extractAuditInfo = (backendItem) => {
-  // 如果有auditInfo对象
-  if (backendItem.auditInfo) {
-    // 如果auditInfo是字符串，直接返回
-    if (typeof backendItem.auditInfo === 'string') {
-      return backendItem.auditInfo
-    }
-    
-    // 如果auditInfo是对象，尝试构建有意义的信息
-    if (typeof backendItem.auditInfo === 'object') {
-      // 如果有具体的审计信息字段，可以构建更详细的提示
-      if (backendItem.auditInfo.loggingEnabled === true) {
-        return '启用日志记录'
-      }
-      
-      // 返回对象的字符串表示
-      return '审计信息可用' 
-    }
-  }
-  
-  // 默认返回
+  // 统一返回"查看日志"，无论输入的数据格式如何
   return '查看日志'
 }
 

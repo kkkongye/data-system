@@ -154,9 +154,10 @@
                     <span v-else>-</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="150" align="center">
+                <el-table-column label="操作" width="210" align="center">
                   <template #default="scope">
                     <div class="status-buttons">
+                      <el-button type="primary" size="small" plain @click="updateStatus(scope.row, '审查中')">审查</el-button>
                       <el-button type="success" size="small" plain :disabled="scope.row.status === '已合格'" @click="updateStatus(scope.row, '已合格')">正确</el-button>
                       <el-button type="danger" size="small" plain :disabled="scope.row.status === '不合格'" @click="updateStatus(scope.row, '不合格')">错误</el-button>
                     </div>
@@ -997,8 +998,13 @@ const getCurrentDateTime = () => {
 /* 按钮组样式 */
 .status-buttons {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   justify-content: center;
+}
+
+.status-buttons :deep(.el-button--small) {
+  padding: 5px 8px;
+  min-width: 44px;
 }
 
 /* 自定义禁用按钮样式 */
