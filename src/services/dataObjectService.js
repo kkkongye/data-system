@@ -204,6 +204,10 @@ const adaptBackendData = (backendItem) => {
   // 处理位置信息
   const locationInfo = extractLocationInfo(backendItem)
   
+  // 提取反馈信息 - 使用专门的提取函数
+  const feedback = extractFeedback(backendItem)
+  console.log('提取的反馈信息:', feedback)
+  
   // 处理元数据 - 关键修改：优先保留原始元数据，不执行元数据提取逻辑
   let metadata = null
   let metadataJson = null
@@ -319,7 +323,7 @@ const adaptBackendData = (backendItem) => {
     transferControl: transferControlArray,
     auditInfo: auditInfo,
     status: extractStatus(backendItem),
-    feedback: getValidValue(backendItem.feedback, ''),
+    feedback: feedback, // 使用提取的反馈信息，而不是直接使用backendItem.feedback
     excelData: null,
     metadata: metadata,
     metadataJson: metadataJson
@@ -1704,6 +1708,71 @@ const updateObjectStatusViaApi = async (id, status, feedback = '', localModeOnly
     
     // 在本地模式回退情况下，返回true以表示本地更新成功
     return true
+  }
+}
+
+// 提取反馈信息
+const extractFeedback = (backendItem) => {
+  try {
+    // 记录数据类型，方便调试
+    console.log(`提取反馈，数据类型: ${typeof backendItem}`);
+    
+    // 1. 首先检查直接的feedback字段
+    if (backendItem.feedback) {
+      console.log(`直接字段: feedback="${backendItem.feedback}"`);
+      return backendItem.feedback;
+    }
+    
+    // 2. 检查dataEntity中的feedback
+    if (backendItem.dataEntity && backendItem.dataEntity.feedback) {
+      console.log(`dataEntity: feedback="${backendItem.dataEntity.feedback}"`);
+      return backendItem.dataEntity.feedback;
+    }
+    
+    // 3. 检查statusInfo中的feedback
+    if (backendItem.statusInfo && backendItem.statusInfo.feedback) {
+      console.log(`statusInfo: feedback="${backendItem.statusInfo.feedback}"`);
+      return backendItem.statusInfo.feedback;
+    }
+    
+    // 4. 解析dataContent字段（如果它是JSON字符串）
+    if (backendItem.dataContent && typeof backendItem.dataContent === 'string') {
+      try {
+        console.log('尝试解析dataContent JSON字符串');
+        const dataContentObj = JSON.parse(backendItem.dataContent);
+        if (dataContentObj && dataContentObj.feedback) {
+          console.log(`从dataContent JSON中提取反馈: "${dataContentObj.feedback}"`);
+          return dataContentObj.feedback;
+        }
+        
+        // 检查dataContentObj.data中是否有feedback
+        if (dataContentObj.data && dataContentObj.data.feedback) {
+          console.log(`从dataContent.data中提取反馈: "${dataContentObj.data.feedback}"`);
+          return dataContentObj.data.feedback;
+        }
+      } catch (jsonError) {
+        console.warn('dataContent JSON解析失败:', jsonError);
+        
+        // JSON解析失败，尝试使用正则表达式提取
+        const feedbackMatch = backendItem.dataContent.match(/"feedback"\s*:\s*"([^"]*)"/);
+        if (feedbackMatch && feedbackMatch[1]) {
+          console.log(`使用正则表达式从dataContent提取反馈: "${feedbackMatch[1]}"`);
+          return feedbackMatch[1];
+        }
+      }
+    }
+    
+    // 5. 如果是不合格状态且没有反馈，设置默认反馈
+    if (extractStatus(backendItem) === '不合格') {
+      console.log('状态为不合格，设置默认反馈');
+      return '数据格式不符合要求';
+    }
+    
+    console.log('未找到反馈信息');
+    return '';
+  } catch (error) {
+    console.error('提取反馈信息时出错:', error);
+    return '';
   }
 }
 
