@@ -1726,10 +1726,78 @@ const saveCreateObject = async (newObject) => {
     try {
       // 确保元数据被正确包含 - 使用原始元数据
       const metadata = newObject.originalMetadata || newObject.metadata || {};
-      newObject.dataContent = JSON.stringify({
+      
+      // 确保metadata是一个有效对象，移除可能导致JSON解析错误的属性
+      const cleanMetadata = {
+        dataName: metadata.dataName || newObject.entity || '',
+        sourceUnit: metadata.sourceUnit || '',
+        contactPerson: metadata.contactPerson || '',
+        contactPhone: metadata.contactPhone || '',
+        resourceSummary: metadata.resourceSummary || '',
+        fieldClassification: metadata.fieldClassification || '',
+        headers: metadata.headers || []
+      };
+      
+      // 创建dataContent对象
+      const dataContentObj = {
         entity: newObject.entity,
         status: newObject.status,
+        metadata: cleanMetadata,
+        originalMetadata: cleanMetadata, // 使用清理后的元数据
+        dataItems: newObject.dataItems || [],
+        excelFileId: newObject.excelFileId
+      };
+      
+      // 验证dataContent对象是否可以正确序列化
+      const testJson = JSON.stringify(dataContentObj);
+      JSON.parse(testJson); // 测试能否成功解析回对象
+      
+      // 验证通过后，设置dataContent
+      newObject.dataContent = testJson;
+      console.log('已生成并验证dataContent字段，包含元数据和excelFileId:', newObject.excelFileId);
+    } catch (error) {
+      console.error('生成dataContent失败:', error);
+      // 创建一个最简单的dataContent，确保不会导致解析错误
+      newObject.dataContent = JSON.stringify({
+        entity: newObject.entity,
+        status: '待检验',
         metadata: {
+          dataName: newObject.entity || '未命名数据',
+          sourceUnit: '数据部',
+          contactPerson: '未指定',
+          contactPhone: '未提供',
+          resourceSummary: '数据资源',
+          fieldClassification: '未分类',
+          headers: []
+        }
+      });
+      console.log('使用简化的dataContent作为备选');
+    }
+  } else if (newObject.dataContent && typeof newObject.dataContent === 'string' && !newObject.dataContent.includes('excelFileId')) {
+    // 如果dataContent已存在但不包含excelFileId，尝试添加
+    try {
+      // 首先验证现有dataContent是否为有效JSON
+      let dataContentObj;
+      try {
+        dataContentObj = JSON.parse(newObject.dataContent);
+      } catch (jsonError) {
+        console.error('现有dataContent不是有效JSON，重新创建:', jsonError);
+        // 如果现有dataContent无效，重新创建一个
+        dataContentObj = {
+          entity: newObject.entity,
+          status: newObject.status || '待检验'
+        };
+      }
+      
+      // 添加excelFileId
+      dataContentObj.excelFileId = newObject.excelFileId;
+      
+      // 确保元数据被正确包含 - 使用原始元数据
+      if (newObject.originalMetadata || newObject.metadata) {
+        const metadata = newObject.originalMetadata || newObject.metadata || {};
+        
+        // 创建干净的元数据对象
+        dataContentObj.metadata = {
           dataName: metadata.dataName || newObject.entity || '',
           sourceUnit: metadata.sourceUnit || '',
           contactPerson: metadata.contactPerson || '',
@@ -1737,31 +1805,27 @@ const saveCreateObject = async (newObject) => {
           resourceSummary: metadata.resourceSummary || '',
           fieldClassification: metadata.fieldClassification || '',
           headers: metadata.headers || []
-        },
-        originalMetadata: metadata, // 添加原始元数据，确保在转换过程中不丢失
-        dataItems: newObject.dataItems || [],
-        excelFileId: newObject.excelFileId
-      });
-      console.log('已生成dataContent字段，包含元数据和excelFileId:', newObject.excelFileId);
-    } catch (error) {
-      console.error('生成dataContent失败:', error);
-    }
-  } else if (newObject.dataContent && typeof newObject.dataContent === 'string' && !newObject.dataContent.includes('excelFileId')) {
-    // 如果dataContent已存在但不包含excelFileId，尝试添加
-    try {
-      const dataContentObj = JSON.parse(newObject.dataContent);
-      dataContentObj.excelFileId = newObject.excelFileId;
-      
-      // 确保元数据被正确包含 - 使用原始元数据
-      if (newObject.originalMetadata || newObject.metadata) {
-        dataContentObj.metadata = newObject.originalMetadata || newObject.metadata;
-        dataContentObj.originalMetadata = newObject.originalMetadata || newObject.metadata;
+        };
+        
+        // 保存原始元数据
+        dataContentObj.originalMetadata = { ...dataContentObj.metadata };
       }
       
-      newObject.dataContent = JSON.stringify(dataContentObj);
+      // 验证新的dataContent是否可以正确序列化
+      const testJson = JSON.stringify(dataContentObj);
+      JSON.parse(testJson); // 测试能否成功解析回对象
+      
+      // 验证通过后，更新dataContent
+      newObject.dataContent = testJson;
       console.log('向现有dataContent添加excelFileId和元数据:', newObject.excelFileId);
     } catch (error) {
       console.error('修改现有dataContent失败:', error);
+      // 出错时创建一个新的简单dataContent
+      newObject.dataContent = JSON.stringify({
+        entity: newObject.entity,
+        status: newObject.status || '待检验',
+        excelFileId: newObject.excelFileId
+      });
     }
   }
   
@@ -1772,6 +1836,27 @@ const saveCreateObject = async (newObject) => {
   const requestParams = {
     excelFileId: newObject.excelFileId
   };
+  
+  // 【新增】确保元数据被正确传递
+  if (newObject.metadata) {
+    // 创建元数据JSON字符串
+    const metadataJsonStr = JSON.stringify(newObject.metadata);
+    
+    // 添加metadataJson参数，增加成功率
+    requestParams.metadataJson = metadataJsonStr;
+    console.log('将元数据添加到请求参数:', metadataJsonStr);
+    
+    // 将元数据存储到dataContent中，作为备份
+    if (newObject.dataContent && typeof newObject.dataContent === 'string') {
+      try {
+        const dataContentObj = JSON.parse(newObject.dataContent);
+        dataContentObj.metadataJson = metadataJsonStr;
+        newObject.dataContent = JSON.stringify(dataContentObj);
+      } catch (e) {
+        console.error('无法更新dataContent中的元数据:', e);
+      }
+    }
+  }
   
   try {
     console.log('调用API添加数字对象:', {

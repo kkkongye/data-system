@@ -699,8 +699,36 @@ const handleSave = () => {
       // 记录元数据对象
       console.log('【元数据准备】已创建用户元数据对象:', JSON.stringify(userInputMetadata));
       
-      // 将元数据转换为JSON字符串
+      // 将元数据转换为JSON字符串，确保格式正确
       const metadataJsonString = JSON.stringify(userInputMetadata);
+      
+      // 检查JSON格式是否正确
+      try {
+        // 验证JSON格式
+        JSON.parse(metadataJsonString);
+        console.log('【元数据验证】元数据JSON格式正确');
+      } catch (e) {
+        console.error('【元数据错误】元数据JSON格式错误:', e);
+        ElMessage.error('元数据格式错误，请检查输入');
+        return;
+      }
+      
+      // 【新增】确保元数据格式符合后端预期
+      // 检查headers是否为数组
+      if (!Array.isArray(userInputMetadata.headers)) {
+        if (typeof userInputMetadata.headers === 'string') {
+          // 如果是字符串，尝试转换为数组
+          userInputMetadata.headers = userInputMetadata.headers.split(/[,，]/);
+          console.log('【元数据修复】将headers字符串转换为数组:', userInputMetadata.headers);
+        } else {
+          // 设置为空数组
+          userInputMetadata.headers = [];
+          console.log('【元数据修复】将invalid headers设为空数组');
+        }
+      }
+      
+      // 确保metadataJson字段独立存在
+      const metadataForBackend = { ...userInputMetadata };
       
       // 【重要修改】构建新对象，确保元数据被保留
       const newObject = {
@@ -740,6 +768,7 @@ const handleSave = () => {
           metadata: {...userInputMetadata},
           // 保留原始元数据
           originalMetadata: {...userInputMetadata},
+          // 独立的metadataJson字段，确保后端可以正确识别
           metadataJson: metadataJsonString,
           _preserveUserMetadata: true,
           dataItems: newObject.dataItems,
