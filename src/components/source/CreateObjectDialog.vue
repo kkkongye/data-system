@@ -27,24 +27,9 @@
         </div>
       </el-form-item>
       
-      <!-- 调试工具：测试获取临时对象 -->
-      <div v-if="showDebugTools" style="margin-bottom: 15px; padding: 10px; background-color: #f8f8f8; border-radius: 4px;">
-        <h4 style="margin-top: 0; margin-bottom: 10px;">调试工具</h4>
-        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-          <el-button size="small" type="primary" @click="testFetchTempObject">测试获取临时对象</el-button>
-          <el-button size="small" type="success" @click="testUploadExcel">测试单独上传Excel</el-button>
-        </div>
-        <div v-if="tempObjectDebug" style="margin-top: 10px; max-height: 200px; overflow: auto;">
-          <pre style="font-size: 12px;">{{ JSON.stringify(tempObjectDebug, null, 2) }}</pre>
-        </div>
-      </div>
-      
       <!-- 元数据区域 -->
       <el-form-item label="数据名称：" prop="metadata.dataName" style="margin-bottom: 22px;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <el-input v-model="form.metadata.dataName" placeholder="请输入数据名称" style="width: 300px;"></el-input>
-          <el-button size="small" type="success" @click="fillTestMetadata">测试元数据</el-button>
-        </div>
+        <el-input v-model="form.metadata.dataName" placeholder="请输入数据名称" style="width: 300px;"></el-input>
       </el-form-item>
       <el-form-item label="来源单位：" prop="metadata.sourceUnit" style="margin-bottom: 22px;">
         <el-input v-model="form.metadata.sourceUnit" placeholder="请输入来源单位" style="width: 300px;"></el-input>
@@ -208,10 +193,6 @@ const loadingText = ref('')
 
 // 上传成功标志
 const uploadSuccess = ref(false)
-
-// 调试工具相关变量
-const showDebugTools = ref(false) // 关闭调试工具
-const tempObjectDebug = ref(null)
 
 // 表单数据
 const form = reactive({
@@ -868,138 +849,6 @@ const handleDialogClosed = () => {
   if (!props.modelValue.id) {
     resetForm()
   }
-}
-
-// 添加测试获取临时对象的逻辑
-const testFetchTempObject = async () => {
-  console.log('测试获取临时对象')
-  
-  try {
-    loading.value = true
-    loadingText.value = '正在获取临时对象...'
-    
-    const loadingInstance = ElLoading.service({
-      text: loadingText.value,
-      background: 'rgba(0, 0, 0, 0.7)'
-    })
-    
-    // 调用API获取临时对象
-    const response = await axios.get(`${API_URL}/objects/temp`)
-    
-    console.log('获取临时对象响应:', response)
-    
-    if (response.status === 200 && response.data) {
-      tempObjectDebug.value = response.data
-      ElMessage.success('成功获取临时对象')
-    } else {
-      tempObjectDebug.value = { error: '获取失败', response }
-      ElMessage.warning('未获取到临时对象')
-    }
-    
-    loadingInstance.close()
-  } catch (error) {
-    console.error('获取临时对象失败:', error)
-    tempObjectDebug.value = { error: error.message }
-    ElMessage.error(`获取临时对象失败: ${error.message}`)
-    
-    if (ElLoading) {
-      ElLoading.service().close()
-    }
-  } finally {
-    loading.value = false
-  }
-}
-
-// 添加测试上传Excel的函数
-const testUploadExcel = async () => {
-  console.log('测试单独上传Excel')
-  
-  if (!window.lastExcelFile) {
-    ElMessage.warning('请先上传Excel文件')
-    return
-  }
-  
-  try {
-    loading.value = true
-    loadingText.value = '正在上传Excel文件...'
-    
-    const loadingInstance = ElLoading.service({
-      text: loadingText.value,
-      background: 'rgba(0, 0, 0, 0.7)'
-    })
-    
-    // 创建FormData对象
-    const formData = new FormData()
-    formData.append('file', window.lastExcelFile)
-    
-    // 调用API上传文件
-    const response = await axios.post(`${API_URL}/objects/excel`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
-    
-    console.log('Excel文件上传响应:', response)
-    
-    if (response.status === 200) {
-      // 上传成功，尝试获取临时对象
-      tempObjectDebug.value = { upload: response.data, message: '上传成功，请点击"测试获取临时对象"按钮获取会话中的临时对象' }
-      ElMessage.success('Excel文件上传成功，请点击"测试获取临时对象"按钮')
-    } else {
-      tempObjectDebug.value = { error: '上传失败', response }
-      ElMessage.warning('Excel文件上传失败')
-    }
-    
-    loadingInstance.close()
-  } catch (error) {
-    console.error('上传Excel文件失败:', error)
-    tempObjectDebug.value = { error: error.message }
-    ElMessage.error(`上传Excel文件失败: ${error.message}`)
-    
-    if (ElLoading) {
-      ElLoading.service().close()
-    }
-  } finally {
-    loading.value = false
-  }
-}
-
-// 添加fillTestMetadata函数用于填充测试元数据
-const fillTestMetadata = () => {
-  console.log('填充测试元数据');
-  
-  // 保存填充前的元数据用于比较
-  const beforeFill = {
-    dataName: form.metadata.dataName,
-    sourceUnit: form.metadata.sourceUnit,
-    contactPerson: form.metadata.contactPerson,
-    contactPhone: form.metadata.contactPhone,
-    resourceSummary: form.metadata.resourceSummary,
-    fieldClassification: form.metadata.fieldClassification
-  };
-  
-  console.log('填充前的元数据:', JSON.stringify(beforeFill));
-  
-  // 设置测试元数据
-  form.metadata.dataName = form.metadata.dataName || form.entity || '测试数据集';
-  form.metadata.sourceUnit = '测试部门';
-  form.metadata.contactPerson = '张测试';
-  form.metadata.contactPhone = '13800138000';
-  form.metadata.resourceSummary = '这是一个测试用的数据摘要';
-  form.metadata.fieldClassification = '测试分类';
-  
-  // 记录填充后的元数据
-  const afterFill = {
-    dataName: form.metadata.dataName,
-    sourceUnit: form.metadata.sourceUnit,
-    contactPerson: form.metadata.contactPerson,
-    contactPhone: form.metadata.contactPhone,
-    resourceSummary: form.metadata.resourceSummary,
-    fieldClassification: form.metadata.fieldClassification
-  };
-  
-  console.log('填充后的元数据:', JSON.stringify(afterFill));
-  ElMessage.success('已填充测试元数据');
 }
 </script>
 

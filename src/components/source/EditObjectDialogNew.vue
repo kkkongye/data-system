@@ -285,14 +285,14 @@ const formRules = {
 
 // 监听可见性变化
 watch(() => props.visible, (newVal) => {
-  console.log('EditObjectDialogNew组件可见性变化:', newVal)
+  // console.log('EditObjectDialogNew组件可见性变化:', newVal)
   
   // 设置本地可见性状态
   dialogVisible.value = newVal
   
   if (newVal) {
     // 对话框打开时立即更新表单数据
-    console.log('对话框打开，应用modelValue:', props.modelValue)
+    // console.log('对话框打开，应用modelValue:', props.modelValue)
     updateFormFromModelValue(props.modelValue)
   }
 }, { immediate: true })
@@ -304,22 +304,22 @@ watch(dialogVisible, (newVal) => {
 
 // 监听modelValue变化
 watch(() => props.modelValue, (newVal) => {
-  console.log('EditObjectDialogNew组件接收到新的modelValue:', newVal ? newVal.id : 'undefined')
+  // console.log('EditObjectDialogNew组件接收到新的modelValue:', newVal ? newVal.id : 'undefined')
   
   if (dialogVisible.value && newVal) {
-    console.log('应用新的modelValue到表单')
+    // console.log('应用新的modelValue到表单')
     updateFormFromModelValue(newVal)
   }
 }, { immediate: true })
 
 // 从modelValue更新表单数据的函数
 const updateFormFromModelValue = (modelValue) => {
-  console.log('从modelValue更新表单数据:', modelValue)
+  // console.log('从modelValue更新表单数据:', modelValue)
   
   // 处理ID - 确保即使ID为0也能正确显示
   if (modelValue.id !== undefined && modelValue.id !== null) {
     form.id = String(modelValue.id)
-    console.log('设置ID值:', form.id)
+    // console.log('设置ID值:', form.id)
   } else {
     form.id = ''
   }
@@ -413,7 +413,7 @@ const updateFormFromModelValue = (modelValue) => {
   form.excelData = modelValue.excelData
   form.dataItems = modelValue.dataItems || []
   
-  console.log('表单数据更新完成:', JSON.stringify(form))
+  // console.log('表单数据更新完成:', JSON.stringify(form))
 }
 
 // 监听form变化，更新v-model
@@ -532,9 +532,6 @@ const processExcelData = (binaryString) => {
         return item
       })
       
-      console.log('提取的Excel数据项:', dataItems)
-      console.log('提取的表头:', headers)
-      
       // 保存表头到元数据
       form.metadata.headers = headers
       
@@ -606,7 +603,7 @@ const handleFileChange = async (file) => {
       // 3. 如果后端返回了文件URL或base64数据，也可以保存
       if (uploadResult.data && uploadResult.data.excelData) {
         // 如果后端返回的是URL或base64，可以在这里处理
-        console.log('后端返回的Excel数据:', uploadResult.data.excelData)
+        // console.log('后端返回的Excel数据:', uploadResult.data.excelData)
       }
     } else {
       ElMessage.error(`上传失败: ${uploadResult.message}`)

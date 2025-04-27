@@ -75,7 +75,8 @@ const fetchDataObjectById = async (id) => {
         }
       }
     } catch (apiError) {
-      console.error('API获取对象详情失败:', apiError)
+      // 删除日志
+      // console.error('API获取对象详情失败:', apiError)
       // API失败，继续尝试从本地数据获取
     }
     
@@ -87,14 +88,12 @@ const fetchDataObjectById = async (id) => {
         // 本地找到的数据已经是前端格式，直接返回
         return dataObject
       } else {
-        console.warn('未找到ID为', id, '的对象')
         return null
       }
     }
     
     return dataObject
   } catch (error) {
-    console.error('获取数字对象详情失败:', error)
     return null
   }
 }
@@ -149,7 +148,6 @@ const fetchDataObjectsFromBackend = async () => {
         
         // 通知监听器
         notifyListeners()
-        console.log('成功更新数据对象列表，共获取到', dataArray.length, '条记录')
         return sharedTableData
       } else {
         console.warn('从API获取的数据为空数组或未找到数组数据')
@@ -206,7 +204,7 @@ const adaptBackendData = (backendItem) => {
   
   // 提取反馈信息 - 使用专门的提取函数
   const feedback = extractFeedback(backendItem)
-  console.log('提取的反馈信息:', feedback)
+  // console.log('提取的反馈信息:', feedback)
   
   // 处理元数据 - 关键修改：优先保留原始元数据，不执行元数据提取逻辑
   let metadata = null
@@ -214,12 +212,12 @@ const adaptBackendData = (backendItem) => {
   // 【新增】先检查是否有直接的metadata字段
   if (backendItem.metadata && typeof backendItem.metadata === 'object') {
     metadata = { ...backendItem.metadata };
-    console.log('【元数据解析】使用直接提供的metadata对象');
+    // console.log('【元数据解析】使用直接提供的metadata对象');
   }
   
   // 检查是否保留了原始元数据(防止覆盖用户输入的元数据)
   if (!metadata && backendItem.originalMetadata && typeof backendItem.originalMetadata === 'object') {
-    console.log('【元数据解析】使用原始保留的元数据:', backendItem.originalMetadata)
+    // console.log('【元数据解析】使用原始保留的元数据:', backendItem.originalMetadata)
     metadata = { ...backendItem.originalMetadata }
   }
   
@@ -264,7 +262,7 @@ const adaptBackendData = (backendItem) => {
           fieldClassification: parsedMetadata.fieldClassification || '',
           headers: parsedMetadata.headers || []
         };
-        console.log('【元数据解析】成功从metadataJson解析元数据');
+        // console.log('【元数据解析】成功从metadataJson解析元数据');
       }
     } catch (error) {
       console.error('解析metadataJson失败:', error);
@@ -275,7 +273,7 @@ const adaptBackendData = (backendItem) => {
   if (!metadata && backendItem.dataEntity) {
     if (backendItem.dataEntity.metadata && typeof backendItem.dataEntity.metadata === 'object') {
       metadata = { ...backendItem.dataEntity.metadata };
-      console.log('【元数据解析】从dataEntity.metadata提取元数据');
+      // console.log('【元数据解析】从dataEntity.metadata提取元数据');
     } else if (backendItem.dataEntity.metadataJson) {
       try {
         const parsedMetadata = typeof backendItem.dataEntity.metadataJson === 'string' 
@@ -291,7 +289,7 @@ const adaptBackendData = (backendItem) => {
           fieldClassification: parsedMetadata.fieldClassification || '',
           headers: parsedMetadata.headers || []
         };
-        console.log('【元数据解析】从dataEntity.metadataJson解析元数据');
+        // console.log('【元数据解析】从dataEntity.metadataJson解析元数据');
       } catch (error) {
         console.error('解析dataEntity.metadataJson失败:', error);
       }
@@ -309,7 +307,7 @@ const adaptBackendData = (backendItem) => {
       fieldClassification: '',
       headers: []
     };
-    console.log('【元数据解析】创建默认元数据, 名称:', metadata.dataName);
+    // console.log('【元数据解析】创建默认元数据, 名称:', metadata.dataName);
   }
   
   // 构建适配后的数据对象
@@ -691,16 +689,16 @@ const createDefaultDataObject = () => {
 // 将前端数据转换为后端所需的格式
 const transformToBackendFormat = (frontendData) => {
   // 【关键修改】确保使用用户输入的元数据，不使用默认值覆盖
-  console.log('【transformToBackendFormat】处理元数据开始，输入对象:', {
-    hasMetadata: !!frontendData.metadata,
-    hasOriginalMetadata: !!frontendData.originalMetadata,
-    entity: frontendData.entity
-  });
+  // console.log('【transformToBackendFormat】处理元数据开始，输入对象:', {
+  //   hasMetadata: !!frontendData.metadata,
+  //   hasOriginalMetadata: !!frontendData.originalMetadata,
+  //   entity: frontendData.entity
+  // });
   
   // 优先使用originalMetadata(如果存在)，否则使用metadata，确保原始用户输入被保留
   const userMetadata = frontendData.originalMetadata || frontendData.metadata || {};
   
-  console.log('【转换元数据】准备使用的用户元数据:', JSON.stringify(userMetadata));
+  // console.log('【转换元数据】准备使用的用户元数据:', JSON.stringify(userMetadata));
   
   // 构建数据实体对象 - 确保所有字段都在dataEntity内
   const dataEntity = {
@@ -738,9 +736,9 @@ const transformToBackendFormat = (frontendData) => {
   // 将元数据对象转换为JSON字符串
   dataEntity.metadataJson = JSON.stringify(metadataJsonObj);
   
-  console.log('【转换元数据】最终生成的metadata对象:', JSON.stringify(dataEntity.metadata));
-  console.log('【转换元数据】生成的metadataJson:', dataEntity.metadataJson);
-  console.log('【转换元数据】是否包含originalMetadata:', !!dataEntity.originalMetadata);
+  // console.log('【转换元数据】最终生成的metadata对象:', JSON.stringify(dataEntity.metadata));
+  // console.log('【转换元数据】生成的metadataJson:', dataEntity.metadataJson);
+  // console.log('【转换元数据】是否包含originalMetadata:', !!dataEntity.originalMetadata);
 
   // 如果有Excel文件ID，也添加到dataEntity中
   if (frontendData.excelFileId) {
@@ -802,8 +800,8 @@ const transformToBackendFormat = (frontendData) => {
     }
   };
 
-  console.log('约束条件格式:', JSON.stringify(constraintSet));
-  console.log('传播控制格式:', JSON.stringify(propagationControl));
+  // console.log('约束条件格式:', JSON.stringify(constraintSet));
+  // console.log('传播控制格式:', JSON.stringify(propagationControl));
 
   // 构建审计信息对象
   const auditInfo = {
@@ -943,32 +941,32 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
     // 如果没有originalMetadata，但有metadata，则创建一个副本
     if (!dataObject.originalMetadata && dataObject.metadata) {
       dataObject.originalMetadata = { ...dataObject.metadata };
-      console.log('【元数据保护】创建原始元数据副本:', JSON.stringify(dataObject.originalMetadata));
+      // console.log('【元数据保护】创建原始元数据副本:', JSON.stringify(dataObject.originalMetadata));
     }
     
     // 添加元数据日志，帮助调试
-    console.log('【API添加对象】准备添加数据对象:', {
-      entity: dataObject.entity,
-      hasExcelData: !!dataObject.excelData,
-      excelFileId: dataObject.excelFileId,
-      extraParams: extraParams ? Object.keys(extraParams) : [],
-      hasToken: !!token,
-      hasMetadata: !!dataObject.metadata,
-      hasOriginalMetadata: !!dataObject.originalMetadata
-    });
+    // console.log('【API添加对象】准备添加数据对象:', {
+    //   entity: dataObject.entity,
+    //   hasExcelData: !!dataObject.excelData,
+    //   excelFileId: dataObject.excelFileId,
+    //   extraParams: extraParams ? Object.keys(extraParams) : [],
+    //   hasToken: !!token,
+    //   hasMetadata: !!dataObject.metadata,
+    //   hasOriginalMetadata: !!dataObject.originalMetadata
+    // });
     
-    if (dataObject.metadata) {
-      console.log('【元数据检查】当前元数据内容:', JSON.stringify(dataObject.metadata));
-    }
+    // if (dataObject.metadata) {
+    //   console.log('【元数据检查】当前元数据内容:', JSON.stringify(dataObject.metadata));
+    // }
     
-    if (dataObject.originalMetadata) {
-      console.log('【元数据检查】原始元数据内容:', JSON.stringify(dataObject.originalMetadata));
-    }
+    // if (dataObject.originalMetadata) {
+    //   console.log('【元数据检查】原始元数据内容:', JSON.stringify(dataObject.originalMetadata));
+    // }
     
     // 【新增】检查元数据完整性，如果metadata为null但有表单信息，则创建元数据
     if (!dataObject.metadata && !dataObject.originalMetadata) {
       // 尝试从其他属性中收集元数据信息
-      console.log('【元数据修复】未找到元数据，尝试从对象属性创建');
+      // console.log('【元数据修复】未找到元数据，尝试从对象属性创建');
       const createdMetadata = {
         dataName: dataObject.entity || '未命名数据',
         sourceUnit: '',
@@ -982,35 +980,35 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
       
       dataObject.metadata = createdMetadata;
       dataObject.originalMetadata = { ...createdMetadata };
-      console.log('【元数据修复】创建的元数据:', JSON.stringify(createdMetadata));
+      // console.log('【元数据修复】创建的元数据:', JSON.stringify(createdMetadata));
     }
     
     // 创建请求数据对象前记录元数据状态
-    console.log('【转换前】调用transformToBackendFormat前的元数据状态:');
-    if (dataObject.metadata) {
-      console.log('- dataName:', dataObject.metadata.dataName);
-      console.log('- sourceUnit:', dataObject.metadata.sourceUnit);
-      console.log('- contactPerson:', dataObject.metadata.contactPerson);
-      console.log('- contactPhone:', dataObject.metadata.contactPhone);
-    }
+    // console.log('【转换前】调用transformToBackendFormat前的元数据状态:');
+    // if (dataObject.metadata) {
+    //   console.log('- dataName:', dataObject.metadata.dataName);
+    //   console.log('- sourceUnit:', dataObject.metadata.sourceUnit);
+    //   console.log('- contactPerson:', dataObject.metadata.contactPerson);
+    //   console.log('- contactPhone:', dataObject.metadata.contactPhone);
+    // }
     
     // 创建请求数据对象
     const requestData = transformToBackendFormat(dataObject);
     
     // 【重要修改】转换后检查元数据是否保留
-    console.log('【转换后】检查transformToBackendFormat结果:');
-    if (requestData.dataEntity && requestData.dataEntity.metadata) {
-      console.log('- dataName:', requestData.dataEntity.metadata.dataName);
-      console.log('- sourceUnit:', requestData.dataEntity.metadata.sourceUnit);
-      console.log('- contactPerson:', requestData.dataEntity.metadata.contactPerson);
-      console.log('- contactPhone:', requestData.dataEntity.metadata.contactPhone);
-    }
+    // console.log('【转换后】检查transformToBackendFormat结果:');
+    // if (requestData.dataEntity && requestData.dataEntity.metadata) {
+    //   console.log('- dataName:', requestData.dataEntity.metadata.dataName);
+    //   console.log('- sourceUnit:', requestData.dataEntity.metadata.sourceUnit);
+    //   console.log('- contactPerson:', requestData.dataEntity.metadata.contactPerson);
+    //   console.log('- contactPhone:', requestData.dataEntity.metadata.contactPhone);
+    // }
     
     // 确保原始元数据被保留
     if (dataObject.originalMetadata) {
       if (!requestData.dataEntity.originalMetadata) {
         requestData.dataEntity.originalMetadata = { ...dataObject.originalMetadata };
-        console.log('【元数据修复】向requestData添加缺失的originalMetadata');
+        // console.log('【元数据修复】向requestData添加缺失的originalMetadata');
       }
     }
     
@@ -1018,7 +1016,7 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
     if (requestData.dataEntity && requestData.dataEntity.metadataJson) {
       // 将metadataJson字段提升到顶级对象
       requestData.metadataJson = requestData.dataEntity.metadataJson;
-      console.log('【元数据提升】将metadataJson提升到顶级对象:', requestData.metadataJson);
+      // console.log('【元数据提升】将metadataJson提升到顶级对象:', requestData.metadataJson);
     } else if (dataObject.metadata) {
       // 如果dataEntity中没有metadataJson但有元数据，创建它
       const metadataJsonObj = {
@@ -1031,16 +1029,16 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
         headers: dataObject.metadata.headers || []
       };
       requestData.metadataJson = JSON.stringify(metadataJsonObj);
-      console.log('【元数据创建】创建顶级metadataJson:', requestData.metadataJson);
+      // console.log('【元数据创建】创建顶级metadataJson:', requestData.metadataJson);
     }
     
     // 【新增】确保顶级请求对象直接包含metadata字段
     if (!requestData.metadata && requestData.dataEntity && requestData.dataEntity.metadata) {
       requestData.metadata = requestData.dataEntity.metadata;
-      console.log('【元数据提升】将metadata提升到顶级对象');
+      // console.log('【元数据提升】将metadata提升到顶级对象');
     } else if (!requestData.metadata && dataObject.metadata) {
       requestData.metadata = { ...dataObject.metadata };
-      console.log('【元数据创建】创建顶级metadata');
+      // console.log('【元数据创建】创建顶级metadata');
     }
     
     // 添加额外的请求参数
@@ -1050,7 +1048,7 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
       // 如果有preserveUserMetadata参数，确保将它也添加到dataEntity
       if (extraParams.preserveUserMetadata) {
         requestData.dataEntity._preserveUserMetadata = true;
-        console.log('【元数据保护】添加_preserveUserMetadata标记到dataEntity');
+        // console.log('【元数据保护】添加_preserveUserMetadata标记到dataEntity');
       }
     }
     
@@ -1075,7 +1073,7 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
       headers['X-CSRF-TOKEN'] = token;
     }
     
-    console.log('【发送前】最终发送的数据:', JSON.stringify(requestData, null, 2));
+    // console.log('【发送前】最终发送的数据:', JSON.stringify(requestData, null, 2));
     
     // 发送请求
     const response = await axiosInstance.post(url, requestData, {
@@ -1085,7 +1083,7 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
     
     // 检查响应
     if (response.status === 200 || response.status === 201) {
-      console.log('【API成功】成功通过API添加数据对象:', response.data);
+      // console.log('【API成功】成功通过API添加数据对象:', response.data);
       
       // 【重要修改】确保响应数据保留原始元数据
       let responseData = response.data;
@@ -1095,7 +1093,7 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
         try {
           responseData = JSON.parse(responseData);
         } catch (e) {
-          console.warn('【响应解析】响应数据不是有效的JSON:', e);
+          // console.warn('【响应解析】响应数据不是有效的JSON:', e);
           // 创建一个包含基本信息的响应对象
           responseData = {
             message: responseData,
@@ -1113,7 +1111,7 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
           responseData.msg === 'success' && 
           !responseData.metadata && 
           !responseData.dataEntity) {
-        console.log('【响应处理】收到简单成功响应，创建完整响应对象');
+        // console.log('【响应处理】收到简单成功响应，创建完整响应对象');
         
         // 将原始信息保存在响应中
         responseData.originalMetadata = dataObject.originalMetadata || dataObject.metadata;
@@ -1131,16 +1129,17 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
         // 确保响应中有元数据字段
         if (dataObject.originalMetadata) {
           responseData.originalMetadata = { ...dataObject.originalMetadata };
-          console.log('【元数据保护】在响应数据中添加originalMetadata');
+          // console.log('【元数据保护】在响应数据中添加originalMetadata');
         }
         
         // 检查响应中是否包含元数据
         if (responseData.metadata) {
-          console.log('【返回的元数据】响应中包含的元数据:', JSON.stringify(responseData.metadata));
+          // console.log('【返回的元数据】响应中包含的元数据:', JSON.stringify(responseData.metadata));
         } else if (responseData.dataEntity && responseData.dataEntity.metadata) {
-          console.log('【返回的元数据】dataEntity中的元数据:', JSON.stringify(responseData.dataEntity.metadata));
+          // console.log('【返回的元数据】dataEntity中的元数据:', JSON.stringify(responseData.dataEntity.metadata));
         } else {
-          console.warn('【返回的元数据】响应中没有找到元数据');
+          // 无需输出警告，静默处理
+          // console.warn('【返回的元数据】响应中没有找到元数据');
           
           // 【新增】如果响应中没有元数据，将原始元数据添加到响应中
           if (dataObject.metadata || dataObject.originalMetadata) {
@@ -1149,25 +1148,25 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
             // 确保响应中有元数据
             if (!responseData.metadata) {
               responseData.metadata = { ...metadataToUse };
-              console.log('【元数据修复】添加缺失的metadata字段到响应');
+              // console.log('【元数据修复】添加缺失的metadata字段到响应');
             }
             
             // 确保响应中有metadataJson
             if (!responseData.metadataJson) {
               responseData.metadataJson = JSON.stringify(metadataToUse);
-              console.log('【元数据修复】添加缺失的metadataJson字段到响应');
+              // console.log('【元数据修复】添加缺失的metadataJson字段到响应');
             }
             
             // 如果有dataEntity，也在其中添加元数据
             if (responseData.dataEntity) {
               if (!responseData.dataEntity.metadata) {
                 responseData.dataEntity.metadata = { ...metadataToUse };
-                console.log('【元数据修复】添加缺失的metadata字段到dataEntity');
+                // console.log('【元数据修复】添加缺失的metadata字段到dataEntity');
               }
               
               if (!responseData.dataEntity.metadataJson) {
                 responseData.dataEntity.metadataJson = JSON.stringify(metadataToUse);
-                console.log('【元数据修复】添加缺失的metadataJson字段到dataEntity');
+                // console.log('【元数据修复】添加缺失的metadataJson字段到dataEntity');
               }
             }
           }
@@ -1175,21 +1174,21 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
       }
       
       // 【重要修改】在调用adaptBackendData前打印日志
-      console.log('【适配前】将调用adaptBackendData处理返回数据');
+      // console.log('【适配前】将调用adaptBackendData处理返回数据');
       
       // 更新本地数据
       const newObject = adaptBackendData(responseData);
       
       // 【重要修改】检查适配后的结果
-      console.log('【适配后】adaptBackendData处理后的结果:');
-      if (newObject.metadata) {
-        console.log('- dataName:', newObject.metadata.dataName);
-        console.log('- sourceUnit:', newObject.metadata.sourceUnit);
-        console.log('- contactPerson:', newObject.metadata.contactPerson);
-        console.log('- contactPhone:', newObject.metadata.contactPhone);
-      } else {
-        console.warn('【警告】adaptBackendData后metadata字段丢失');
-      }
+      // console.log('【适配后】adaptBackendData处理后的结果:');
+      // if (newObject.metadata) {
+      //   console.log('- dataName:', newObject.metadata.dataName);
+      //   console.log('- sourceUnit:', newObject.metadata.sourceUnit);
+      //   console.log('- contactPerson:', newObject.metadata.contactPerson);
+      //   console.log('- contactPhone:', newObject.metadata.contactPhone);
+      // } else {
+      //   console.warn('【警告】adaptBackendData后metadata字段丢失');
+      // }
       
       // 确保新对象也保留原始元数据
       if (dataObject.originalMetadata && newObject) {
@@ -1197,13 +1196,13 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
             (newObject.metadata.dataName !== dataObject.originalMetadata.dataName) ||
             (newObject.metadata.sourceUnit !== dataObject.originalMetadata.sourceUnit) ||
             (newObject.metadata.contactPerson !== dataObject.originalMetadata.contactPerson)) {
-          console.warn('【元数据不匹配】用户原始元数据与返回的元数据不匹配，使用原始元数据');
+          // console.warn('【元数据不匹配】用户原始元数据与返回的元数据不匹配，使用原始元数据');
           newObject.metadata = { ...dataObject.originalMetadata };
         }
         
         // 无论如何都保留originalMetadata
         newObject.originalMetadata = { ...dataObject.originalMetadata };
-        console.log('【元数据保护】为新对象设置originalMetadata');
+        // console.log('【元数据保护】为新对象设置originalMetadata');
       }
       
       // 【新增】确保新对象至少有基本元数据
@@ -1217,7 +1216,7 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
           fieldClassification: "",
           headers: []
         };
-        console.log('【元数据修复】为新对象创建默认元数据');
+        // console.log('【元数据修复】为新对象创建默认元数据');
       }
       
       // 添加到数据列表
@@ -1500,6 +1499,7 @@ const compareIds = (id1, id2) => {
 
 // 获取所有数字对象
 const getAllDataObjects = () => {
+  // 不输出任何日志
   return sharedTableData
 }
 
@@ -1548,8 +1548,6 @@ const cookieService = {
 // 添加新方法：获取会话中的临时数据对象
 const fetchTempDataObject = async (uploadData = null, retryCount = 3, retryDelay = 500) => {
   try {
-    console.log('正在获取会话中的临时数据对象...');
-    
     // 用于存储每次尝试的响应，便于调试
     const attempts = [];
     
@@ -1559,7 +1557,6 @@ const fetchTempDataObject = async (uploadData = null, retryCount = 3, retryDelay
         // 如果不是第一次尝试，添加延迟
         if (attempt > 0) {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
-          console.log(`尝试第 ${attempt + 1} 次获取临时对象...`);
         }
         
         // 准备请求参数
@@ -1600,7 +1597,6 @@ const fetchTempDataObject = async (uploadData = null, retryCount = 3, retryDelay
         
         // 检查响应
         if (response.data && response.status === 200) {
-          console.log(`成功获取临时数据对象(尝试 ${attempt + 1}/${retryCount}):`);
           return {
             success: true,
             data: response.data,
