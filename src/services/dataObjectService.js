@@ -690,26 +690,42 @@ const createDefaultDataObject = () => {
 
 // 将前端数据转换为后端所需的格式
 const transformToBackendFormat = (frontendData) => {
-  // 确保元数据不使用默认值覆盖
-  const metadata = frontendData.metadata || {};
+  // 【关键修改】确保使用用户输入的元数据，不使用默认值覆盖
+  console.log('【transformToBackendFormat】处理元数据开始，输入对象:', {
+    hasMetadata: !!frontendData.metadata,
+    hasOriginalMetadata: !!frontendData.originalMetadata,
+    entity: frontendData.entity
+  });
+  
+  // 优先使用originalMetadata(如果存在)，否则使用metadata，确保原始用户输入被保留
+  const userMetadata = frontendData.originalMetadata || frontendData.metadata || {};
+  
+  console.log('【转换元数据】准备使用的用户元数据:', JSON.stringify(userMetadata));
   
   // 构建数据实体对象 - 确保所有字段都在dataEntity内
   const dataEntity = {
     entity: frontendData.entity || '',
     status: frontendData.status || '待审核', // 注意这里使用"待审核"作为默认值
     feedback: frontendData.feedback || '',
-    // 确保使用用户提供的元数据，只有在用户未提供时才使用默认值
+    // 【关键修改】确保使用用户提供的元数据，不使用默认值覆盖用户数据
     metadata: {
-      dataName: metadata.dataName || frontendData.entity || '',
-      sourceUnit: metadata.sourceUnit || '',
-      contactPerson: metadata.contactPerson || '',
-      contactPhone: metadata.contactPhone || '',
-      resourceSummary: metadata.resourceSummary || '',
-      fieldClassification: metadata.fieldClassification || '',
-      headers: metadata.headers || []
+      dataName: userMetadata.dataName || frontendData.entity || '',
+      sourceUnit: userMetadata.sourceUnit || '',
+      contactPerson: userMetadata.contactPerson || '',
+      contactPhone: userMetadata.contactPhone || '',
+      resourceSummary: userMetadata.resourceSummary || '',
+      fieldClassification: userMetadata.fieldClassification || '',
+      headers: userMetadata.headers || []
     },
+    // 添加一个标记，表示这是用户输入的元数据
+    _userMetadataProcessed: true,
+    // 保留原始元数据，确保后续处理不会丢失
+    originalMetadata: { ...userMetadata },
     dataItems: frontendData.dataItems || []
   }
+  
+  console.log('【转换元数据】最终生成的metadata对象:', JSON.stringify(dataEntity.metadata));
+  console.log('【转换元数据】是否包含originalMetadata:', !!dataEntity.originalMetadata);
 
   // 如果有Excel文件ID，也添加到dataEntity中
   if (frontendData.excelFileId) {
@@ -904,34 +920,70 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
     // 准备csrfToken
     const token = await prepareCsrfToken();
     
-    // 保存原始元数据，确保不会丢失
-    const originalMetadata = dataObject.metadata ? { ...dataObject.metadata } : null;
-    console.log('保存原始元数据:', originalMetadata);
+    // 【重要修改】保存原始元数据，确保不会丢失
+    // 如果没有originalMetadata，但有metadata，则创建一个副本
+    if (!dataObject.originalMetadata && dataObject.metadata) {
+      dataObject.originalMetadata = { ...dataObject.metadata };
+      console.log('【元数据保护】创建原始元数据副本:', JSON.stringify(dataObject.originalMetadata));
+    }
     
     // 添加元数据日志，帮助调试
-    console.log('开始通过API添加数据对象:', {
+    console.log('【API添加对象】准备添加数据对象:', {
       entity: dataObject.entity,
       hasExcelData: !!dataObject.excelData,
       excelFileId: dataObject.excelFileId,
-      extraParams: Object.keys(extraParams),
+      extraParams: extraParams ? Object.keys(extraParams) : [],
       hasToken: !!token,
-      metadata: dataObject.metadata || '无元数据'
+      hasMetadata: !!dataObject.metadata,
+      hasOriginalMetadata: !!dataObject.originalMetadata
     });
+    
+    if (dataObject.metadata) {
+      console.log('【元数据检查】当前元数据内容:', JSON.stringify(dataObject.metadata));
+    }
+    
+    if (dataObject.originalMetadata) {
+      console.log('【元数据检查】原始元数据内容:', JSON.stringify(dataObject.originalMetadata));
+    }
+    
+    // 创建请求数据对象前记录元数据状态
+    console.log('【转换前】调用transformToBackendFormat前的元数据状态:');
+    if (dataObject.metadata) {
+      console.log('- dataName:', dataObject.metadata.dataName);
+      console.log('- sourceUnit:', dataObject.metadata.sourceUnit);
+      console.log('- contactPerson:', dataObject.metadata.contactPerson);
+      console.log('- contactPhone:', dataObject.metadata.contactPhone);
+    }
     
     // 创建请求数据对象
     const requestData = transformToBackendFormat(dataObject);
     
-    // 确保原始元数据被保留
-    if (originalMetadata) {
-      requestData.originalMetadata = originalMetadata;
+    // 【重要修改】转换后检查元数据是否保留
+    console.log('【转换后】检查transformToBackendFormat结果:');
+    if (requestData.dataEntity && requestData.dataEntity.metadata) {
+      console.log('- dataName:', requestData.dataEntity.metadata.dataName);
+      console.log('- sourceUnit:', requestData.dataEntity.metadata.sourceUnit);
+      console.log('- contactPerson:', requestData.dataEntity.metadata.contactPerson);
+      console.log('- contactPhone:', requestData.dataEntity.metadata.contactPhone);
     }
     
-    // 记录转换后的元数据，用于调试
-    console.log('转换后的元数据:', requestData.dataEntity.metadata);
+    // 确保原始元数据被保留
+    if (dataObject.originalMetadata) {
+      if (!requestData.dataEntity.originalMetadata) {
+        requestData.dataEntity.originalMetadata = { ...dataObject.originalMetadata };
+        console.log('【元数据修复】向requestData添加缺失的originalMetadata');
+      }
+    }
     
     // 添加额外的请求参数
     if (extraParams && Object.keys(extraParams).length > 0) {
       Object.assign(requestData, extraParams);
+      
+      // 如果有preserveUserMetadata参数，确保将它也添加到dataEntity
+      if (extraParams.preserveUserMetadata) {
+        requestData.dataEntity._preserveUserMetadata = true;
+        console.log('【元数据保护】添加_preserveUserMetadata标记到dataEntity');
+      }
     }
     
     // 确保excelFileId存在于请求中
@@ -955,7 +1007,7 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
       headers['X-CSRF-TOKEN'] = token;
     }
     
-    console.log('最终发送的数据格式:', JSON.stringify(requestData));
+    console.log('【发送前】最终发送的数据:', JSON.stringify(requestData, null, 2));
     
     // 发送请求
     const response = await axiosInstance.post(url, requestData, {
@@ -965,20 +1017,55 @@ const addDataObjectViaApi = async (dataObject, extraParams = {}) => {
     
     // 检查响应
     if (response.status === 200 || response.status === 201) {
-      console.log('成功通过API添加数据对象:', response.data);
+      console.log('【API成功】成功通过API添加数据对象:', response.data);
       
-      // 确保响应数据保留原始元数据
-      if (response.data && originalMetadata) {
-        response.data.originalMetadata = originalMetadata;
+      // 【重要修改】确保响应数据保留原始元数据
+      if (response.data) {
+        if (dataObject.originalMetadata) {
+          response.data.originalMetadata = { ...dataObject.originalMetadata };
+          console.log('【元数据保护】在响应数据中添加originalMetadata');
+        }
+        
+        // 检查响应中是否包含元数据
+        if (response.data.metadata) {
+          console.log('【返回的元数据】响应中包含的元数据:', JSON.stringify(response.data.metadata));
+        } else if (response.data.dataEntity && response.data.dataEntity.metadata) {
+          console.log('【返回的元数据】dataEntity中的元数据:', JSON.stringify(response.data.dataEntity.metadata));
+        } else {
+          console.warn('【返回的元数据】响应中没有找到元数据');
+        }
       }
+      
+      // 【重要修改】在调用adaptBackendData前打印日志
+      console.log('【适配前】将调用adaptBackendData处理返回数据');
       
       // 更新本地数据
       const newObject = adaptBackendData(response.data);
       
+      // 【重要修改】检查适配后的结果
+      console.log('【适配后】adaptBackendData处理后的结果:');
+      if (newObject.metadata) {
+        console.log('- dataName:', newObject.metadata.dataName);
+        console.log('- sourceUnit:', newObject.metadata.sourceUnit);
+        console.log('- contactPerson:', newObject.metadata.contactPerson);
+        console.log('- contactPhone:', newObject.metadata.contactPhone);
+      } else {
+        console.warn('【警告】adaptBackendData后metadata字段丢失');
+      }
+      
       // 确保新对象也保留原始元数据
-      if (originalMetadata && newObject) {
-        newObject.metadata = originalMetadata;
-        newObject.originalMetadata = originalMetadata;
+      if (dataObject.originalMetadata && newObject) {
+        if (!newObject.metadata || 
+            (newObject.metadata.dataName !== dataObject.originalMetadata.dataName) ||
+            (newObject.metadata.sourceUnit !== dataObject.originalMetadata.sourceUnit) ||
+            (newObject.metadata.contactPerson !== dataObject.originalMetadata.contactPerson)) {
+          console.warn('【元数据不匹配】用户原始元数据与返回的元数据不匹配，使用原始元数据');
+          newObject.metadata = { ...dataObject.originalMetadata };
+        }
+        
+        // 无论如何都保留originalMetadata
+        newObject.originalMetadata = { ...dataObject.originalMetadata };
+        console.log('【元数据保护】为新对象设置originalMetadata');
       }
       
       // 添加到数据列表

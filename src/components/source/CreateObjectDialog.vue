@@ -41,7 +41,10 @@
       
       <!-- 元数据区域 -->
       <el-form-item label="数据名称：" prop="metadata.dataName" style="margin-bottom: 22px;">
-        <el-input v-model="form.metadata.dataName" placeholder="请输入数据名称" style="width: 300px;"></el-input>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <el-input v-model="form.metadata.dataName" placeholder="请输入数据名称" style="width: 300px;"></el-input>
+          <el-button size="small" type="success" @click="fillTestMetadata">测试元数据</el-button>
+        </div>
       </el-form-item>
       <el-form-item label="来源单位：" prop="metadata.sourceUnit" style="margin-bottom: 22px;">
         <el-input v-model="form.metadata.sourceUnit" placeholder="请输入来源单位" style="width: 300px;"></el-input>
@@ -586,6 +589,8 @@ const handleFileChange = (file) => {
 
 // 修改保存按钮处理逻辑，确保Excel文件已上传
 const handleSave = () => {
+  console.log('【保存开始】处理保存按钮点击');
+  
   // 简单验证
   if (!form.entity) {
     ElMessage.warning('请输入实体名称或上传Excel表格文件')
@@ -642,8 +647,19 @@ const handleSave = () => {
     console.log('自动生成excelFileId:', form.excelFileId)
   }
   
+  // 【增加调试信息】记录表单中的当前元数据
+  console.log('【元数据状态】验证前表单中的元数据:');
+  console.log('- dataName:', form.metadata.dataName);
+  console.log('- sourceUnit:', form.metadata.sourceUnit);
+  console.log('- contactPerson:', form.metadata.contactPerson);
+  console.log('- contactPhone:', form.metadata.contactPhone);
+  console.log('- resourceSummary:', form.metadata.resourceSummary);
+  console.log('- fieldClassification:', form.metadata.fieldClassification);
+  
   formRef.value.validate((valid) => {
     if (valid) {
+      console.log('【表单验证】表单验证通过，准备保存数据');
+      
       // 构建约束条件数组
       const constraintArray = []
       if (form.formatConstraint) constraintArray.push(`格式约束:${form.formatConstraint}`)
@@ -667,28 +683,38 @@ const handleSave = () => {
         form.dataItems = dataItems
       }
       
-      // 保存用户输入的原始元数据，确保不被覆盖
-      const userMetadata = {
-        dataName: form.metadata.dataName,
-        sourceUnit: form.metadata.sourceUnit,
-        contactPerson: form.metadata.contactPerson,
-        contactPhone: form.metadata.contactPhone,
-        resourceSummary: form.metadata.resourceSummary,
-        fieldClassification: form.metadata.fieldClassification,
-        headers: form.metadata.headers || []
-      }
+      // 【重要修改】创建用户元数据对象副本，并添加特殊标记
+      const userInputMetadata = {
+        dataName: form.metadata.dataName || form.entity || '',
+        sourceUnit: form.metadata.sourceUnit || '',
+        contactPerson: form.metadata.contactPerson || '',
+        contactPhone: form.metadata.contactPhone || '',
+        resourceSummary: form.metadata.resourceSummary || '',
+        fieldClassification: form.metadata.fieldClassification || '',
+        headers: Array.isArray(form.metadata.headers) ? [...form.metadata.headers] : [],
+        _userInput: true, // 特殊标记，表示这是用户输入的元数据
+        _inputTimestamp: Date.now() // 添加时间戳
+      };
       
-      console.log('保存用户输入的元数据:', userMetadata)
+      // 记录元数据对象
+      console.log('【元数据准备】已创建用户元数据对象:', JSON.stringify(userInputMetadata));
       
-      // 构建新对象
+      // 将元数据转换为JSON字符串
+      const metadataJsonString = JSON.stringify(userInputMetadata);
+      
+      // 【重要修改】构建新对象，确保元数据被保留
       const newObject = {
         entity: form.entity,
         locationInfo: {
           row: form.locationInfo.row,
           col: form.locationInfo.col
         },
-        metadata: userMetadata,
-        originalMetadata: userMetadata, // 添加原始元数据副本，确保在后续处理中不丢失
+        // 使用用户输入的元数据
+        metadata: {...userInputMetadata},
+        // 添加原始元数据字段，确保在处理过程中不会丢失
+        originalMetadata: {...userInputMetadata},
+        metadataJson: metadataJsonString,
+        _preserveUserMetadata: true, // 特殊标记，指示应保留用户元数据
         constraint: constraintArray,
         formatConstraint: form.formatConstraint,
         accessConstraint: form.accessConstraint,
@@ -702,37 +728,67 @@ const handleSave = () => {
         excelData: form.excelData,
         dataItems: form.dataItems || [],
         excelFileId: form.excelFileId
-      }
+      };
       
-      // 创建dataContent字段，确保包含excelFileId
+      // 创建dataContent字段，确保包含完整元数据
       try {
-        newObject.dataContent = JSON.stringify({
+        // 确保明确包含元数据字段
+        const dataContent = {
           entity: newObject.entity,
           status: newObject.status,
-          metadata: newObject.metadata,
+          // 使用用户输入的元数据
+          metadata: {...userInputMetadata},
+          // 保留原始元数据
+          originalMetadata: {...userInputMetadata},
+          metadataJson: metadataJsonString,
+          _preserveUserMetadata: true,
           dataItems: newObject.dataItems,
           excelFileId: newObject.excelFileId
-        })
+        };
+        
+        // 验证dataContent对象中的元数据是否完整
+        console.log('【dataContent】dataContent中的元数据字段:', Object.keys(dataContent.metadata).join(', '));
+        
+        // 将整个dataContent转为字符串
+        newObject.dataContent = JSON.stringify(dataContent);
+        
+        // 验证dataContent中是否包含元数据
+        console.log('【验证】dataContent是否包含metadata字段:', 
+          newObject.dataContent.includes('"metadata":'));
+        
+        // 检查具体元数据字段是否包含在dataContent中
+        if (userInputMetadata.dataName) {
+          console.log(`【验证】dataContent是否包含dataName(${userInputMetadata.dataName}):`, 
+            newObject.dataContent.includes(userInputMetadata.dataName));
+        }
+        if (userInputMetadata.sourceUnit) {
+          console.log(`【验证】dataContent是否包含sourceUnit(${userInputMetadata.sourceUnit}):`, 
+            newObject.dataContent.includes(userInputMetadata.sourceUnit));
+        }
       } catch (error) {
-        console.error('创建dataContent失败:', error)
+        console.error('【错误】创建dataContent失败:', error);
       }
       
-      // 添加详细日志
-      console.log('准备保存新数字对象:', {
-        entity: newObject.entity,
-        status: newObject.status,
-        excelFileId: newObject.excelFileId,
-        hasDataItems: !!newObject.dataItems && newObject.dataItems.length > 0,
-        hasExcelData: !!newObject.excelData,
-        hasDataContent: !!newObject.dataContent
-      })
+      // 在发送前再次检查元数据完整性
+      console.log('【最终检查】newObject.metadata:', JSON.stringify(newObject.metadata));
+      console.log('【最终检查】newObject.originalMetadata:', JSON.stringify(newObject.originalMetadata));
       
       // 发送保存事件
-      emit('save', newObject)
-      dialogVisible.value = false
+      console.log('【保存流程】触发save事件，保存对象到后端');
+      
+      // 添加事件前后的标记，以便追踪元数据是否被修改
+      emit('save', newObject);
+      
+      console.log('【保存流程】save事件已触发完成');
+      
+      // 关闭对话框
+      dialogVisible.value = false;
+      
+      // 显示成功消息
+      ElMessage.success('数字对象创建成功');
       
       // 重置表单
-      resetForm()
+      resetForm();
     } else {
       ElMessage.warning('请填写必填字段')
       return false
@@ -877,6 +933,44 @@ const testUploadExcel = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 添加fillTestMetadata函数用于填充测试元数据
+const fillTestMetadata = () => {
+  console.log('填充测试元数据');
+  
+  // 保存填充前的元数据用于比较
+  const beforeFill = {
+    dataName: form.metadata.dataName,
+    sourceUnit: form.metadata.sourceUnit,
+    contactPerson: form.metadata.contactPerson,
+    contactPhone: form.metadata.contactPhone,
+    resourceSummary: form.metadata.resourceSummary,
+    fieldClassification: form.metadata.fieldClassification
+  };
+  
+  console.log('填充前的元数据:', JSON.stringify(beforeFill));
+  
+  // 设置测试元数据
+  form.metadata.dataName = form.metadata.dataName || form.entity || '测试数据集';
+  form.metadata.sourceUnit = '测试部门';
+  form.metadata.contactPerson = '张测试';
+  form.metadata.contactPhone = '13800138000';
+  form.metadata.resourceSummary = '这是一个测试用的数据摘要';
+  form.metadata.fieldClassification = '测试分类';
+  
+  // 记录填充后的元数据
+  const afterFill = {
+    dataName: form.metadata.dataName,
+    sourceUnit: form.metadata.sourceUnit,
+    contactPerson: form.metadata.contactPerson,
+    contactPhone: form.metadata.contactPhone,
+    resourceSummary: form.metadata.resourceSummary,
+    fieldClassification: form.metadata.fieldClassification
+  };
+  
+  console.log('填充后的元数据:', JSON.stringify(afterFill));
+  ElMessage.success('已填充测试元数据');
 }
 </script>
 

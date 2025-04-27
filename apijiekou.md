@@ -12,11 +12,11 @@
 
 | POST | /objects | 新增数字对象 |ok
 
-| PUT | /objects/{id} | 根据ID更新数字对象 |no
+| PUT | /objects/{id} | 根据ID更新数字对象 |ok
 
 | GET | /objects/list | 查询所有数字对象 |ok
 
-| POST | /encrypt | 加密数据（模拟实现） |ok
+| POST | /encrypt | 加密数据（模拟实现） |no
 
 | POST | /objects/submit | 将加密数据发送到治理方 |no
 
@@ -30,7 +30,7 @@
 
 | POST | /receive | 接收数据源发送的加密数据 |
 
-| POST | /decrypt | 解密数据（模拟实现） |
+| POST | /decrypt | 解密数据（模拟实现） |ok
 
 | GET | /inspect/{id} | 检查特定ID的数据元组 |
 
@@ -50,7 +50,7 @@
 
 | POST | /receive | 接收数据 |
 
-| POST | /decrypt | 解密数据（模拟实现） |
+| POST | /decrypt | 解密数据（模拟实现） |ok
 
 ### 4. 文件上传接口 (UploadController)
 
@@ -60,4 +60,4 @@
 
 |---------|---------|---------|
 
-| POST | /api/objects/excel | 上传Excel文件 |
+| POST | /api/objects/excel | 上传Excel文件 |ok
