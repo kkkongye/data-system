@@ -27,8 +27,8 @@
               </div>
               <div class="action-buttons">
                 <el-button type="primary" :disabled="selectedRows.length === 0" @click="handleDownload">下载数字对象</el-button>
-                <el-button type="primary" plain @click="showDecryptDialog">解密</el-button>
-
+                <el-button v-if="!isDecrypted" type="primary" plain @click="showDecryptDialog">解密</el-button>
+                <el-button v-else type="warning" plain @click="resetDecryption">重新解密</el-button>
               </div>
             </div>
             
@@ -36,7 +36,8 @@
             <div class="table-container">
               <div v-if="!isDecrypted" class="data-locked-placeholder">
                 <el-icon class="locked-icon"><Lock /></el-icon>
-                <p>数据已加密，请点击"解密"按钮进行解密操作</p>
+                <p>数据已加密，请点击右上角"解密"按钮并输入正确的数字对象ID和Token进行解密</p>
+                <p class="locked-subtitle">解密后将只显示对应ID的数字对象数据</p>
               </div>
               <el-table
                 v-else
@@ -244,6 +245,7 @@ const currentPage = ref(1)
 const pageSize = ref(5) // 改为默认显示5条
 const isDecrypted = ref(false)
 const selectedRows = ref([])
+const decryptedObjectId = ref('')
 
 // 添加计算属性判断是否为已合格状态
 const isQualifiedStatus = computed(() => currentStatus.value === '已合格')
@@ -277,6 +279,13 @@ onMounted(() => {
 // 计算实际数据量
 const totalCount = computed(() => {
   let result = tableData.value;
+  
+  // 如果已解密且有指定的对象ID，则只计算匹配ID的条目数
+  if (isDecrypted.value && decryptedObjectId.value) {
+    result = result.filter(item => item.id === decryptedObjectId.value);
+    return result.length;
+  }
+  
   if (currentStatus.value) {
     result = result.filter(item => item.status === currentStatus.value);
   }
@@ -292,8 +301,11 @@ const totalCount = computed(() => {
 const filteredTableData = computed(() => {
   let result = tableData.value;
 
-  // 状态过滤
-  if (currentStatus.value) {
+  // 如果已解密且有指定的对象ID，则只显示该ID的对象
+  if (isDecrypted.value && decryptedObjectId.value) {
+    result = result.filter(item => item.id === decryptedObjectId.value);
+  } else if (currentStatus.value) {
+    // 状态过滤
     result = result.filter(item => item.status === currentStatus.value);
   }
 
@@ -424,6 +436,8 @@ const handleDecrypt = () => {
       if (decryptForm.token === receivedToken) {
         // token一致，解密成功
         isDecrypted.value = true
+        // 保存解密对象ID
+        decryptedObjectId.value = decryptForm.objectId
         decryptDialogVisible.value = false
         localStorage.removeItem('receivedToken') // 清除已使用的token
         ElMessage.success('解密成功')
@@ -883,6 +897,23 @@ const downloadExcelFile = (row) => {
     ElMessage.error(`下载 ${row.entity} 时出错: ${error.message}`);
   }
 }
+
+// 重置解密状态
+const resetDecryption = () => {
+  ElMessageBox.confirm('确定要重新解密？当前解密的数据将不再显示。', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    isDecrypted.value = false;
+    decryptedObjectId.value = '';
+    decryptForm.objectId = '';
+    decryptForm.token = '';
+    showDecryptDialog();
+  }).catch(() => {
+    // 用户取消操作
+  });
+}
 </script>
 
 <style scoped>
@@ -1103,6 +1134,14 @@ const downloadExcelFile = (row) => {
 .data-locked-placeholder p {
   font-size: 16px;
   color: #606266;
+  text-align: center;
+  line-height: 1.6;
+  max-width: 80%;
+}
+
+.locked-subtitle {
+  font-size: 14px;
+  color: #8c8c8c;
   text-align: center;
   line-height: 1.6;
   max-width: 80%;
