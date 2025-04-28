@@ -223,19 +223,19 @@ const adaptBackendData = (backendItem) => {
   
   // 【新增】尝试从metadataJson解析
   if (!metadata && backendItem.metadataJson) {
-    try {
-      let parsedMetadata = null;
-      
-      // 处理字符串类型的metadataJson
-      if (typeof backendItem.metadataJson === 'string') {
+      try {
+        let parsedMetadata = null;
+        
+        // 处理字符串类型的metadataJson
+        if (typeof backendItem.metadataJson === 'string') {
         // 替换可能导致解析问题的字符
         let jsonStr = backendItem.metadataJson
           .replace(/，/g, ',')  // 中文逗号替换为英文逗号
-          .replace(/：/g, ':')  // 中文冒号替换为英文冒号
-          .replace(/【/g, '[')  // 中文方括号替换为英文方括号
-          .replace(/】/g, ']')
-          .replace(/"/g, '"')   // 中文引号替换为英文引号
-          .replace(/"/g, '"')
+                           .replace(/：/g, ':')  // 中文冒号替换为英文冒号
+                           .replace(/【/g, '[')  // 中文方括号替换为英文方括号
+                           .replace(/】/g, ']')
+                           .replace(/"/g, '"')   // 中文引号替换为英文引号
+                           .replace(/"/g, '"')
           .replace(/'/g, "'")   // 中文单引号替换为英文单引号
           .replace(/'/g, "'")
           .replace(/；/g, ';')  // 中文分号替换为英文分号
@@ -246,13 +246,13 @@ const adaptBackendData = (backendItem) => {
         if (!jsonStr.endsWith('}')) jsonStr = jsonStr + '}';
         
         // 解析JSON
-        parsedMetadata = JSON.parse(jsonStr);
+            parsedMetadata = JSON.parse(jsonStr);
       } else if (typeof backendItem.metadataJson === 'object') {
         // 对象类型直接使用
-        parsedMetadata = backendItem.metadataJson;
-      }
-      
-      if (parsedMetadata) {
+          parsedMetadata = backendItem.metadataJson;
+        }
+        
+        if (parsedMetadata) {
         metadata = {
           dataName: parsedMetadata.dataName || extractEntityName(backendItem),
           sourceUnit: parsedMetadata.sourceUnit || '',
@@ -263,8 +263,8 @@ const adaptBackendData = (backendItem) => {
           headers: parsedMetadata.headers || []
         };
         // console.log('【元数据解析】成功从metadataJson解析元数据');
-      }
-    } catch (error) {
+        }
+      } catch (error) {
       console.error('解析metadataJson失败:', error);
     }
   }
@@ -279,18 +279,18 @@ const adaptBackendData = (backendItem) => {
         const parsedMetadata = typeof backendItem.dataEntity.metadataJson === 'string' 
           ? JSON.parse(backendItem.dataEntity.metadataJson)
           : backendItem.dataEntity.metadataJson;
-        
-        metadata = {
-          dataName: parsedMetadata.dataName || extractEntityName(backendItem),
+              
+            metadata = {
+              dataName: parsedMetadata.dataName || extractEntityName(backendItem),
           sourceUnit: parsedMetadata.sourceUnit || '',
           contactPerson: parsedMetadata.contactPerson || '',
           contactPhone: parsedMetadata.contactPhone || '',
           resourceSummary: parsedMetadata.resourceSummary || '',
           fieldClassification: parsedMetadata.fieldClassification || '',
-          headers: parsedMetadata.headers || []
+              headers: parsedMetadata.headers || []
         };
         // console.log('【元数据解析】从dataEntity.metadataJson解析元数据');
-      } catch (error) {
+          } catch (error) {
         console.error('解析dataEntity.metadataJson失败:', error);
       }
     }
