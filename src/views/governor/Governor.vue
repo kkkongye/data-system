@@ -276,69 +276,7 @@
   </el-dialog>
 
   <!-- 审核报告弹窗 -->
-  <el-dialog
-    v-model="reportDialogVisible"
-    title="库存管理数据审查报告"
-    width="85%"
-    :close-on-click-modal="false"
-    :show-close="true"
-    draggable
-    class="report-dialog"
-  >
-    <!-- 隐藏的文件输入 -->
-    <input 
-      ref="fileInput" 
-      type="file" 
-      style="display:none" 
-      accept=".txt,text/plain" 
-      @change="handleFileChange"
-    />
-    
-    <div class="report-container">
-      <!-- 文件信息和选择区域 -->
-      <div class="file-selection-area">
-        <div class="file-header">
-          <h3>文件信息</h3>
-          <div v-if="selectedFileName" class="selected-file">
-            <span>当前文件：</span>
-            <strong>{{ selectedFileName }}</strong>
-          </div>
-        </div>
-        
-        <div class="file-actions">
-          <el-button type="primary" @click="triggerFileSelect" :loading="reportLoading">
-            <el-icon><UploadFilled /></el-icon>
-            上传本地TXT文件
-          </el-button>
-        </div>
-      </div>
-      
-      <!-- 内容显示区域 -->
-      <div class="report-content-area">
-        <div class="content-header">
-          <h3>报告内容</h3>
-        </div>
-        
-        <div class="report-content" v-loading="reportLoading">
-          <template v-if="reportContent">
-            <div v-html="reportContent" class="content-display"></div>
-          </template>
-          <template v-else>
-            <div class="empty-content">
-              <el-icon><Document /></el-icon>
-              <p>请选择或上传TXT文件查看报告内容</p>
-            </div>
-          </template>
-        </div>
-      </div>
-    </div>
-    
-    <template #footer>
-      <span class="dialog-footer">
-        <el-button @click="reportDialogVisible = false">关闭</el-button>
-      </span>
-    </template>
-  </el-dialog>
+  <ReviewReport v-model:visible="reportDialogVisible" />
 </template>
 
 <script setup>
@@ -350,6 +288,7 @@ import * as XLSX from 'xlsx'
 import ExcelPreview from '../../components/ExcelPreview.vue'
 import AppHeader from '../../components/AppHeader.vue'
 import CommonPagination from '../../components/CommonPagination.vue'
+import ReviewReport from '@/components/governor/ReviewReport.vue'
 import dataObjectService from '../../services/dataObjectService'
 import reportService from '../../services/reportService'
 import { ensureArray, advancedSearch } from '../../utils/searchUtils'
@@ -390,20 +329,6 @@ onMounted(() => {
     console.log('治理方收到数据变化:', newData)
     // 无需手动更新tableData，因为是响应式引用
   })
-  
-  // 设置报告的默认内容
-  const defaultContent = `库存管理数据问题报告
-=========================
-
-此处应显示从 D:\\datasystem\\test\\data_issues.txt 读取的内容。
-
-文件已生成，但前端无法直接访问服务器文件系统。
-
-可查看服务器上的 D:\\datasystem\\test\\data_issues.txt 文件获取实际内容。
-
-=========================`;
-  
-  reportContent.value = formatTxtContent(defaultContent);
 })
 
 // 计算实际数据量
@@ -519,18 +444,8 @@ const updateStatus = async (row, newStatus) => {
   // 特殊处理"库存管理"实体的审查功能
   if (newStatus === '审查中' && row.entity === '库存管理') {
     try {
-      // 显示加载提示
-      const loadingInstance = ElMessage({
-        type: 'info',
-        message: '正在准备审查报告，请稍候...',
-        duration: 0
-      });
-      
-      // 关闭加载提示并打开报告对话框
-      setTimeout(() => {
-        loadingInstance.close();
-        reportDialogVisible.value = true;
-      }, 800);
+      // 直接打开报告对话框，不显示加载提示
+      reportDialogVisible.value = true;
       
       // 更新UI中的状态
       const index = tableData.value.findIndex(item => item.id === row.id);
@@ -1050,91 +965,12 @@ const getCurrentDateTime = () => {
   })
 }
 
-// 审核报告弹窗相关
-const reportDialogVisible = ref(false);
-const reportContent = ref('');
-const reportLoading = ref(false);
-const fileInput = ref(null);
-const selectedFileName = ref('');
+// 审核报告弹窗
+const reportDialogVisible = ref(false)
 
-/**
- * 格式化TXT内容为HTML友好格式
- * @param {string} text 原始文本内容
- * @returns {string} 格式化后的HTML内容
- */
-const formatTxtContent = (text) => {
-  if (!text) return '';
-  
-  // 将换行符转换为HTML换行标签
-  let formattedContent = text.replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
-  // 将连续空格转换为HTML空格
-  formattedContent = formattedContent.replace(/ {2}/g, '&nbsp;&nbsp;');
-  // 保持制表符格式
-  formattedContent = formattedContent.replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
-  // 将markdown风格的标题转为HTML标题
-  formattedContent = formattedContent.replace(/#{1,6}\s+([^\n<]+)/g, '<h3>$1</h3>');
-  // 处理加粗文本
-  formattedContent = formattedContent.replace(/\*\*([^*<]+)\*\*/g, '<strong>$1</strong>');
-  // 处理斜体文本
-  formattedContent = formattedContent.replace(/\*([^*<]+)\*/g, '<em>$1</em>');
-  // 处理分隔线
-  formattedContent = formattedContent.replace(/---+/g, '<hr>');
-  // 处理代码块
-  formattedContent = formattedContent.replace(/```([^`]+)```/g, '<pre><code>$1</code></pre>');
-  
-  return formattedContent;
-}
-
-/**
- * 处理本地文件选择
- */
-const handleFileChange = (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
-  
-  // 检查是否是txt文件
-  if (!file.name.endsWith('.txt') && file.type !== 'text/plain') {
-    ElMessage.error('请选择TXT格式文件');
-    return;
-  }
-  
-  reportLoading.value = true;
-  
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      // 获取文件内容
-      const content = e.target.result;
-      
-      // 格式化内容
-      reportContent.value = formatTxtContent(content);
-      selectedFileName.value = file.name;
-      
-      ElMessage.success(`成功读取文件: ${file.name}`);
-    } catch (error) {
-      console.error('读取文件失败:', error);
-      ElMessage.error(`读取文件失败: ${error.message}`);
-    } finally {
-      reportLoading.value = false;
-    }
-  };
-  
-  reader.onerror = (error) => {
-    console.error('文件读取出错:', error);
-    ElMessage.error('文件读取失败');
-    reportLoading.value = false;
-  };
-  
-  reader.readAsText(file);
-}
-
-/**
- * 触发文件选择
- */
-const triggerFileSelect = () => {
-  if (fileInput.value) {
-    fileInput.value.click();
-  }
+// 显示审核报告
+const showReportDialog = () => {
+  reportDialogVisible.value = true
 }
 </script>
 
@@ -1635,111 +1471,5 @@ const triggerFileSelect = () => {
 
 .control-tag {
   margin: 2px 5px;
-}
-
-/* 报告对话框样式 */
-:deep(.report-dialog) {
-  width: 85% !important;
-  max-width: 1100px;
-}
-
-:deep(.report-dialog .el-dialog__body) {
-  padding: 20px;
-  max-height: 75vh;
-}
-
-.report-container {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.file-selection-area {
-  background-color: #f5f7fa;
-  border-radius: 4px;
-  padding: 15px;
-  border: 1px solid #e4e7ed;
-}
-
-.file-header h3,
-.content-header h3 {
-  margin: 0 0 10px 0;
-  font-size: 16px;
-  color: #303133;
-}
-
-.selected-file {
-  margin-top: 10px;
-  padding: 8px 10px;
-  background-color: #ecf5ff;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.file-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.file-path-hint {
-  margin-top: 10px;
-  color: #909399;
-  font-size: 12px;
-  font-style: italic;
-}
-
-.report-content-area {
-  background-color: #fff;
-  border-radius: 4px;
-  border: 1px solid #e4e7ed;
-  flex: 1;
-  min-height: 400px;
-  display: flex;
-  flex-direction: column;
-}
-
-.content-header {
-  padding: 15px;
-  border-bottom: 1px solid #e4e7ed;
-  background-color: #f5f7fa;
-}
-
-.report-content {
-  padding: 15px;
-  flex: 1;
-  overflow-y: auto;
-  max-height: 500px;
-}
-
-.content-display {
-  white-space: pre-wrap;
-  font-family: 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.empty-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 300px;
-  color: #909399;
-}
-
-.empty-content .el-icon {
-  font-size: 48px;
-  margin-bottom: 15px;
-}
-
-.empty-content p {
-  font-size: 16px;
-}
-
-/* 报告对话框内容样式调整 */
-:deep(.report-dialog) {
-  max-width: 85%;
-  max-height: 85vh;
 }
 </style> 
