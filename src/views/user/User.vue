@@ -109,23 +109,14 @@
                     </div>
                   </template>
                 </el-table-column>
-                <!-- 新添加的分类分级值列 -->
+                <!-- 分类分级值列 -->
                 <el-table-column prop="classificationLevel" label="分类分级值" min-width="150" align="center">
                   <template #default="scope">
                     <div class="classification-level-container">
-                      <template v-if="scope.row.classificationLevel">
-                        <div class="classification-item">
-                          <el-tag size="small" type="success" effect="light" class="classification-tag">
-                            {{ scope.row.classificationLevel.classification || '未分类' }}
-                          </el-tag>
-                          <el-tag size="small" type="warning" effect="light" class="classification-tag">
-                            {{ scope.row.classificationLevel.level || '未分级' }}
-                          </el-tag>
-                        </div>
-                      </template>
-                      <!-- <template v-else>
-                        <el-tag size="small" type="info" effect="plain">未设置</el-tag>
-                      </template> -->
+                      <div class="classification-item">
+                        <div class="classification-text">分类值：{{ scope.row.classificationLevel?.classification || '未分类' }}</div>
+                        <div class="classification-text">分级值：{{ scope.row.classificationLevel?.level || '未分级' }}</div>
+                      </div>
                     </div>
                   </template>
                 </el-table-column>

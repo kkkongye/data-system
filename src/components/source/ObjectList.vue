@@ -173,16 +173,11 @@
         <el-table-column prop="classificationLevel" label="分类分级值" min-width="150" align="center">
           <template #default="scope">
             <div class="classification-level-container">
-              <template v-if="scope.row.classificationLevel">
-                <div class="classification-item">
-                  <el-tag size="small" type="success" effect="plain" class="classification-tag">
-                    {{ scope.row.classificationLevel.classification || '未分类' }}
-                  </el-tag>
-                  <el-tag size="small" type="warning" effect="plain" class="classification-tag">
-                    {{ scope.row.classificationLevel.level || '未分级' }}
-                  </el-tag>
-                </div>
-              </template>
+              <div class="classification-item">
+                <div class="classification-text">分类值：{{ scope.row.classificationLevel?.classification || '未分类' }}</div>
+                <div class="classification-text">分级值：{{ scope.row.classificationLevel?.level || '未分级' }}</div>
+                <el-button size="small" type="primary" class="generate-btn">生成分类分级值</el-button>
+              </div>
             </div>
           </template>
         </el-table-column>
@@ -762,9 +757,16 @@ const extractFeedback = (dataContent) => {
   align-items: center;
 }
 
-.classification-tag {
-  padding: 2px 8px;
+.classification-text {
   font-size: 12px;
-  border-radius: 4px;
+  padding: 2px 0;
+  width: 100%;
+  text-align: left;
+}
+
+.generate-btn {
+  margin-top: 4px;
+  font-size: 12px;
+  padding: 2px 8px;
 }
 </style> 
