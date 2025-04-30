@@ -48,21 +48,23 @@
                 height="100%"
                 fit
                 :row-style="{ height: '45px' }"
-                :header-row-style="{ height: '45px' }"
+                :header-row-style="{ height: '40px' }"
+                :cell-style="{ padding: '5px 2px', textAlign: 'center' }"
+                :header-cell-style="{ padding: '8px 0', background: '#f5f7fa', color: '#606266', fontWeight: 'bold', textAlign: 'center' }"
               >
                 <el-table-column type="selection" width="55" align="center" fixed />
-                <el-table-column prop="id" label="ID" width="400" align="center" fixed>
+                <el-table-column prop="id" label="ID" width="180" align="center" fixed>
                   <template #default="scope">
                     <div class="id-cell">{{ scope.row.id }}</div>
                   </template>
                 </el-table-column>
-                <el-table-column prop="entity" label="实体" width="120" align="center">
+                <el-table-column prop="entity" label="实体" width="100" align="center">
                   <template #default="scope">
                     <el-link type="primary" @click="previewEntity(scope.row)">{{ scope.row.entity }}</el-link>
                   </template>
                 </el-table-column>
-                <el-table-column prop="locationInfo" label="定位信息" min-width="150" align="center" />
-                <el-table-column prop="constraint" label="约束条件" min-width="250" align="center">
+                <el-table-column prop="locationInfo" label="定位信息" width="100" align="center" />
+                <el-table-column prop="constraint" label="约束条件" min-width="350" align="center">
                   <template #default="scope">
                     <div class="constraint-container">
                       <template v-if="scope.row.constraint && scope.row.constraint.length">
@@ -104,6 +106,26 @@
                         </el-tag>
                       </template>
                       <template v-else>-</template>
+                    </div>
+                  </template>
+                </el-table-column>
+                <!-- 新添加的分类分级值列 -->
+                <el-table-column prop="classificationLevel" label="分类分级值" min-width="150" align="center">
+                  <template #default="scope">
+                    <div class="classification-level-container">
+                      <template v-if="scope.row.classificationLevel">
+                        <div class="classification-item">
+                          <el-tag size="small" type="success" effect="light" class="classification-tag">
+                            {{ scope.row.classificationLevel.classification || '未分类' }}
+                          </el-tag>
+                          <el-tag size="small" type="warning" effect="light" class="classification-tag">
+                            {{ scope.row.classificationLevel.level || '未分级' }}
+                          </el-tag>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <el-tag size="small" type="info" effect="plain">未设置</el-tag>
+                      </template>
                     </div>
                   </template>
                 </el-table-column>
@@ -177,6 +199,13 @@
           <span class="info-item"><strong>定位信息：</strong>{{ previewForm.locationInfo }}</span>
           <span class="info-item constraint-info" :title="Array.isArray(previewForm.constraint) ? previewForm.constraint.join(', ') : previewForm.constraint"><strong>约束条件：</strong>{{ Array.isArray(previewForm.constraint) ? previewForm.constraint.join(', ') : previewForm.constraint }}</span>
           <span class="info-item"><strong>传输控制操作：</strong>{{ Array.isArray(previewForm.transferControl) ? previewForm.transferControl.join(', ') : previewForm.transferControl }}</span>
+          <span class="info-item"><strong>分类分级值：</strong>
+            <template v-if="previewForm.classificationLevel">
+              <el-tag size="small" type="success" effect="light" style="margin-right: 5px;">{{ previewForm.classificationLevel.classification || '未分类' }}</el-tag>
+              <el-tag size="small" type="warning" effect="light">{{ previewForm.classificationLevel.level || '未分级' }}</el-tag>
+            </template>
+            <template v-else>未设置</template>
+          </span>
         </div>
         <!-- 添加元数据信息显示 -->
         <div v-if="previewForm.metadata" class="metadata-section">
@@ -943,7 +972,7 @@ const resetDecryption = () => {
 .content-card {
   background-color: #ffffff;
   border-radius: 4px;
-  padding: 16px;
+  padding: 12px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
   height: calc(100vh - 92px);
   width: 100%;
@@ -971,7 +1000,7 @@ const resetDecryption = () => {
 .action-bar {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .search-input {
@@ -985,77 +1014,59 @@ const resetDecryption = () => {
 
 /* 表格容器区域 */
 .table-container {
-  margin-bottom: 16px;
-  height: calc(100vh - 340px);
+  margin-top: 20px;
+  height: calc(100vh - 380px);
   overflow: hidden;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+}
+
+/* 表格内间距调整 */
+:deep(.el-table .cell) {
+  padding: 5px 2px;
+}
+
+/* 表格头部样式 */
+:deep(.el-table__header th) {
+  background-color: #f5f7fa !important;
+  color: #606266;
+  font-weight: 600;
+  height: 40px;
+}
+
+/* 表格行高 */
+:deep(.el-table__row) {
+  height: 45px;
+}
+
+/* 调整表格表头和单元格对齐方式 */
+:deep(.el-table th.el-table__cell) {
+  text-align: center !important;
+}
+
+:deep(.el-table td.el-table__cell) {
+  text-align: center !important;
+}
+
+/* 分类分级值样式 */
+.classification-level-container {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.classification-item {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  gap: 6px;
   align-items: center;
 }
 
-/* 表格样式优化 */
-:deep(.el-table) {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-:deep(.el-table__header),
-:deep(.el-table__body),
-:deep(.el-table__footer) {
-  width: 100% !important;
-  table-layout: fixed !important;
-  display: table !important;
-}
-
-:deep(.el-table__header-wrapper),
-:deep(.el-table__body-wrapper),
-:deep(.el-table__footer-wrapper) {
-  width: 100% !important;
-}
-
-:deep(.el-table__cell) {
-  text-align: center;
-  padding: 8px 0;
-  box-sizing: border-box;
-}
-
-:deep(.el-table .el-table__cell .cell) {
-  padding: 0 5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  box-sizing: border-box;
-  width: 100%;
-  display: inline-block;
-}
-
-/* 确保ID单元格不被全局样式覆盖 */
-:deep(.el-table .el-table__cell .id-cell) {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  word-break: break-all;
-}
-
-:deep(.el-table .el-table__cell:last-child .cell) {
-  padding-right: 5px;
-}
-
-:deep(.el-table__row) {
-  height: 45px !important;
-}
-
-:deep(.el-table__header tr) {
-  height: 45px !important;
-}
-
-:deep(.el-table__header th.el-table__cell) {
-  background-color: #f5f7fa;
-  color: #606266;
-  font-weight: bold;
-  padding: 8px 0;
-  text-align: center;
+.classification-tag {
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 4px;
 }
 
 /* 状态标签样式 */

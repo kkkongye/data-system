@@ -186,6 +186,24 @@
           <el-option label="可委托" value="可委托"></el-option>
         </el-select>
       </el-form-item>
+      
+      <!-- 新增分类分级值字段 -->
+      <el-form-item label="分类分级值：">
+        <div style="display: flex; gap: 10px; width: 300px;">
+          <el-select v-model="editForm.classificationLevel.classification" placeholder="请选择分类" style="flex: 1;">
+            <el-option label="公开" value="公开"></el-option>
+            <el-option label="内部" value="内部"></el-option>
+            <el-option label="秘密" value="秘密"></el-option>
+            <el-option label="机密" value="机密"></el-option>
+            <el-option label="绝密" value="绝密"></el-option>
+          </el-select>
+          <el-select v-model="editForm.classificationLevel.level" placeholder="请选择分级" style="flex: 1;">
+            <el-option label="低" value="低"></el-option>
+            <el-option label="中" value="中"></el-option>
+            <el-option label="高" value="高"></el-option>
+          </el-select>
+        </div>
+      </el-form-item>
     </el-form>
     
     <template #footer>
@@ -223,6 +241,13 @@
           <span class="info-item"><strong>定位信息：</strong>{{ previewForm.locationInfo }}</span>
           <span class="info-item constraint-info" :title="Array.isArray(previewForm.constraint) ? previewForm.constraint.join(', ') : previewForm.constraint"><strong>约束条件：</strong>{{ Array.isArray(previewForm.constraint) ? previewForm.constraint.join(', ') : previewForm.constraint }}</span>
           <span class="info-item"><strong>传输控制操作：</strong>{{ Array.isArray(previewForm.transferControl) ? previewForm.transferControl.join(', ') : previewForm.transferControl }}</span>
+          <span class="info-item"><strong>分类分级值：</strong>
+            <template v-if="previewForm.classificationLevel">
+              <el-tag size="small" type="success" effect="plain" style="margin-right: 5px;">{{ previewForm.classificationLevel.classification || '未分类' }}</el-tag>
+              <el-tag size="small" type="warning" effect="plain">{{ previewForm.classificationLevel.level || '未分级' }}</el-tag>
+            </template>
+            <template v-else>未设置</template>
+          </span>
           <span class="info-item"><strong>状态：</strong>{{ previewForm.status }}</span>
         </div>
         <!-- 元数据信息显示 -->
@@ -334,7 +359,11 @@ const editForm = reactive({
   status: '',
   feedback: '',
   excelData: null,
-  dataItems: []
+  dataItems: [],
+  classificationLevel: {
+    classification: '',
+    level: ''
+  }
 })
 
 // 记录编辑索引
@@ -418,227 +447,40 @@ const handleSelectionChange = (rows) => {
 
 // 编辑指定的对象
 const handleEdit = (row) => {
-  console.log('编辑对象:', row)
+  console.log('编辑行:', row)
+  // 保存原始数据用于比较
+  originalEditData = { ...row }
   
-  // 克隆对象以避免直接修改原始引用
-  const sourceObj = JSON.parse(JSON.stringify(row))
-  console.log('克隆后的源对象:', sourceObj)
-  
-  // 重置编辑表单
-  resetEditForm()
-  
-  // 设置基本字段
-  editForm.id = sourceObj.id
-  editForm.entity = sourceObj.entity
-  
-  // 处理定位信息
-  if (sourceObj.locationInfo) {
-    if (typeof sourceObj.locationInfo === 'object') {
-      editForm.locationInfo = { 
-        row: sourceObj.locationInfo.row || '', 
-        col: sourceObj.locationInfo.col || '' 
-      }
-    } else if (typeof sourceObj.locationInfo === 'string') {
-      // 尝试解析字符串形式的定位信息
-      const locationInfo = parseLocationInfoString(sourceObj.locationInfo)
-      editForm.locationInfo = locationInfo
-    }
+  // 确保locationInfo和metadata是对象
+  const locationInfo = typeof row.locationInfo === 'object' ? row.locationInfo : { row: '', col: '' }
+  const metadata = row.metadata || {
+    dataName: '',
+    sourceUnit: '',
+    contactPerson: '',
+    contactPhone: '',
+    resourceSummary: '',
+    fieldClassification: ''
   }
   
-  // 处理元数据
-  editForm.metadata = extractMetadata(sourceObj)
-  console.log('已设置编辑表单的元数据:', editForm.metadata)
-  
-  // 处理约束条件 - 同时处理单个字段和约束数组
-  editForm.constraint = []
-  
-  // 先处理前端单独字段
-  if (sourceObj.formatConstraint) {
-    editForm.formatConstraint = sourceObj.formatConstraint
-    if (!editForm.constraint.includes(`格式约束:${sourceObj.formatConstraint}`)) {
-      editForm.constraint.push(`格式约束:${sourceObj.formatConstraint}`)
-    }
+  // 确保classificationLevel是对象
+  const classificationLevel = row.classificationLevel || {
+    classification: '',
+    level: ''
   }
   
-  if (sourceObj.accessConstraint) {
-    editForm.accessConstraint = sourceObj.accessConstraint
-    if (!editForm.constraint.includes(`访问权限:${sourceObj.accessConstraint}`)) {
-      editForm.constraint.push(`访问权限:${sourceObj.accessConstraint}`)
-    }
-  }
+  // 填充编辑表单
+  editForm.id = row.id
+  editForm.entity = row.entity
+  editForm.locationInfo = locationInfo
+  editForm.formatConstraint = row.formatConstraint || ''
+  editForm.accessConstraint = row.accessConstraint || ''
+  editForm.pathConstraint = row.pathConstraint || ''
+  editForm.regionConstraint = row.regionConstraint || ''
+  editForm.shareConstraint = row.shareConstraint || ''
+  editForm.transferControl = Array.isArray(row.transferControl) ? [...row.transferControl] : [row.transferControl]
+  editForm.classificationLevel = classificationLevel
+  editForm.metadata = metadata
   
-  if (sourceObj.pathConstraint) {
-    editForm.pathConstraint = sourceObj.pathConstraint
-    if (!editForm.constraint.includes(`传输路径约束:${sourceObj.pathConstraint}`)) {
-      editForm.constraint.push(`传输路径约束:${sourceObj.pathConstraint}`)
-    }
-  }
-  
-  if (sourceObj.regionConstraint) {
-    editForm.regionConstraint = sourceObj.regionConstraint
-    if (!editForm.constraint.includes(`地域性约束:${sourceObj.regionConstraint}`)) {
-      editForm.constraint.push(`地域性约束:${sourceObj.regionConstraint}`)
-    }
-  }
-  
-  if (sourceObj.shareConstraint) {
-    editForm.shareConstraint = sourceObj.shareConstraint
-    if (!editForm.constraint.includes(`共享约束:${sourceObj.shareConstraint}`)) {
-      editForm.constraint.push(`共享约束:${sourceObj.shareConstraint}`)
-    }
-  }
-  
-  // 处理约束条件数组
-  if (sourceObj.constraint) {
-    if (Array.isArray(sourceObj.constraint)) {
-      // 将所有约束条件添加到数组
-      sourceObj.constraint.forEach(constraint => {
-        if (!editForm.constraint.includes(constraint)) {
-          editForm.constraint.push(constraint)
-        }
-        
-        // 同时更新相应的单独字段
-        if (constraint.includes('格式约束:')) {
-          editForm.formatConstraint = constraint.split(':')[1]
-        } else if (constraint.includes('访问权限:')) {
-          editForm.accessConstraint = constraint.split(':')[1]
-        } else if (constraint.includes('传输路径约束:')) {
-          editForm.pathConstraint = constraint.split(':')[1]
-        } else if (constraint.includes('地域性约束:')) {
-          editForm.regionConstraint = constraint.split(':')[1]
-        } else if (constraint.includes('共享约束:')) {
-          editForm.shareConstraint = constraint.split(':')[1]
-        }
-      })
-    } else if (typeof sourceObj.constraint === 'string') {
-      const constraint = sourceObj.constraint
-      if (!editForm.constraint.includes(constraint)) {
-        editForm.constraint.push(constraint)
-      }
-      
-      // 处理单个约束字符串
-      if (constraint.includes('格式约束:')) {
-        editForm.formatConstraint = constraint.split(':')[1]
-      } else if (constraint.includes('访问权限:')) {
-        editForm.accessConstraint = constraint.split(':')[1]
-      } else if (constraint.includes('传输路径约束:')) {
-        editForm.pathConstraint = constraint.split(':')[1]
-      } else if (constraint.includes('地域性约束:')) {
-        editForm.regionConstraint = constraint.split(':')[1]
-      } else if (constraint.includes('共享约束:')) {
-        editForm.shareConstraint = constraint.split(':')[1]
-      }
-    }
-  }
-  
-  // 处理传输控制操作
-  if (sourceObj.transferControl) {
-    editForm.transferControl = Array.isArray(sourceObj.transferControl) ? 
-      sourceObj.transferControl : [sourceObj.transferControl]
-  } else {
-    editForm.transferControl = []
-  }
-  
-  // 确保传输控制为数组
-  if (!Array.isArray(editForm.transferControl)) {
-    editForm.transferControl = []
-  }
-  
-  // 检查传播控制对象（如果存在）
-  if (sourceObj.propagationControl) {
-    if (sourceObj.propagationControl.canRead && !editForm.transferControl.includes('可读')) {
-      editForm.transferControl.push('可读')
-    }
-    if (sourceObj.propagationControl.canModify && !editForm.transferControl.includes('可修改')) {
-      editForm.transferControl.push('可修改')
-    }
-    if (sourceObj.propagationControl.canDestroy && !editForm.transferControl.includes('可销毁')) {
-      editForm.transferControl.push('可销毁')
-    }
-    if (sourceObj.propagationControl.canShare && !editForm.transferControl.includes('可共享')) {
-      editForm.transferControl.push('可共享')
-    }
-    if (sourceObj.propagationControl.canDelegate && !editForm.transferControl.includes('可委托')) {
-      editForm.transferControl.push('可委托')
-    }
-  }
-  
-  // 设置状态和反馈
-  editForm.status = sourceObj.status || ''
-  editForm.feedback = sourceObj.feedback || ''
-  
-  // 设置审计信息
-  editForm.auditInfo = sourceObj.auditInfo || ''
-  
-  // 设置Excel数据
-  editForm.excelData = sourceObj.excelData || null
-  
-  // 设置dataItems数组
-  editForm.dataItems = sourceObj.dataItems || []
-  
-  // 处理dataContent字段
-  if (sourceObj.dataContent) {
-    try {
-      let contentObj;
-      
-      // 处理dataContent是字符串的情况
-      if (typeof sourceObj.dataContent === 'string') {
-        // 尝试解析JSON字符串
-        try {
-          contentObj = JSON.parse(sourceObj.dataContent);
-        } catch (jsonError) {
-          console.warn(`JSON解析失败: ${jsonError}，尝试正则提取`);
-          
-          // 如果JSON解析失败，尝试用正则表达式提取feedback
-          const feedbackMatch = sourceObj.dataContent.match(/"feedback"\s*:\s*"([^"]*)"/);
-          if (feedbackMatch && feedbackMatch[1]) {
-            editForm.feedback = feedbackMatch[1];
-            console.log(`通过正则提取到feedback: ${editForm.feedback}`);
-          }
-          
-          // 尝试提取status
-          const statusMatch = sourceObj.dataContent.match(/"status"\s*:\s*"([^"]*)"/);
-          if (statusMatch && statusMatch[1]) {
-            editForm.status = statusMatch[1];
-            console.log(`通过正则提取到status: ${editForm.status}`);
-          }
-        }
-      } else {
-        contentObj = sourceObj.dataContent;
-      }
-      
-      if (contentObj) {
-        console.log(`处理数据项 ${sourceObj.entity} 的dataContent:`, contentObj);
-        
-        // 直接更新status，不管它是什么值
-        if (contentObj.status) {
-          editForm.status = contentObj.status;
-          console.log(`从dataContent提取状态: ${sourceObj.entity} - ${editForm.status}`);
-        }
-        
-        // 查找反馈意见 - 不管status是什么值都提取feedback
-        if (contentObj.feedback) {
-          editForm.feedback = contentObj.feedback;
-          console.log(`从dataContent直接提取反馈信息: ${sourceObj.entity} - ${editForm.feedback}`);
-        } else if (contentObj.data && contentObj.data.feedback) {
-          editForm.feedback = contentObj.data.feedback;
-          console.log(`从dataContent.data提取反馈信息: ${sourceObj.entity} - ${editForm.feedback}`);
-        }
-        
-        // 提取dataItems如果存在
-        if (contentObj.dataItems && Array.isArray(contentObj.dataItems)) {
-          editForm.dataItems = contentObj.dataItems;
-          console.log(`从dataContent提取数据项: ${sourceObj.entity} - ${contentObj.dataItems.length}项`);
-        }
-      }
-    } catch (e) {
-      console.warn(`解析 ${sourceObj.entity} 的dataContent失败:`, e);
-    }
-  }
-  
-  console.log('最终编辑表单数据:', JSON.stringify(editForm))
-  
-  // 显示编辑对话框
   editDialogVisible.value = true
 }
 

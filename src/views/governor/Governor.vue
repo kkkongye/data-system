@@ -59,13 +59,13 @@
                 v-else
                 :data="filteredTableData"
                 style="width: 100%"
-                :cell-style="{ padding: '8px 0', textAlign: 'center' }"
-                :header-cell-style="{ padding: '10px 0', background: '#f5f7fa', color: '#606266', fontWeight: 'bold', textAlign: 'center' }"
+                :cell-style="{ padding: '5px 2px', textAlign: 'center' }"
+                :header-cell-style="{ padding: '8px 0', background: '#f5f7fa', color: '#606266', fontWeight: 'bold', textAlign: 'center' }"
                 border
                 height="100%"
                 fit
               >
-                <el-table-column prop="id" label="ID" width="400" align="center">
+                <el-table-column prop="id" label="ID" width="180" align="center">
                   <template #default="scope">
                     <div class="id-cell">{{ scope.row.id }}</div>
                   </template>
@@ -75,8 +75,8 @@
                     <el-link type="primary" @click="previewEntity(scope.row)">{{ scope.row.entity }}</el-link>
                   </template>
                 </el-table-column>
-                <el-table-column prop="locationInfo" label="定位信息" min-width="150" align="center" />
-                <el-table-column prop="constraint" label="约束条件" min-width="250" align="center">
+                <el-table-column prop="locationInfo" label="定位信息" width="100" align="center" />
+                <el-table-column prop="constraint" label="约束条件" min-width="350" align="center">
                   <template #default="scope">
                     <div class="constraint-container">
                       <template v-if="scope.row.constraint && scope.row.constraint.length">
@@ -118,6 +118,26 @@
                         </el-tag>
                       </template>
                       <template v-else>-</template>
+                    </div>
+                  </template>
+                </el-table-column>
+                <!-- 新添加的分类分级值列 -->
+                <el-table-column prop="classificationLevel" label="分类分级值" min-width="150" align="center">
+                  <template #default="scope">
+                    <div class="classification-level-container">
+                      <template v-if="scope.row.classificationLevel">
+                        <div class="classification-item">
+                          <el-tag size="small" type="success" effect="plain" class="classification-tag">
+                            {{ scope.row.classificationLevel.classification || '未分类' }}
+                          </el-tag>
+                          <el-tag size="small" type="warning" effect="plain" class="classification-tag">
+                            {{ scope.row.classificationLevel.level || '未分级' }}
+                          </el-tag>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <el-tag size="small" type="info" effect="plain">未设置</el-tag>
+                      </template>
                     </div>
                   </template>
                 </el-table-column>
@@ -227,6 +247,13 @@
           <span class="info-item"><strong>定位信息：</strong>{{ previewForm.locationInfo }}</span>
           <span class="info-item constraint-info" :title="Array.isArray(previewForm.constraint) ? previewForm.constraint.join(', ') : previewForm.constraint"><strong>约束条件：</strong>{{ Array.isArray(previewForm.constraint) ? previewForm.constraint.join(', ') : previewForm.constraint }}</span>
           <span class="info-item"><strong>传输控制操作：</strong>{{ Array.isArray(previewForm.transferControl) ? previewForm.transferControl.join(', ') : previewForm.transferControl }}</span>
+          <span class="info-item"><strong>分类分级值：</strong>
+            <template v-if="previewForm.classificationLevel">
+              <el-tag size="small" type="success" effect="plain" style="margin-right: 5px;">{{ previewForm.classificationLevel.classification || '未分类' }}</el-tag>
+              <el-tag size="small" type="warning" effect="plain">{{ previewForm.classificationLevel.level || '未分级' }}</el-tag>
+            </template>
+            <template v-else>未设置</template>
+          </span>
           <span class="info-item"><strong>状态：</strong>{{ previewForm.status }}</span>
         </div>
         <!-- 添加元数据信息显示 -->
@@ -1005,19 +1032,19 @@ const showReportDialog = () => {
 .content-card {
   background-color: #ffffff;
   border-radius: 4px;
-  padding: 16px;
+  padding: 12px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-  height: calc(100vh - 92px);
   width: 100%;
   box-sizing: border-box;
+  height: calc(100vh - 92px);
   overflow: auto;
 }
 
 /* 状态筛选按钮区域 */
 .status-filter {
   display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .status-btn {
@@ -1033,7 +1060,7 @@ const showReportDialog = () => {
 .action-bar {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .search-input {
@@ -1047,13 +1074,39 @@ const showReportDialog = () => {
 
 /* 表格容器区域 */
 .table-container {
-  margin-bottom: 16px;
-  height: calc(100vh - 340px);
+  margin-top: 20px;
+  height: calc(100vh - 380px);
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+}
+
+/* 表格内间距调整 */
+:deep(.el-table .cell) {
+  padding: 5px 2px;
+}
+
+/* 表格行高 */
+:deep(.el-table__row) {
+  height: 45px;
+}
+
+/* 表格头部样式 */
+:deep(.el-table__header th) {
+  background-color: #f5f7fa !important;
+  color: #606266;
+  font-weight: 600;
+  height: 40px;
+}
+
+/* 调整表格表头和单元格对齐方式 */
+:deep(.el-table th.el-table__cell) {
+  text-align: center !important;
+}
+
+:deep(.el-table td.el-table__cell) {
+  text-align: center !important;
 }
 
 /* 状态标签样式 */
@@ -1475,5 +1528,26 @@ const showReportDialog = () => {
 
 .control-tag {
   margin: 2px 5px;
+}
+
+/* 新添加的分类分级值列样式 */
+.classification-level-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.classification-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.classification-tag {
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 4px;
 }
 </style> 
