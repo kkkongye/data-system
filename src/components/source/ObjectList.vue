@@ -183,9 +183,6 @@
                   </el-tag>
                 </div>
               </template>
-              <template v-else>
-                <el-tag size="small" type="info" effect="plain">未设置</el-tag>
-              </template>
             </div>
           </template>
         </el-table-column>

@@ -252,7 +252,7 @@
               <el-tag size="small" type="success" effect="plain" style="margin-right: 5px;">{{ previewForm.classificationLevel.classification || '未分类' }}</el-tag>
               <el-tag size="small" type="warning" effect="plain">{{ previewForm.classificationLevel.level || '未分级' }}</el-tag>
             </template>
-            <template v-else>未设置</template>
+            <!-- <template v-else>未设置</template> -->
           </span>
           <span class="info-item"><strong>状态：</strong>{{ previewForm.status }}</span>
         </div>
