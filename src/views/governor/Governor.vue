@@ -276,7 +276,7 @@
   </el-dialog>
 
   <!-- 审核报告弹窗 -->
-  <ReviewReport v-model:visible="reportDialogVisible" />
+  <ReviewReport v-model:visible="reportDialogVisible" :current-entity-type="currentEntityType" />
 </template>
 
 <script setup>
@@ -441,10 +441,13 @@ const updateStatus = async (row, newStatus) => {
   // 本地模式标志，改为true以避免调用后端API
   const localModeOnly = true; // 设置为true表示只在本地更新，避免API错误
   
-  // 特殊处理"库存管理"实体的审查功能
-  if (newStatus === '审查中' && row.entity === '库存管理') {
+  // 特殊处理"库存管理"和"销售订单"实体的审查功能
+  if (newStatus === '审查中' && (row.entity === '库存管理' || row.entity === '销售订单')) {
     try {
-      // 直接打开报告对话框，不显示加载提示
+      // 设置当前实体类型，用于选择报告接口
+      currentEntityType.value = row.entity;
+      
+      // 直接打开报告对话框
       reportDialogVisible.value = true;
       
       // 更新UI中的状态
@@ -967,6 +970,7 @@ const getCurrentDateTime = () => {
 
 // 审核报告弹窗
 const reportDialogVisible = ref(false)
+const currentEntityType = ref('')
 
 // 显示审核报告
 const showReportDialog = () => {
