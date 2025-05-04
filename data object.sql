@@ -94,3 +94,12 @@ INSERT INTO data_objects (
     NOW(),
     NOW()
 );
+
+
+ALTER TABLE data_objects ADD COLUMN db_grade DOUBLE;
+
+ALTER TABLE data_objects ADD COLUMN table_grade DOUBLE;
+
+ALTER TABLE data_objects ADD COLUMN row_grades TEXT;
+
+ALTER TABLE data_objects ADD COLUMN column_grades TEXT;
