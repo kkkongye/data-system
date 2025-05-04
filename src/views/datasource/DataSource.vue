@@ -3,6 +3,14 @@
     <!-- 头部导航 -->
     <AppHeader role-name="数源方" @logout="logout" />
     
+    <!-- 加载指示器 -->
+    <el-loading 
+      v-model:visible="loading" 
+      background="rgba(255, 255, 255, 0.7)"
+      text="正在加载中..."
+      fullscreen
+    />
+    
     <!-- API错误提示 -->
     <div v-if="apiErrorVisible" class="api-error-alert">
       <el-alert
@@ -53,6 +61,7 @@
               @preview="previewEntity"
               @create="showCreateDialog"
               @export="handleExport"
+              @generate-classification-level="handleGenerateClassificationLevel"
             />
           </el-tab-pane>
         </el-tabs>
@@ -62,11 +71,17 @@
   
   <!-- 使用Element Plus直接实现的编辑对话框 -->
   <el-dialog
-    v-model="editDialogVisible"
+    :model-value="editDialogVisible"
     title="编辑数字对象"
     width="40%"
     :close-on-click-modal="false"
-    draggable
+    :append-to-body="true"
+    :modal="true"
+    :lock-scroll="true"
+    :fullscreen="false"
+    :destroy-on-close="false"
+    @close="editDialogVisible = false"
+    @open="handleDialogOpen"
   >
     <el-form :model="editForm" label-width="150px" ref="editFormRef" :rules="formRules">
       <el-form-item label="ID：" v-if="editForm.id !== undefined && editForm.id !== null">
@@ -187,23 +202,7 @@
         </el-select>
       </el-form-item>
       
-      <!-- 新增分类分级值字段 -->
-      <el-form-item label="分类分级值：">
-        <div style="display: flex; gap: 10px; width: 300px;">
-          <el-select v-model="editForm.classificationLevel.classification" placeholder="请选择分类" style="flex: 1;">
-            <el-option label="公开" value="公开"></el-option>
-            <el-option label="内部" value="内部"></el-option>
-            <el-option label="秘密" value="秘密"></el-option>
-            <el-option label="机密" value="机密"></el-option>
-            <el-option label="绝密" value="绝密"></el-option>
-          </el-select>
-          <el-select v-model="editForm.classificationLevel.level" placeholder="请选择分级" style="flex: 1;">
-            <el-option label="低" value="低"></el-option>
-            <el-option label="中" value="中"></el-option>
-            <el-option label="高" value="高"></el-option>
-          </el-select>
-        </div>
-      </el-form-item>
+      <!-- 分类分级值字段已移除，使用专门的生成分类分级值按钮处理 -->
     </el-form>
     
     <template #footer>
@@ -282,12 +281,15 @@
     </template>
   </el-dialog>
 
-  <!-- 添加调试指示器 -->
-  <div v-if="showDebugTools" class="debug-dialog-status">
-    <p>编辑对话框状态: {{ editDialogVisible ? '可见' : '隐藏' }}</p>
-    <p>编辑ID: {{ currentEditId || '无' }}</p>
-    <el-button @click="testEditDialog">测试打开编辑对话框</el-button>
-  </div>
+  <!-- 分类分级值对话框 -->
+  <ClassificationLevelDialog
+    :visible="classificationLevelDialogVisible"
+    :existing-data="currentClassificationData"
+    :append-to-body="true"
+    :destroy-on-close="false"
+    @update:visible="val => classificationLevelDialogVisible = val"
+    @confirm="handleClassificationLevelConfirm"
+  />
 
 </template>
 
@@ -302,6 +304,7 @@ import CreateObjectDialog from '@/components/source/CreateObjectDialog.vue'
 import ObjectList from '@/components/source/ObjectList.vue'
 import AppHeader from '@/components/AppHeader.vue'
 import CommonPagination from '@/components/CommonPagination.vue'
+import ClassificationLevelDialog from '@/components/source/ClassificationLevelDialog.vue'
 import dataObjectService from '@/services/dataObjectService'
 import axios from 'axios'
 import { API_URL, axiosInstance, testApiConnection } from '@/services/apiConfig'
@@ -322,8 +325,14 @@ const isQualifiedStatus = computed(() => currentStatus.value === '已合格')
 const editDialogVisible = ref(false)
 // 新建对话框可见性
 const createDialogVisible = ref(false)
+// 分类分级值对话框可见性
+const classificationLevelDialogVisible = ref(false)
 // 当前编辑的对象ID
 const currentEditId = ref('') 
+// 当前操作的数据对象
+const currentDataObject = ref(null)
+// 当前分类分级数据
+const currentClassificationData = ref({})
 
 // 为元数据字段创建单独的响应式引用
 const metadataDataName = ref('')
@@ -371,6 +380,13 @@ const editingIndex = ref(-1)
 // 表单引用
 const editFormRef = ref(null)
 const createFormRef = ref(null)
+
+// 加载状态
+const loading = ref(false)
+const showDebugTools = ref(false)
+
+// 存储原始编辑数据
+let originalEditData = null
 
 // 表格数据 - 从共享服务获取
 const tableData = ref(dataObjectService.getAllDataObjects())
@@ -445,6 +461,11 @@ const handleSelectionChange = (rows) => {
   selectedRows.value = rows
 }
 
+// 处理对话框打开事件
+const handleDialogOpen = () => {
+  console.log('对话框打开事件触发')
+}
+
 // 编辑指定的对象
 const handleEdit = (row) => {
   console.log('编辑行:', row)
@@ -481,7 +502,15 @@ const handleEdit = (row) => {
   editForm.classificationLevel = classificationLevel
   editForm.metadata = metadata
   
+  console.log('正在打开编辑对话框')
   editDialogVisible.value = true
+  console.log('编辑对话框可见性设置为:', editDialogVisible.value)
+  
+  // 使用全局弹窗提示用户
+  ElMessage.info({
+    message: '正在打开编辑对话框...',
+    duration: 1500
+  })
 }
 
 // 取消编辑
@@ -496,124 +525,168 @@ const saveEditObject = async (updatedObject) => {
   console.log('保存编辑对象:', updatedObject)
   const objectId = updatedObject.id
   
-  try {
-    // 修复位置信息
-    if (updatedObject.locationInfo) {
-      if (typeof updatedObject.locationInfo === 'object' && 
-          (updatedObject.locationInfo.row === undefined || updatedObject.locationInfo.col === undefined)) {
-        updatedObject.locationInfo = {
-          row: '',
-          col: ''
+  return new Promise(async (resolve, reject) => {
+    try {
+      // 修复位置信息
+      if (updatedObject.locationInfo) {
+        if (typeof updatedObject.locationInfo === 'object' && 
+            (updatedObject.locationInfo.row === undefined || updatedObject.locationInfo.col === undefined)) {
+          updatedObject.locationInfo = {
+            row: '',
+            col: ''
+          }
         }
       }
-    }
-    
-    // 修复元数据
-    if (!updatedObject.metadata) {
-      updatedObject.metadata = createDefaultMetadata(updatedObject.entity)
-    }
-    
-    // 构建数据内容
-    let dataContent = {}
-    try {
-      // 尝试解析现有的dataContent
-      if (typeof updatedObject.dataContent === 'string') {
-        dataContent = JSON.parse(updatedObject.dataContent)
-      } else if (updatedObject.dataContent) {
-        dataContent = updatedObject.dataContent
+      
+      // 修复元数据
+      if (!updatedObject.metadata) {
+        updatedObject.metadata = createDefaultMetadata(updatedObject.entity)
       }
-    } catch (e) {
-      console.warn('解析现有dataContent失败，创建新对象', e)
-      dataContent = {}
-    }
-    
-    // 更新dataContent
-    dataContent.entity = updatedObject.entity
-    dataContent.status = updatedObject.status
-    dataContent.feedback = updatedObject.feedback
-    
-    // 保留dataItems
-    if (updatedObject.dataItems) {
-      dataContent.dataItems = updatedObject.dataItems
-    }
-    
-    // 如果元数据存在，添加到dataContent
-    if (updatedObject.metadata) {
-      dataContent.metadata = updatedObject.metadata
-    }
-    
-    // 将dataContent转为字符串
-    updatedObject.dataContent = JSON.stringify(dataContent)
-    
-    // 创建约束条件数组
-    if (!Array.isArray(updatedObject.constraint)) {
-      updatedObject.constraint = []
-    }
-    
-    if (updatedObject.formatConstraint && !updatedObject.constraint.includes(`格式约束:${updatedObject.formatConstraint}`)) {
-      updatedObject.constraint.push(`格式约束:${updatedObject.formatConstraint}`)
-    }
-    
-    if (updatedObject.accessConstraint && !updatedObject.constraint.includes(`访问权限:${updatedObject.accessConstraint}`)) {
-      updatedObject.constraint.push(`访问权限:${updatedObject.accessConstraint}`)
-    }
-    
-    if (updatedObject.pathConstraint && !updatedObject.constraint.includes(`传输路径约束:${updatedObject.pathConstraint}`)) {
-      updatedObject.constraint.push(`传输路径约束:${updatedObject.pathConstraint}`)
-    }
-    
-    if (updatedObject.regionConstraint && !updatedObject.constraint.includes(`地域性约束:${updatedObject.regionConstraint}`)) {
-      updatedObject.constraint.push(`地域性约束:${updatedObject.regionConstraint}`)
-    }
-    
-    if (updatedObject.shareConstraint && !updatedObject.constraint.includes(`共享约束:${updatedObject.shareConstraint}`)) {
-      updatedObject.constraint.push(`共享约束:${updatedObject.shareConstraint}`)
-    }
-    
-    // 确保传输控制为数组
-    if (!Array.isArray(updatedObject.transferControl)) {
-      updatedObject.transferControl = []
-    }
-    
-    console.log('处理后的更新对象:', JSON.stringify(updatedObject))
-    
-    // 尝试通过API保存
-    ElMessage.info('正在向后端保存数据...')
-    const result = await dataObjectService.updateDataObjectViaApi(objectId, updatedObject)
-    
-    if (result) {
-      ElMessage.success(`已保存更改: ${updatedObject.entity}`)
       
-      // 刷新数据列表
-      refreshData()
-    } else {
-      // 即使API保存失败，我们也更新本地数据并显示成功消息
-      dataObjectService.updateDataObject(updatedObject)
-      ElMessage({
-        message: `已在本地保存: ${updatedObject.entity}，服务器保存失败`,
-        type: 'warning',
-        duration: 3000
-      })
+      // 构建数据内容
+      let dataContent = {}
+      try {
+        // 尝试解析现有的dataContent
+        if (typeof updatedObject.dataContent === 'string') {
+          dataContent = JSON.parse(updatedObject.dataContent)
+        } else if (updatedObject.dataContent) {
+          dataContent = updatedObject.dataContent
+        }
+      } catch (e) {
+        console.warn('解析现有dataContent失败，创建新对象', e)
+        dataContent = {}
+      }
       
-      // 仍然刷新数据
-      refreshData()
+      // 更新dataContent
+      dataContent.entity = updatedObject.entity
+      dataContent.status = updatedObject.status
+      dataContent.feedback = updatedObject.feedback
+      
+      // 保留dataItems
+      if (updatedObject.dataItems) {
+        dataContent.dataItems = updatedObject.dataItems
+      }
+      
+      // 如果元数据存在，添加到dataContent
+      if (updatedObject.metadata) {
+        dataContent.metadata = updatedObject.metadata
+      }
+      
+      // 将dataContent转为字符串
+      updatedObject.dataContent = JSON.stringify(dataContent)
+      
+      // 创建约束条件数组
+      if (!Array.isArray(updatedObject.constraint)) {
+        updatedObject.constraint = []
+      }
+      
+      if (updatedObject.formatConstraint && !updatedObject.constraint.includes(`格式约束:${updatedObject.formatConstraint}`)) {
+        updatedObject.constraint.push(`格式约束:${updatedObject.formatConstraint}`)
+      }
+      
+      if (updatedObject.accessConstraint && !updatedObject.constraint.includes(`访问权限:${updatedObject.accessConstraint}`)) {
+        updatedObject.constraint.push(`访问权限:${updatedObject.accessConstraint}`)
+      }
+      
+      if (updatedObject.pathConstraint && !updatedObject.constraint.includes(`传输路径约束:${updatedObject.pathConstraint}`)) {
+        updatedObject.constraint.push(`传输路径约束:${updatedObject.pathConstraint}`)
+      }
+      
+      if (updatedObject.regionConstraint && !updatedObject.constraint.includes(`地域性约束:${updatedObject.regionConstraint}`)) {
+        updatedObject.constraint.push(`地域性约束:${updatedObject.regionConstraint}`)
+      }
+      
+      if (updatedObject.shareConstraint && !updatedObject.constraint.includes(`共享约束:${updatedObject.shareConstraint}`)) {
+        updatedObject.constraint.push(`共享约束:${updatedObject.shareConstraint}`)
+      }
+      
+      // 确保传输控制为数组
+      if (!Array.isArray(updatedObject.transferControl)) {
+        updatedObject.transferControl = []
+      }
+      
+      console.log('处理后的更新对象:', JSON.stringify(updatedObject))
+      
+      // 尝试通过API保存
+      ElMessage.info('正在向后端保存数据...')
+      
+      // 检查API连接是否可用
+      const isApiAvailable = await testApiConnection();
+      console.log('API连接状态:', isApiAvailable ? '可用' : '不可用');
+      
+      // 如果API不可用，直接使用本地保存
+      if (!isApiAvailable) {
+        console.warn('API不可用，使用本地保存');
+        dataObjectService.updateDataObject(updatedObject);
+        ElMessage({
+          message: `已在本地保存: ${updatedObject.entity}，无法连接服务器`,
+          type: 'warning',
+          duration: 3000
+        });
+        
+        // 刷新数据
+        refreshData();
+        resolve(false);
+        return;
+      }
+      
+      try {
+        // 添加调试代码
+        console.log('开始API调用前');
+        const result = await dataObjectService.updateDataObjectViaApi(objectId, updatedObject);
+        console.log('API调用完成，结果:', result);
+        
+        if (result) {
+          ElMessage.success(`已保存更改: ${updatedObject.entity}`);
+          
+          // 刷新数据列表
+          refreshData();
+          resolve(true);
+        } else {
+          // 即使API保存失败，我们也更新本地数据并显示成功消息
+          dataObjectService.updateDataObject(updatedObject);
+          ElMessage({
+            message: `已在本地保存: ${updatedObject.entity}，服务器保存失败`,
+            type: 'warning',
+            duration: 3000
+          });
+          
+          // 仍然刷新数据
+          refreshData();
+          resolve(false);
+        }
+      } catch (apiError) {
+        console.error('API调用发生错误:', apiError);
+        // 尝试本地保存
+        dataObjectService.updateDataObject(updatedObject);
+        ElMessage({
+          message: `已在本地保存: ${updatedObject.entity}，服务器出错: ${apiError.message || '未知错误'}`,
+          type: 'warning',
+          duration: 3000
+        });
+        refreshData();
+        resolve(false);
+      }
+    } catch (error) {
+      console.error('保存编辑时出错:', error);
+      ElMessage.error(`保存编辑失败: ${error.message || '未知错误'}`);
+      
+      // 尝试在本地保存
+      try {
+        dataObjectService.updateDataObject(updatedObject);
+        ElMessage({
+          message: `已在本地保存: ${updatedObject.entity}，但服务器保存失败`,
+          type: 'warning',
+          duration: 3000
+        });
+        refreshData();
+        resolve(false);
+      } catch (localError) {
+        ElMessage.error('本地保存也失败，请稍后再试');
+        reject(localError);
+      }
     }
-  } catch (error) {
-    console.error('保存编辑时出错:', error)
-    ElMessage.error(`保存编辑失败: ${error.message || '未知错误'}`)
-    
-    // 尝试在本地保存
-    try {
-      dataObjectService.updateDataObject(updatedObject)
-      ElMessage({
-        message: `已在本地保存: ${updatedObject.entity}，但服务器保存失败`,
-        type: 'warning',
-        duration: 3000
-      })
-    } catch (localError) {
-      ElMessage.error('本地保存也失败，请稍后再试')
-    }
-  }
+  });
 }
 
 // 删除对象
@@ -1138,7 +1211,6 @@ onMounted(() => {
 const apiErrorVisible = ref(false)
 
 // 添加调试相关功能
-const showDebugTools = ref(false) // 设置为false隐藏调试工具
 const lastReceivedApiData = ref(null)
 
 // 复制调试数据到剪贴板
@@ -1305,42 +1377,68 @@ const loadTableData = () => {
 }
 
 const refreshData = async () => {
+  console.log('刷新数据')
   try {
-    ElMessage.info('正在从后端刷新数据...')
-    await dataObjectService.fetchDataObjectsFromBackend()
+    // 设置加载状态
+    loading.value = true
     
-    // 获取最后接收的API数据
-    lastReceivedApiData.value = dataObjectService.getLastReceivedApiData()
-    
-    // 处理刚刚获取的数据，确保反馈意见能够正确显示
-    processNewlyFetchedData();
-    
-    ElMessage.success('数据刷新成功')
-    
-    // 成功后隐藏错误提示
-    apiErrorVisible.value = false
-  } catch (error) {
-    console.error('刷新数据失败:', error)
-    
-    // 判断是否为跨域错误
-    const isCORSError = error.message && (
-      error.message.includes('NetworkError') || 
-      error.message.includes('Network Error') ||
-      error.message.includes('CORS') || 
-      error.message.includes('cross-origin')
-    )
-    
-    if (isCORSError) {
-      ElMessage.error('跨域请求失败，请确保后端已开启CORS支持并且服务正常运行')
-      apiErrorVisible.value = true
-    } else if (error.response && error.response.status) {
-      // 处理HTTP错误
-      ElMessage.error(`请求服务器失败: ${error.response.status} ${error.response.statusText || ''}`)
-      apiErrorVisible.value = true
-    } else {
-      ElMessage.error('刷新数据失败，请检查后端服务是否正常运行')
-      apiErrorVisible.value = true
+    // 检查API连接
+    let apiStatus = false
+    try {
+      apiStatus = await testApiConnection()
+    } catch (err) {
+      console.error('API连接测试失败:', err)
+      apiStatus = false
     }
+    apiErrorVisible.value = !apiStatus
+    
+    // 尝试使用API获取数据
+    if (apiStatus) {
+      try {
+        const result = await dataObjectService.fetchDataObjectsFromBackend()
+        if (result) {
+          tableData.value = result
+          ElMessage.success('从API加载数据成功')
+        } else {
+          throw new Error('API返回空结果')
+        }
+      } catch (err) {
+        console.error('从API获取数据失败:', err)
+        // API获取失败时使用本地数据
+        tableData.value = dataObjectService.getAllDataObjects()
+        ElMessage.warning('API获取数据失败，使用本地数据')
+      }
+    } else {
+      // API连接失败时使用本地数据
+      tableData.value = dataObjectService.getAllDataObjects()
+      console.log('API连接失败，使用本地数据')
+    }
+    
+    // 处理本地数据转换
+    tableData.value = tableData.value.map(item => {
+      // 处理传输控制操作 - 确保为数组
+      if (item.transferControl && !Array.isArray(item.transferControl)) {
+        item.transferControl = ensureArray(item.transferControl)
+      }
+      
+      // 处理约束条件 - 确保为数组
+      if (item.constraint && !Array.isArray(item.constraint)) {
+        item.constraint = ensureArray(item.constraint)
+      }
+      
+      return item
+    })
+    
+    // 更新总数量
+    totalCount.value = tableData.value.length
+  } catch (error) {
+    console.error('刷新数据出错:', error)
+    ElMessage.error(`刷新数据失败: ${error.message || '未知错误'}`)
+    // 使用本地数据作为备用
+    tableData.value = dataObjectService.getAllDataObjects()
+  } finally {
+    // 清除加载状态
+    loading.value = false
   }
 }
 
@@ -2120,6 +2218,139 @@ const handleRefreshClick = () => {
     ElMessage.success('数据刷新完成');
   }, 1000);
 }
+
+// 处理生成分类分级值
+const handleGenerateClassificationLevel = (row) => {
+  console.log('生成分类分级值:', row)
+  // 保存当前操作的数据对象，用于后续保存
+  currentDataObject.value = row
+  
+  // 准备分类分级数据，用于对话框初始化
+  currentClassificationData.value = {
+    industryCategory: '',
+    timeliness: '',
+    dataSource: '',
+    dbLevel: 0,
+    tableLevel: 0,
+    rowLevel: 0,
+    columnLevel: 0
+  }
+  
+  // 如果有现有分类分级值，进行回显
+  if (row.classificationLevel) {
+    // 尝试提取现有数据进行回显
+    if (row.classificationDetails) {
+      currentClassificationData.value = { ...row.classificationDetails }
+    }
+  }
+  
+  console.log('正在打开分类分级值对话框')
+  classificationLevelDialogVisible.value = true
+  console.log('分类分级值对话框可见性设置为:', classificationLevelDialogVisible.value)
+  
+  // 使用全局弹窗提示用户
+  ElMessage.info({
+    message: '正在打开分类分级值对话框...',
+    duration: 1500
+  })
+}
+
+// 处理分类分级值确认
+const handleClassificationLevelConfirm = (data) => {
+  console.log('确认分类分级值:', data)
+  if (!currentDataObject.value) {
+    ElMessage.error('未找到当前操作的数据对象')
+    return
+  }
+  
+  try {
+    // 更新当前数据对象的分类分级值
+    const row = currentDataObject.value
+    
+    // 更新分类分级值
+    row.classificationLevel = {
+      classification: data.classification,
+      level: data.level
+    }
+    
+    // 保存分类分级详情，用于回显
+    row.classificationDetails = {
+      industryCategory: data.industryCategory,
+      timeliness: data.timeliness,
+      dataSource: data.dataSource,
+      dbLevel: data.dbLevel,
+      tableLevel: data.tableLevel,
+      rowLevel: data.rowLevel,
+      columnLevel: data.columnLevel
+    }
+    
+    // 调用更新方法保存数据
+    saveEditObject(row)
+    
+    ElMessage.success('已更新分类分级值')
+  } catch (error) {
+    console.error('更新分类分级值错误:', error)
+    ElMessage.error('更新分类分级值失败: ' + (error.message || '未知错误'))
+  } finally {
+    // 重置当前操作对象
+    currentDataObject.value = null
+    classificationLevelDialogVisible.value = false
+  }
+}
+
+// 确保对话框正确初始化
+const ensureDialogsInitialized = () => {
+  // 如果编辑对话框不能显示，我们可以在这里添加修复逻辑
+  console.log('确保对话框初始化，当前编辑对话框状态:', editDialogVisible.value)
+  showDebugTools.value = true // 显示调试工具
+  nextTick(() => {
+    // 强制刷新对话框状态
+    editDialogVisible.value = false
+    classificationLevelDialogVisible.value = false
+    
+    // 测试创建对话框是否可以打开
+    if (!createDialogVisible.value) {
+      nextTick(() => {
+        // 监听 ESC 键的按下事件，用于关闭可能的隐藏对话框
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            // 强制关闭所有对话框
+            editDialogVisible.value = false
+            createDialogVisible.value = false 
+            classificationLevelDialogVisible.value = false
+          }
+        }, { once: true }) // 只监听一次
+      })
+    }
+  })
+}
+
+// 在组件挂载后的逻辑
+onMounted(async () => {
+  console.log('数据对象组件挂载')
+  // 刷新数据列表
+  await refreshData()
+  
+  // 增强对话框样式，确保它们显示在顶层
+  nextTick(() => {
+    // 增加对话框的z-index
+    const style = document.createElement('style')
+    style.textContent = `
+      .el-dialog__wrapper {
+        z-index: 9999 !important;
+      }
+      .el-overlay {
+        z-index: 9998 !important;
+      }
+      .el-message {
+        z-index: 10000 !important;
+      }
+    `
+    document.head.appendChild(style)
+    
+    console.log('对话框样式增强已应用')
+  })
+})
 </script>
 
 <style scoped>

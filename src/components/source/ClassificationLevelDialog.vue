@@ -4,6 +4,10 @@
     title="分类分级值"
     width="500px"
     :close-on-click-modal="false"
+    :append-to-body="true"
+    :destroy-on-close="false"
+    :modal-append-to-body="true"
+    draggable
     :before-close="handleClose"
   >
     <el-tabs v-model="activeTab" class="classification-tabs">
@@ -134,7 +138,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:visible', 'confirm']);
 
-// 对话框可见状态
+// 对话框可见状态 - 修改为直接使用prop
 const dialogVisible = computed({
   get: () => props.visible,
   set: (val) => emit('update:visible', val)
@@ -256,11 +260,9 @@ const initializeData = () => {
       levelData.value.columnLevel = props.existingData.columnLevel;
     }
     
-    // 计算总值
+    // 计算初始值
     calculateClassificationValue();
     calculateLevelValue();
-  } else {
-    resetAllSelections();
   }
 };
 
@@ -296,31 +298,57 @@ const handleClose = () => {
   dialogVisible.value = false;
 };
 
-// 处理确认按钮
+// 获取最终分类结果文本
+const getClassificationText = (value) => {
+  if (value >= 90) return '绝密';
+  if (value >= 60) return '机密';
+  if (value >= 30) return '秘密';
+  if (value > 0) return '内部';
+  return '公开';
+};
+
+// 获取最终分级结果文本
+const getLevelText = (value) => {
+  if (value >= 9) return '高';
+  if (value >= 6) return '中';
+  if (value > 0) return '低';
+  return '低';
+};
+
+// 处理确认
 const handleConfirm = () => {
-  // 根据当前激活的标签页决定返回的数据
-  let result = {};
+  // 计算最终的分类分级值
+  calculateClassificationValue();
+  calculateLevelValue();
   
-  if (activeTab.value === 'classification') {
-    result = {
-      classification: Number(totalClassificationValue.value),
-      level: Number(totalLevelValue.value) || 0,
-      industryCategory: industryCategory.value,
-      timeliness: timeliness.value,
-      dataSource: dataSource.value
-    };
-  } else {
-    result = {
-      classification: Number(totalClassificationValue.value) || 0,
-      level: Number(totalLevelValue.value),
-      dbLevel: levelData.value.dbLevel,
-      tableLevel: levelData.value.tableLevel,
-      rowLevel: levelData.value.rowLevel,
-      columnLevel: levelData.value.columnLevel
-    };
-  }
+  // 获取分类文本
+  const classification = getClassificationText(parseFloat(totalClassificationValue.value));
   
+  // 获取分级文本
+  const level = getLevelText(totalLevelValue.value);
+  
+  // 构建结果数据
+  const result = {
+    // 分类分级最终值
+    classification,
+    level,
+    // 保留原始数据用于回显
+    industryCategory: industryCategory.value,
+    timeliness: timeliness.value,
+    dataSource: dataSource.value,
+    dbLevel: levelData.value.dbLevel,
+    tableLevel: levelData.value.tableLevel,
+    rowLevel: levelData.value.rowLevel,
+    columnLevel: levelData.value.columnLevel,
+    // 计算值
+    totalClassificationValue: totalClassificationValue.value,
+    totalLevelValue: totalLevelValue.value
+  };
+  
+  // 发出确认事件
   emit('confirm', result);
+  
+  // 关闭对话框
   dialogVisible.value = false;
 };
 </script>

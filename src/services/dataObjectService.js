@@ -1293,40 +1293,69 @@ const updateDataObjectViaApi = async (id, dataObject) => {
       headers['X-CSRF-TOKEN'] = token;
     }
     
+    console.log('API请求路径:', `${API_URL}/objects/${id}`);
+    console.log('请求头信息:', headers);
+    
     // 发送PUT请求到后端
-    const response = await axiosInstance.put(`/objects/${id}`, backendData, {
-      headers,
-      withCredentials: true // 确保发送cookie
-    });
-    
-    console.log('更新数据对象API响应:', response)
-    
-    // 检查响应状态
-    if (response.status === 200 || response.status === 204) {
-      console.log('数字对象更新成功')
+    try {
+      const response = await axiosInstance.put(`/objects/${id}`, backendData, {
+        headers,
+        withCredentials: true, // 确保发送cookie
+        timeout: 30000 // 增加超时时间到30秒
+      });
       
-      // 同时更新本地数据
-      updateDataObject(dataObject)
+      console.log('更新数据对象API响应:', response);
       
-      return true
-    }
-    
-    // 处理返回的数据格式
-    if (response && response.data) {
-      if (response.data.code === 200) {
-        console.log('数字对象更新成功')
+      // 检查响应状态
+      if (response.status === 200 || response.status === 204) {
+        console.log('数字对象更新成功');
         
         // 同时更新本地数据
-        updateDataObject(dataObject)
+        updateDataObject(dataObject);
         
-        return true
+        return true;
       }
+      
+      // 处理返回的数据格式
+      if (response && response.data) {
+        if (response.data.code === 200) {
+          console.log('数字对象更新成功');
+          
+          // 同时更新本地数据
+          updateDataObject(dataObject);
+          
+          return true;
+        }
+      }
+      
+      console.warn('API返回了非预期的响应格式:', response);
+      return false;
+    } catch (apiError) {
+      console.error('API调用错误:', apiError);
+      
+      if (apiError.response) {
+        console.error('服务器返回错误状态码:', apiError.response.status);
+        console.error('错误响应数据:', apiError.response.data);
+        console.error('错误响应头:', apiError.response.headers);
+      } else if (apiError.request) {
+        console.error('请求已发送但没有收到响应:', apiError.request);
+      } else {
+        console.error('请求设置阶段出错:', apiError.message);
+      }
+      
+      if (apiError.config) {
+        console.error('请求配置信息:', {
+          url: apiError.config.url,
+          method: apiError.config.method,
+          headers: apiError.config.headers,
+          data: typeof apiError.config.data === 'string' ? apiError.config.data.substring(0, 500) + '...' : apiError.config.data
+        });
+      }
+      
+      throw apiError; // 重新抛出错误，让调用者处理
     }
-    
-    console.warn('API返回了非预期的响应格式:', response)
-    return false
   } catch (error) {
-    console.error('通过API更新数字对象失败:', error)
+    console.error('通过API更新数字对象失败:', error);
     
     // 提供更详细的错误信息
     const errorDetails = error.response 
@@ -1334,15 +1363,8 @@ const updateDataObjectViaApi = async (id, dataObject) => {
       : error.message || '网络错误';
     console.error(`详细错误信息: ${errorDetails}`);
     
-    // 尽管API调用失败，我们仍然更新本地数据
-    try {
-      updateDataObject(dataObject);
-      console.log('API更新失败，但已更新本地数据');
-    } catch (localError) {
-      console.error('本地数据更新也失败:', localError);
-    }
-    
-    return false
+    // 重新抛出异常，由调用者处理
+    throw error;
   }
 }
 

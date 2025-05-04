@@ -176,7 +176,7 @@
               <div class="classification-item">
                 <div class="classification-text">分类值：{{ scope.row.classificationLevel?.classification || '未分类' }}</div>
                 <div class="classification-text">分级值：{{ scope.row.classificationLevel?.level || '未分级' }}</div>
-                <el-button size="small" type="primary" class="generate-btn">生成分类分级值</el-button>
+                <el-button size="small" type="primary" class="generate-btn" @click="handleGenerateClassificationLevel(scope.row)">生成分类分级值</el-button>
               </div>
             </div>
           </template>
@@ -292,7 +292,8 @@ const emit = defineEmits([
   'delete',
   'preview',
   'create',
-  'export'
+  'export',
+  'generate-classification-level'
 ])
 
 // 内部状态
@@ -358,6 +359,11 @@ const handleSelectionChange = (rows) => {
 // 处理编辑
 const handleEdit = (row) => {
   emit('edit', row)
+}
+
+// 处理生成分类分级值
+const handleGenerateClassificationLevel = (row) => {
+  emit('generate-classification-level', row)
 }
 
 // 处理删除
